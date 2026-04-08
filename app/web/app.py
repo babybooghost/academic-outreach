@@ -722,18 +722,16 @@ def create_app() -> Flask:
         query = data.get("scholar_query", "").strip()
         universities = data.get("universities", [])
         field = data.get("field", "").strip()
-        department = data.get("department", "Computer Science").strip()
-        max_results = min(int(data.get("max_results", 20)), 50)
+        max_results = min(int(data.get("max_results", 25)), 50)
 
-        if not query and not universities:
-            return jsonify({"success": False, "error": "Provide a Scholar query or select universities."})
+        if not query:
+            return jsonify({"success": False, "error": "Enter a search query (e.g. 'blockchain fintech AI')."})
 
         try:
             professors, warnings = find_professors(
                 query=query,
                 universities=universities if universities else None,
                 field=field,
-                department=department,
                 max_scholar_results=max_results,
             )
 

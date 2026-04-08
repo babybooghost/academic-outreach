@@ -1051,58 +1051,53 @@ def web(port: int) -> None:
 # ---------------------------------------------------------------------------
 
 @cli.command("find")
-@click.option("--scholar", type=str, default=None, help="Google Scholar search query (e.g. 'blockchain fintech AI')")
-@click.option("--university", "-u", multiple=True, help="University to scrape (can specify multiple)")
+@click.option("--query", "-q", type=str, default=None, help="Search query (e.g. 'blockchain fintech AI')")
+@click.option("--university", "-u", multiple=True, help="Filter by university (can specify multiple)")
 @click.option("--field", type=str, default="", help="Research field to tag professors with")
-@click.option("--department", type=str, default="Computer Science", help="Department name")
-@click.option("--max-results", type=int, default=20, help="Max results from Scholar search")
-@click.option("--list-universities", is_flag=True, help="List universities with known directory URLs")
+@click.option("--max-results", type=int, default=25, help="Max results to return")
+@click.option("--list-universities", is_flag=True, help="List top universities for filtering")
 @click.option("--save/--no-save", default=True, help="Save found professors to database (default: save)")
 def find(
-    scholar: Optional[str],
+    query: Optional[str],
     university: Tuple[str, ...],
     field: str,
-    department: str,
     max_results: int,
     list_universities: bool,
     save: bool,
 ) -> None:
-    """Find professors via Google Scholar and/or university faculty directories."""
+    """Find professors via OpenAlex academic database (free, no API key needed)."""
     config: Config = _bootstrap()
     logger = get_logger(__name__)
 
     from app.finder import find_professors, list_known_universities
 
-    # Just list universities
     if list_universities:
         unis = list_known_universities()
-        table: Table = Table(title="Universities with Known Faculty Directory URLs")
+        table: Table = Table(title="Top Universities for Filtering")
         table.add_column("#", style="dim", justify="right")
         table.add_column("University", style="cyan")
         for i, u in enumerate(unis, 1):
             table.add_row(str(i), u)
         console.print(table)
-        console.print(f"\n[dim]Use: python main.py find -u \"MIT\" -u \"Stanford\" --field \"AI\"[/dim]")
+        console.print(f"\n[dim]Use: python main.py find -q \"blockchain AI\" -u \"Stanford University\"[/dim]")
         return
 
-    # Need at least one search strategy
-    if not scholar and not university:
+    if not query:
         console.print(
-            "[bold yellow]Specify at least one search strategy:[/bold yellow]\n"
-            "  [cyan]--scholar[/cyan] \"query\"     Search Google Scholar\n"
-            "  [cyan]-u[/cyan] \"University\"        Scrape faculty directory\n"
-            "  [cyan]--list-universities[/cyan]     Show known university URLs\n\n"
-            "[dim]Example: python main.py find --scholar \"blockchain fintech\" -u MIT -u Stanford[/dim]"
+            "[bold yellow]Provide a search query:[/bold yellow]\n"
+            "  [cyan]-q[/cyan] \"query\"              Search academic papers\n"
+            "  [cyan]-u[/cyan] \"University\"          Filter by university (optional)\n"
+            "  [cyan]--list-universities[/cyan]       Show top universities\n\n"
+            "[dim]Example: python main.py find -q \"blockchain fintech\" -u \"MIT\"[/dim]"
         )
         return
 
     console.print(
         Panel(
-            "[bold]Professor Finder[/bold]\n"
-            + (f"Scholar query: [cyan]{scholar}[/cyan]\n" if scholar else "")
+            "[bold]Professor Finder[/bold] (via OpenAlex)\n"
+            + f"Query: [cyan]{query}[/cyan]\n"
             + (f"Universities: [cyan]{', '.join(university)}[/cyan]\n" if university else "")
-            + (f"Field: [cyan]{field}[/cyan]\n" if field else "")
-            + f"Department: [cyan]{department}[/cyan]",
+            + (f"Field: [cyan]{field}[/cyan]\n" if field else ""),
             style="blue",
         )
     )
@@ -1112,47 +1107,40 @@ def find(
         TextColumn("[progress.description]{task.description}"),
         console=console,
     ) as progress:
-        progress.add_task("Searching for professors...", total=None)
+        progress.add_task("Searching OpenAlex academic database...", total=None)
         professors, warnings = find_professors(
-            query=scholar or "",
+            query=query,
             universities=list(university) if university else None,
             field=field,
-            department=department,
             max_scholar_results=max_results,
         )
 
-    # Show warnings
     if warnings:
         console.print("\n[bold yellow]Warnings:[/bold yellow]")
         for w in warnings:
-            console.print(f"  [yellow]⚠ {w}[/yellow]")
+            console.print(f"  [yellow]{w}[/yellow]")
 
     if not professors:
-        console.print("\n[yellow]No professors found. Try different search terms or universities.[/yellow]")
+        console.print("\n[yellow]No professors found. Try different or broader search terms.[/yellow]")
         return
 
-    # Display results
     results_table: Table = Table(title=f"Found {len(professors)} Professor(s)")
     results_table.add_column("#", style="dim", justify="right")
     results_table.add_column("Name", style="green")
     results_table.add_column("University")
-    results_table.add_column("Email", style="dim")
     results_table.add_column("Field", max_width=30)
-    results_table.add_column("Source")
+    results_table.add_column("Research", max_width=50, style="dim")
 
     for i, prof in enumerate(professors, 1):
-        source = "Scholar" if "scholar" in (prof.profile_url or "").lower() or "Scholar" in (prof.notes or "") else "Directory"
         results_table.add_row(
             str(i),
             prof.name,
             prof.university or "-",
-            prof.email or "[dim]needs lookup[/dim]",
             (prof.field or "-")[:30],
-            source,
+            (prof.research_summary or "-")[:50],
         )
     console.print(results_table)
 
-    # Save to database
     if save:
         from app.database import get_connection, upsert_professor
 
@@ -1178,7 +1166,7 @@ def find(
 
         audit_log(
             action="find_professors",
-            detail=f"Found {len(professors)} professors (scholar={scholar}, universities={list(university)}, saved={saved})",
+            detail=f"Found {len(professors)} professors (query={query}, universities={list(university)}, saved={saved})",
             db_path=config.db_path,
         )
     else:

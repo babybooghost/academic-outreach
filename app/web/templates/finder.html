@@ -4,81 +4,80 @@
 {% block content %}
 <div class="page-header">
     <h1>Professor Finder</h1>
-    <p>Discover professors via Google Scholar and university faculty directories</p>
+    <p>Search millions of academic papers to discover professors in your field</p>
 </div>
 
-<div class="grid-2">
-    <!-- Google Scholar Search -->
-    <div class="card">
-        <div class="card-header"><h3>Google Scholar Search</h3></div>
-        <div class="form-group">
-            <label for="scholar_query">Search Query</label>
-            <input type="text" id="scholar_query" placeholder="e.g. blockchain fintech AI machine learning">
-            <div class="form-hint">Keywords to search for on Google Scholar author profiles</div>
+<!-- Search Form -->
+<div class="card" style="margin-bottom:1.5rem;">
+    <div class="card-header"><h3>Search Parameters</h3></div>
+
+    <div class="form-group">
+        <label for="scholar_query">Research Topic</label>
+        <input type="text" id="scholar_query" placeholder="blockchain fintech, machine learning, cryptography, AI..." style="font-size:1rem; padding:0.75rem;">
+        <div class="form-hint">Searches the OpenAlex database of 250M+ academic works</div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:1rem;">
+        <div class="form-group" style="margin:0;">
+            <label for="field">Field Tag <span style="color:var(--ao-text-dim);">(optional)</span></label>
+            <input type="text" id="field" placeholder="e.g. Computer Science">
         </div>
-        <div class="form-group">
-            <label for="field">Research Field Tag</label>
-            <input type="text" id="field" placeholder="e.g. Computer Science, Fintech">
-            <div class="form-hint">Optional: tag found professors with this field</div>
+        <div class="form-group" style="margin:0;">
+            <label for="uni-input">Filter by University <span style="color:var(--ao-text-dim);">(optional)</span></label>
+            <input type="text" id="uni-input" placeholder="Type to search... e.g. MIT, Stanford" autocomplete="off">
+            <div id="uni-dropdown" style="display:none; position:absolute; z-index:100; background:var(--ao-surface-2); border:1px solid var(--ao-border); border-radius:var(--ao-radius-sm); max-height:200px; overflow-y:auto; width:100%; box-shadow:0 8px 24px rgba(0,0,0,0.4);"></div>
         </div>
-        <div class="form-group">
+        <div class="form-group" style="margin:0;">
             <label for="max_results">Max Results</label>
-            <input type="number" id="max_results" value="20" min="1" max="50">
+            <input type="number" id="max_results" value="25" min="5" max="50">
         </div>
     </div>
 
-    <!-- Faculty Directory Scraper -->
-    <div class="card">
-        <div class="card-header"><h3>Faculty Directories</h3></div>
-        <div class="form-group">
-            <label>Select Universities</label>
-            <div style="max-height:220px; overflow-y:auto; border:1px solid var(--ao-border); border-radius:var(--ao-radius-sm); padding:0.5rem;">
-                {% for uni in universities %}
-                <label style="display:flex; align-items:center; gap:0.5rem; padding:0.25rem 0; cursor:pointer; font-size:0.9rem;">
-                    <input type="checkbox" class="uni-checkbox" value="{{ uni }}">
-                    {{ uni }}
-                </label>
-                {% endfor %}
-            </div>
-            <div class="form-hint">Scrape CS department faculty pages from selected universities</div>
-        </div>
-        <div class="form-group">
-            <label for="department">Department</label>
-            <input type="text" id="department" value="Computer Science">
-        </div>
-    </div>
-</div>
+    <!-- Selected universities -->
+    <div id="selected-unis" style="display:flex; flex-wrap:wrap; gap:0.4rem; margin-top:0.5rem;"></div>
 
-<div style="margin-top:1rem; display:flex; gap:0.75rem; align-items:center;">
-    <button class="btn btn-primary" id="search-btn" onclick="runSearch()">Search Professors</button>
-    <span id="search-status" style="color:var(--ao-text-dim); font-size:0.9rem;"></span>
+    <!-- Quick presets -->
+    <div style="margin-top:0.75rem; display:flex; gap:0.5rem; flex-wrap:wrap;">
+        <span style="font-size:0.82rem; color:var(--ao-text-dim); padding-top:0.3rem;">Quick:</span>
+        <button class="btn btn-ghost btn-sm" onclick="addPreset('ivy')">Ivy League</button>
+        <button class="btn btn-ghost btn-sm" onclick="addPreset('top10')">Top 10 CS</button>
+        <button class="btn btn-ghost btn-sm" onclick="addPreset('uc')">UC System</button>
+        <button class="btn btn-ghost btn-sm" onclick="clearUnis()" style="color:var(--ao-danger);">Clear All</button>
+    </div>
+
+    <div style="margin-top:1.25rem; display:flex; gap:0.75rem; align-items:center;">
+        <button class="btn btn-primary" id="search-btn" onclick="runSearch()" style="min-width:180px; padding:0.7rem 1.5rem; font-size:0.95rem;">
+            Search Professors
+        </button>
+        <span id="search-status" style="color:var(--ao-text-dim); font-size:0.9rem;"></span>
+    </div>
 </div>
 
 <!-- Results -->
-<div id="results-section" style="margin-top:2rem; display:none;">
+<div id="results-section" style="display:none;">
     <div class="section">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-            <div class="section-title" id="results-title">Results</div>
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
+            <div class="section-title" id="results-title" style="margin:0;">Results</div>
             <div style="display:flex; gap:0.5rem;">
                 <button class="btn btn-outline btn-sm" onclick="selectAll()">Select All</button>
-                <button class="btn btn-outline btn-sm" onclick="selectNone()">Deselect All</button>
-                <button class="btn btn-primary btn-sm" id="save-btn" onclick="saveSelected()">Save Selected to Database</button>
+                <button class="btn btn-outline btn-sm" onclick="selectNone()">Deselect</button>
+                <button class="btn btn-primary btn-sm" id="save-btn" onclick="saveSelected()">Save to Database</button>
             </div>
         </div>
 
-        <div id="warnings-box" style="margin-bottom:1rem;"></div>
+        <div id="warnings-box" style="margin-top:0.75rem;"></div>
 
-        <div class="table-wrap">
+        <div class="table-wrap" style="margin-top:0.75rem;">
             <table>
                 <thead>
                     <tr>
-                        <th style="width:40px;"><input type="checkbox" id="select-all-cb" onchange="toggleAll(this)"></th>
+                        <th style="width:36px;"><input type="checkbox" id="select-all-cb" onchange="toggleAll(this)" checked></th>
                         <th>Name</th>
-                        <th>University</th>
-                        <th>Email</th>
+                        <th>Institution</th>
                         <th>Field</th>
-                        <th>Source</th>
-                        <th>Profile</th>
+                        <th>Notable Work</th>
+                        <th style="text-align:right;">Citations</th>
+                        <th>Link</th>
                     </tr>
                 </thead>
                 <tbody id="results-body"></tbody>
@@ -92,29 +91,97 @@
 {% block scripts %}
 <script>
 let foundProfessors = [];
+let selectedUnis = new Set();
 
+const ALL_UNIS = {{ universities | tojson }};
+
+const PRESETS = {
+    ivy: ['Columbia University','Cornell University','Harvard University','Princeton University','University of Pennsylvania','Yale University','Brown University','Dartmouth College'],
+    top10: ['MIT','Stanford University','Carnegie Mellon University','UC Berkeley','University of Illinois Urbana-Champaign','Cornell University','University of Washington','Georgia Institute of Technology','Princeton University','University of Michigan'],
+    uc: ['UC Berkeley','UCLA','University of California, San Diego','University of California, Santa Barbara','University of California, Irvine','University of California, Davis']
+};
+
+// --- University tag input ---
+const uniInput = document.getElementById('uni-input');
+const uniDropdown = document.getElementById('uni-dropdown');
+const uniInputWrapper = uniInput.parentElement;
+uniInputWrapper.style.position = 'relative';
+
+uniInput.addEventListener('input', () => {
+    const q = uniInput.value.toLowerCase().trim();
+    if (!q) { uniDropdown.style.display = 'none'; return; }
+    const matches = ALL_UNIS.filter(u => u.toLowerCase().includes(q) && !selectedUnis.has(u)).slice(0, 8);
+    if (matches.length === 0) { uniDropdown.style.display = 'none'; return; }
+    uniDropdown.innerHTML = matches.map(u =>
+        `<div style="padding:0.5rem 0.75rem; cursor:pointer; font-size:0.9rem; border-bottom:1px solid var(--ao-border);"
+              onmouseover="this.style.background='var(--ao-surface-3)'"
+              onmouseout="this.style.background=''"
+              onclick="addUni('${u.replace(/'/g, "\\'")}')">${u}</div>`
+    ).join('');
+    uniDropdown.style.display = 'block';
+});
+
+uniInput.addEventListener('blur', () => { setTimeout(() => uniDropdown.style.display = 'none', 200); });
+uniInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        const q = uniInput.value.trim();
+        const match = ALL_UNIS.find(u => u.toLowerCase() === q.toLowerCase());
+        if (match) addUni(match);
+    }
+});
+
+function addUni(name) {
+    selectedUnis.add(name);
+    uniInput.value = '';
+    uniDropdown.style.display = 'none';
+    renderUniTags();
+}
+
+function removeUni(name) {
+    selectedUnis.delete(name);
+    renderUniTags();
+}
+
+function renderUniTags() {
+    const container = document.getElementById('selected-unis');
+    container.innerHTML = Array.from(selectedUnis).map(u =>
+        `<span style="display:inline-flex; align-items:center; gap:0.3rem; background:var(--ao-primary); color:#fff; padding:0.25rem 0.6rem; border-radius:20px; font-size:0.82rem; font-weight:500;">
+            ${u}
+            <span onclick="removeUni('${u.replace(/'/g, "\\'")}')" style="cursor:pointer; opacity:0.7; font-size:1.1rem; line-height:1;">&times;</span>
+        </span>`
+    ).join('');
+}
+
+function addPreset(key) {
+    (PRESETS[key] || []).forEach(u => selectedUnis.add(u));
+    renderUniTags();
+}
+
+function clearUnis() {
+    selectedUnis.clear();
+    renderUniTags();
+}
+
+// --- Search ---
 async function runSearch() {
     const btn = document.getElementById('search-btn');
     const status = document.getElementById('search-status');
-    btn.disabled = true;
-    btn.textContent = 'Searching...';
-    status.textContent = 'This may take a moment (web scraping is polite)...';
-
     const query = document.getElementById('scholar_query').value.trim();
-    const field = document.getElementById('field').value.trim();
-    const department = document.getElementById('department').value.trim();
-    const maxResults = parseInt(document.getElementById('max_results').value) || 20;
 
-    const checkboxes = document.querySelectorAll('.uni-checkbox:checked');
-    const universities = Array.from(checkboxes).map(cb => cb.value);
-
-    if (!query && universities.length === 0) {
-        status.textContent = 'Enter a Scholar query or select universities.';
+    if (!query) {
+        status.textContent = 'Enter a research topic to search for.';
         status.style.color = 'var(--ao-danger)';
-        btn.disabled = false;
-        btn.textContent = 'Search Professors';
         return;
     }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:0.4rem;">Searching<span class="dot-pulse"></span></span>';
+    status.textContent = 'Querying academic database...';
+    status.style.color = 'var(--ao-text-dim)';
+
+    const field = document.getElementById('field').value.trim();
+    const maxResults = parseInt(document.getElementById('max_results').value) || 25;
 
     try {
         const res = await fetch('/finder/search', {
@@ -122,9 +189,8 @@ async function runSearch() {
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
                 scholar_query: query,
-                universities: universities,
+                universities: Array.from(selectedUnis),
                 field: field,
-                department: department || 'Computer Science',
                 max_results: maxResults,
             }),
         });
@@ -133,8 +199,10 @@ async function runSearch() {
         if (data.success) {
             foundProfessors = data.professors;
             renderResults(data.professors, data.warnings);
-            status.textContent = `Found ${data.count} professor(s).`;
-            status.style.color = 'var(--ao-success)';
+            status.textContent = data.count > 0
+                ? `Found ${data.count} professor(s), sorted by citation impact.`
+                : 'No results. Try broader keywords or remove university filters.';
+            status.style.color = data.count > 0 ? 'var(--ao-success)' : 'var(--ao-text-dim)';
         } else {
             status.textContent = data.error || 'Search failed.';
             status.style.color = 'var(--ao-danger)';
@@ -149,69 +217,51 @@ async function runSearch() {
 }
 
 function renderResults(professors, warnings) {
-    const section = document.getElementById('results-section');
-    const title = document.getElementById('results-title');
-    const body = document.getElementById('results-body');
+    document.getElementById('results-section').style.display = professors.length > 0 ? 'block' : 'none';
+    document.getElementById('results-title').textContent = `Results (${professors.length})`;
+
     const warningsBox = document.getElementById('warnings-box');
+    warningsBox.innerHTML = (warnings || []).map(w =>
+        '<div class="flash-msg flash-warning" style="margin-bottom:0.4rem;">' + esc(w) + '</div>'
+    ).join('');
 
-    section.style.display = 'block';
-    title.textContent = `Results (${professors.length})`;
-
-    // Warnings
-    if (warnings && warnings.length > 0) {
-        warningsBox.innerHTML = warnings.map(w =>
-            '<div class="flash-msg flash-warning" style="margin-bottom:0.5rem;">' + w + '</div>'
-        ).join('');
-    } else {
-        warningsBox.innerHTML = '';
-    }
-
-    // Table rows
+    const body = document.getElementById('results-body');
     body.innerHTML = '';
-    professors.forEach((prof, idx) => {
-        const tr = document.createElement('tr');
-        const emailDisplay = prof.email
-            ? prof.email
-            : '<span style="color:var(--ao-text-dim); font-size:0.82rem;">needs lookup</span>';
-        const profileLink = prof.profile_url
-            ? `<a href="${prof.profile_url}" target="_blank" style="color:var(--ao-accent);">View</a>`
-            : '-';
-        const sourceBadge = prof.source === 'Scholar'
-            ? '<span class="badge" style="background:var(--ao-primary);">Scholar</span>'
-            : '<span class="badge" style="background:var(--ao-accent); color:#000;">Directory</span>';
 
+    professors.forEach((prof, idx) => {
+        const citMatch = (prof.notes || '').match(/Citations:\s*(\d+)/);
+        const citations = citMatch ? parseInt(citMatch[1]) : 0;
+        const citDisplay = citations > 0 ? citations.toLocaleString() : '-';
+        const profileLink = prof.profile_url
+            ? `<a href="${prof.profile_url}" target="_blank" rel="noopener" style="color:var(--ao-accent); font-size:0.85rem;">View</a>`
+            : '<span style="color:var(--ao-text-dim);">-</span>';
+
+        const tr = document.createElement('tr');
         tr.innerHTML = `
             <td><input type="checkbox" class="prof-checkbox" data-idx="${idx}" checked></td>
-            <td style="font-weight:500;">${prof.name}</td>
-            <td>${prof.university || '-'}</td>
-            <td style="font-size:0.85rem;">${emailDisplay}</td>
-            <td style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${prof.field || '-'}</td>
-            <td>${sourceBadge}</td>
+            <td><strong>${esc(prof.name)}</strong></td>
+            <td style="font-size:0.9rem;">${esc(prof.university || '-')}</td>
+            <td style="font-size:0.88rem; max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${esc(prof.field)}">${esc(prof.field || '-')}</td>
+            <td style="font-size:0.82rem; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--ao-text-dim);" title="${esc(prof.research_summary)}">${esc(prof.research_summary || '-')}</td>
+            <td style="text-align:right; font-weight:600; font-size:0.9rem; ${citations >= 1000 ? 'color:var(--ao-success);' : citations >= 100 ? 'color:var(--ao-accent);' : ''}">${citDisplay}</td>
             <td>${profileLink}</td>
         `;
         body.appendChild(tr);
     });
 }
 
-function selectAll() {
-    document.querySelectorAll('.prof-checkbox').forEach(cb => cb.checked = true);
-    document.getElementById('select-all-cb').checked = true;
-}
-function selectNone() {
-    document.querySelectorAll('.prof-checkbox').forEach(cb => cb.checked = false);
-    document.getElementById('select-all-cb').checked = false;
-}
-function toggleAll(masterCb) {
-    document.querySelectorAll('.prof-checkbox').forEach(cb => cb.checked = masterCb.checked);
-}
+function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+function selectAll() { document.querySelectorAll('.prof-checkbox').forEach(cb => cb.checked = true); document.getElementById('select-all-cb').checked = true; }
+function selectNone() { document.querySelectorAll('.prof-checkbox').forEach(cb => cb.checked = false); document.getElementById('select-all-cb').checked = false; }
+function toggleAll(m) { document.querySelectorAll('.prof-checkbox').forEach(cb => cb.checked = m.checked); }
 
 async function saveSelected() {
-    const checkboxes = document.querySelectorAll('.prof-checkbox:checked');
-    const selected = Array.from(checkboxes).map(cb => foundProfessors[parseInt(cb.dataset.idx)]);
+    const selected = Array.from(document.querySelectorAll('.prof-checkbox:checked'))
+        .map(cb => foundProfessors[parseInt(cb.dataset.idx)]);
 
-    if (selected.length === 0) {
-        document.getElementById('save-result').innerHTML =
-            '<div class="flash-msg flash-warning">No professors selected.</div>';
+    if (!selected.length) {
+        document.getElementById('save-result').innerHTML = '<div class="flash-msg flash-warning">No professors selected.</div>';
         return;
     }
 
@@ -226,23 +276,21 @@ async function saveSelected() {
             body: JSON.stringify({professors: selected}),
         });
         const data = await res.json();
-
-        if (data.success) {
-            document.getElementById('save-result').innerHTML =
-                `<div class="flash-msg flash-success">Saved ${data.saved} professor(s) to database.` +
-                (data.errors > 0 ? ` (${data.errors} errors)` : '') + '</div>';
-        } else {
-            document.getElementById('save-result').innerHTML =
-                '<div class="flash-msg flash-error">' + (data.error || 'Save failed.') + '</div>';
-        }
+        document.getElementById('save-result').innerHTML = data.success
+            ? `<div class="flash-msg flash-success">Saved ${data.saved} professor(s). <a href="/professors" style="color:var(--ao-success); font-weight:600;">View Professors &rarr;</a></div>`
+            : `<div class="flash-msg flash-error">${esc(data.error || 'Save failed.')}</div>`;
     } catch (err) {
-        document.getElementById('save-result').innerHTML =
-            '<div class="flash-msg flash-error">Request failed: ' + err.message + '</div>';
+        document.getElementById('save-result').innerHTML = `<div class="flash-msg flash-error">Error: ${esc(err.message)}</div>`;
     }
 
     btn.disabled = false;
-    btn.textContent = 'Save Selected to Database';
+    btn.textContent = 'Save to Database';
 }
 </script>
+
+<style>
+.dot-pulse::after { content: ''; animation: dots 1.5s infinite; }
+@keyframes dots { 0%{content:'.'} 33%{content:'..'} 66%{content:'...'} }
+</style>
 {% endblock %}
 {% endblock %}

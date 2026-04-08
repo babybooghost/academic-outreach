@@ -97,15 +97,55 @@
 
         <!-- Generated Key Display -->
         {% if new_key %}
-        <div class="card section" style="border-color: var(--ao-success); background: var(--ao-success-bg);">
+        <div class="card section" id="new-key-card" style="border-color: var(--ao-success); background: rgba(0,206,201,0.05);">
             <div class="card-header" style="border-color: var(--ao-success);">
                 <h3 style="color: var(--ao-success);">New Key Created</h3>
             </div>
-            <p style="color: var(--ao-success); margin-bottom:0.75rem;">Copy this key now — it won't be shown again in full.</p>
-            <div style="background: var(--ao-surface-3); padding: 1rem; border-radius: var(--ao-radius-sm); text-align: center;">
-                <code class="key-display" style="font-size: 1.1rem; user-select: all;">{{ new_key }}</code>
+            <div style="background: var(--ao-surface-3); padding: 1.25rem; border-radius: var(--ao-radius-sm); text-align: center; margin-bottom:1rem;">
+                <code id="new-key-value" style="font-size: 1.05rem; user-select: all; word-break: break-all; line-height:1.8;">{{ new_key }}</code>
+            </div>
+            <div style="display:flex; gap:0.75rem; justify-content:center; align-items:center;">
+                <button class="btn btn-primary" onclick="copyKey()" id="copy-key-btn" style="min-width:160px;">
+                    Copy Key
+                </button>
+                <button class="btn btn-outline btn-sm" onclick="copyInstructions()" id="copy-instructions-btn">
+                    Copy with Instructions
+                </button>
+            </div>
+            <div id="copy-feedback" style="text-align:center; margin-top:0.75rem; font-size:0.85rem;"></div>
+            <div style="margin-top:1rem; padding:0.75rem; background:var(--ao-surface-2); border-radius:var(--ao-radius-sm); font-size:0.85rem; color:var(--ao-text-dim); border:1px solid var(--ao-border);">
+                <strong style="color:var(--ao-text);">Instructions for the recipient:</strong><br>
+                1. Go to <code>{{ request.host_url }}login</code><br>
+                2. Paste the access key above<br>
+                3. Click "Sign In"
             </div>
         </div>
+        <script>
+        function copyKey() {
+            const key = document.getElementById('new-key-value').textContent.trim();
+            navigator.clipboard.writeText(key).then(() => {
+                const btn = document.getElementById('copy-key-btn');
+                btn.textContent = 'Copied!';
+                btn.style.background = 'var(--ao-success)';
+                document.getElementById('copy-feedback').innerHTML = '<span style="color:var(--ao-success);">Key copied to clipboard</span>';
+                setTimeout(() => {
+                    btn.textContent = 'Copy Key';
+                    btn.style.background = '';
+                }, 3000);
+            });
+        }
+        function copyInstructions() {
+            const key = document.getElementById('new-key-value').textContent.trim();
+            const host = '{{ request.host_url }}'.replace(/\/$/, '');
+            const text = `Your Academic Outreach access key:\n\n${key}\n\nHow to log in:\n1. Go to ${host}/login\n2. Paste the key above\n3. Click "Sign In"\n\nKeep this key safe — don't share it publicly.`;
+            navigator.clipboard.writeText(text).then(() => {
+                const btn = document.getElementById('copy-instructions-btn');
+                btn.textContent = 'Copied!';
+                document.getElementById('copy-feedback').innerHTML = '<span style="color:var(--ao-success);">Key + instructions copied — ready to send to user</span>';
+                setTimeout(() => { btn.textContent = 'Copy with Instructions'; }, 3000);
+            });
+        }
+        </script>
         {% endif %}
 
         <!-- Existing Keys -->
