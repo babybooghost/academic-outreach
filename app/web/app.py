@@ -653,13 +653,28 @@ def create_app() -> Flask:
 # ---------------------------------------------------------------------------
 
 def _ensure_default_admin_key(db_path: str) -> None:
-    """Create a default admin key if none exist."""
+    """Create admin key(s) if none exist.
+
+    Priority:
+    1. ADMIN_KEY env var — always ensured to exist (idempotent)
+    2. Auto-generated random key if no keys exist at all
+    """
     try:
         conn = get_connection(db_path)
         try:
             existing = get_access_keys(conn)
-            if not existing:
-                # Generate a default admin key
+
+            # If ADMIN_KEY env var is set, ensure it exists in DB
+            env_admin_key = os.environ.get("ADMIN_KEY", "").strip()
+            if env_admin_key:
+                # Check if it already exists
+                found = any(k["key_value"] == env_admin_key for k in existing)
+                if not found:
+                    create_access_key(conn, env_admin_key, "Admin (env)", "admin", "system")
+                    logger.info("Admin key from ADMIN_KEY env var registered.")
+
+            # If still no keys at all, generate one
+            if not existing and not env_admin_key:
                 default_key = "ao_admin_" + secrets.token_hex(16)
                 create_access_key(conn, default_key, "Default Admin", "admin", "system")
                 logger.info("=" * 60)
