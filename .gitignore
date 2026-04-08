@@ -1,0 +1,38 @@
+# Secrets
+.env
+credentials.json
+token.json
+
+# Database
+data/outreach.db
+data/*.db
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+venv/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Outputs (keep the directories but not contents)
+outputs/*
+!outputs/.gitkeep
+logs/*
+!logs/.gitkeep
+
+# Config (user-specific)
+config.yaml
+.claude/

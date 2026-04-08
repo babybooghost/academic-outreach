@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+
+{% block content %}
+<hgroup>
+    <h1>Settings</h1>
+    <p>Current configuration and sender profiles</p>
+</hgroup>
+
+<!-- Configuration -->
+<article>
+    <header><strong>Application Configuration</strong></header>
+    {% if config_display %}
+    <figure>
+    <table class="striped">
+        <thead>
+            <tr>
+                <th>Setting</th>
+                <th>Value</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for key, value in config_display.items() %}
+            <tr>
+                <td><strong>{{ key }}</strong></td>
+                <td><code>{{ value }}</code></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </figure>
+    {% else %}
+    <p class="empty-state">Configuration not loaded.</p>
+    {% endif %}
+</article>
+
+<!-- Sender Profiles -->
+<article>
+    <header><strong>Sender Profiles</strong></header>
+    {% if profiles %}
+    <figure>
+    <table class="striped">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>School</th>
+                <th>Grade</th>
+                <th>Email</th>
+                <th>Interests</th>
+                <th>Graduation</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in profiles %}
+            <tr>
+                <td>#{{ p.id }}</td>
+                <td>{{ p.name }}</td>
+                <td>{{ p.school }}</td>
+                <td>{{ p.grade }}</td>
+                <td>{{ p.email }}</td>
+                <td>{{ p.interests[:60] }}{% if p.interests|length > 60 %}...{% endif %}</td>
+                <td>{{ p.graduation_year or 'N/A' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </figure>
+    {% else %}
+    <p class="empty-state">No sender profiles configured.</p>
+    {% endif %}
+</article>
+
+<!-- Suppression List -->
+<article>
+    <header><strong>Suppression List</strong></header>
+    {% if suppression %}
+    <figure>
+    <table class="striped">
+        <thead>
+            <tr>
+                <th>Email</th>
+                <th>Reason</th>
+                <th>Added</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for s in suppression %}
+            <tr>
+                <td>{{ s.email }}</td>
+                <td>{{ s.reason }}</td>
+                <td>{{ s.added_at }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </figure>
+    {% else %}
+    <p class="empty-state">Suppression list is empty.</p>
+    {% endif %}
+</article>
+{% endblock %}

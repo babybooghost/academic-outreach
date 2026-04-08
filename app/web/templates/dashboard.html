@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<hgroup>
+    <h1>Dashboard</h1>
+    <p>Overview of your academic outreach pipeline</p>
+</hgroup>
+
+<!-- Summary Cards -->
+<div class="grid">
+    <article class="stat-card">
+        <header>Professors</header>
+        <div class="stat-number">{{ total_professors }}</div>
+        <footer>
+            {% for status, count in prof_counts.items() %}
+            <span class="badge badge-{{ status }}">{{ status }}: {{ count }}</span>
+            {% endfor %}
+        </footer>
+    </article>
+
+    <article class="stat-card">
+        <header>Enriched</header>
+        <div class="stat-number">{{ prof_counts.get('enriched', 0) + prof_counts.get('ready', 0) }}</div>
+        <footer>
+            <span class="badge badge-enriched">enriched: {{ prof_counts.get('enriched', 0) }}</span>
+            <span class="badge badge-ready">ready: {{ prof_counts.get('ready', 0) }}</span>
+        </footer>
+    </article>
+
+    <article class="stat-card">
+        <header>Drafts Generated</header>
+        <div class="stat-number">{{ total_drafts }}</div>
+        <footer>
+            {% for status, count in draft_counts.items() %}
+            <span class="badge badge-{{ status }}">{{ status }}: {{ count }}</span>
+            {% endfor %}
+        </footer>
+    </article>
+
+    <article class="stat-card">
+        <header>Approved</header>
+        <div class="stat-number">{{ draft_counts.get('approved', 0) }}</div>
+        <footer>
+            <span class="badge badge-approved">approved: {{ draft_counts.get('approved', 0) }}</span>
+            <span class="badge badge-edited">edited: {{ draft_counts.get('edited', 0) }}</span>
+        </footer>
+    </article>
+
+    <article class="stat-card">
+        <header>Sent</header>
+        <div class="stat-number">{{ draft_counts.get('sent', 0) }}</div>
+        <footer>
+            <span class="badge badge-sent">sent: {{ draft_counts.get('sent', 0) }}</span>
+            <span class="badge badge-failed">failed: {{ draft_counts.get('failed', 0) }}</span>
+        </footer>
+    </article>
+</div>
+
+<!-- Quick Actions -->
+<div class="grid">
+    <a href="{{ url_for('drafts_list', status='generated') }}" role="button" class="outline">Review Queue</a>
+    <a href="{{ url_for('send_page') }}" role="button" class="outline">Send Queue</a>
+    <a href="{{ url_for('export_page') }}" role="button" class="outline">Export Drafts</a>
+</div>
+
+<!-- Recent Activity -->
+<h2>Recent Sends</h2>
+{% if recent_sends %}
+<figure>
+<table class="striped">
+    <thead>
+        <tr>
+            <th>Professor</th>
+            <th>Method</th>
+            <th>Status</th>
+            <th>Sent At</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for send in recent_sends %}
+        <tr>
+            <td>{{ send.professor_name }}</td>
+            <td>{{ send.method }}</td>
+            <td><span class="badge badge-{{ send.status }}">{{ send.status }}</span></td>
+            <td>{{ send.sent_at }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</figure>
+{% else %}
+<p class="empty-state">No sends recorded yet.</p>
+{% endif %}
+
+<h2>Recent Activity</h2>
+{% if recent_activity %}
+<figure>
+<table class="striped">
+    <thead>
+        <tr>
+            <th>Time</th>
+            <th>Action</th>
+            <th>Entity</th>
+            <th>Details</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for entry in recent_activity %}
+        <tr>
+            <td>{{ entry.timestamp }}</td>
+            <td>{{ entry.action }}</td>
+            <td>{{ entry.entity_type }} #{{ entry.entity_id }}</td>
+            <td class="details-cell">{{ entry.details[:80] }}{% if entry.details|length > 80 %}...{% endif %}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</figure>
+{% else %}
+<p class="empty-state">No activity recorded yet.</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Academic Outreach{% endblock %} - Email System</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <nav class="container-fluid navbar-custom">
+        <ul>
+            <li><a href="{{ url_for('dashboard') }}" class="nav-brand"><strong>Outreach System</strong></a></li>
+        </ul>
+        <ul>
+            <li><a href="{{ url_for('dashboard') }}" {% if request.endpoint == 'dashboard' %}class="active"{% endif %}>Dashboard</a></li>
+            <li><a href="{{ url_for('professors_list') }}" {% if request.endpoint and 'professor' in request.endpoint %}class="active"{% endif %}>Professors</a></li>
+            <li><a href="{{ url_for('drafts_list') }}" {% if request.endpoint and 'draft' in request.endpoint %}class="active"{% endif %}>Drafts</a></li>
+            <li><a href="{{ url_for('send_page') }}" {% if request.endpoint and 'send' in request.endpoint %}class="active"{% endif %}>Send</a></li>
+            <li><a href="{{ url_for('export_page') }}" {% if request.endpoint and 'export' in request.endpoint %}class="active"{% endif %}>Export</a></li>
+            <li><a href="{{ url_for('settings_page') }}" {% if request.endpoint == 'settings_page' %}class="active"{% endif %}>Settings</a></li>
+        </ul>
+    </nav>
+
+    <main class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="flash-messages">
+            {% for category, message in messages %}
+            <article class="flash-{{ category }}">
+                <p>{{ message }}</p>
+            </article>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="container-fluid footer-custom">
+        <hr>
+        <p class="footer-text">Academic Outreach Email System v{{ app_version }}</p>
+    </footer>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

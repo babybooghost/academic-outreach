@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Export{% endblock %}
+
+{% block content %}
+<hgroup>
+    <h1>Export</h1>
+    <p>Export drafts and data for external review</p>
+</hgroup>
+
+<article>
+    <header><strong>Export Drafts</strong></header>
+    <p>Generate a CSV file containing all drafts with professor details, scores, and status information.</p>
+
+    <div class="grid">
+        <div>
+            <h5>Included Fields</h5>
+            <ul>
+                <li>Draft ID, Professor ID, Session ID</li>
+                <li>Subject line (primary)</li>
+                <li>Full email body</li>
+                <li>Overall score</li>
+                <li>Status</li>
+                <li>Warnings</li>
+                <li>Creation date</li>
+            </ul>
+        </div>
+        <div>
+            <h5>Format Options</h5>
+            <label>
+                <input type="radio" name="format" value="csv" checked>
+                CSV (Comma-Separated Values)
+            </label>
+        </div>
+    </div>
+
+    <button id="export-btn" onclick="triggerExport()">Generate Export</button>
+</article>
+
+<!-- Results -->
+<article id="export-results" style="display: none;">
+    <header><strong>Export Result</strong></header>
+    <div id="export-content"></div>
+</article>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function triggerExport() {
+    const btn = document.getElementById('export-btn');
+    const resultsPanel = document.getElementById('export-results');
+    const resultsContent = document.getElementById('export-content');
+
+    btn.disabled = true;
+    btn.setAttribute('aria-busy', 'true');
+    resultsPanel.style.display = 'none';
+
+    try {
+        const resp = await fetch('/export', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ format: 'csv' }),
+        });
+        const data = await resp.json();
+        resultsPanel.style.display = 'block';
+
+        if (data.error) {
+            resultsContent.innerHTML = `<p class="error-text">Error: ${data.error}</p>`;
+            return;
+        }
+
+        resultsContent.innerHTML = `
+            <p>Export generated successfully: <strong>${data.filename}</strong></p>
+            <a href="${data.download_url}" role="button">Download File</a>
+        `;
+    } catch (e) {
+        resultsPanel.style.display = 'block';
+        resultsContent.innerHTML = `<p class="error-text">Request failed: ${e.message}</p>`;
+    } finally {
+        btn.disabled = false;
+        btn.removeAttribute('aria-busy');
+    }
+}
+</script>
+{% endblock %}
