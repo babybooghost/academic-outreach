@@ -1,126 +1,254 @@
-{% extends "base.html" %}
-{% block title %}Admin Hub{% endblock %}
-
-{% block content %}
-<div class="admin-header">
-    <div>
-        <h1>Admin Hub</h1>
-        <p>Manage access keys, users, and system settings</p>
-    </div>
-</div>
-
-<!-- Stats Row -->
-<div class="admin-stat-row">
-    <div class="stat-card">
-        <div class="stat-label">Total Keys</div>
-        <div class="stat-number">{{ keys|length }}</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-label">Active</div>
-        <div class="stat-number">{{ keys|selectattr('is_active')|list|length }}</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-label">Admin Keys</div>
-        <div class="stat-number">{{ keys|selectattr('role', 'equalto', 'admin')|list|length }}</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-label">User Keys</div>
-        <div class="stat-number">{{ keys|selectattr('role', 'equalto', 'user')|list|length }}</div>
-    </div>
-</div>
-
-<!-- Create New Key -->
-<div class="card section">
-    <div class="card-header">
-        <h3>Create Access Key</h3>
-    </div>
-    <form method="POST" action="{{ url_for('admin_create_key') }}" style="display:grid; grid-template-columns:1fr 1fr auto auto; gap:0.75rem; align-items:end;">
-        <div class="form-group" style="margin:0;">
-            <label for="label">Label</label>
-            <input type="text" id="label" name="label" placeholder="e.g. John's key" required>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Hub — Academic Outreach</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <!-- Admin-only navbar -->
+    <nav class="navbar" style="border-bottom-color: rgba(232,65,65,0.3);">
+        <div class="navbar-inner">
+            <a href="{{ url_for('admin_hub') }}" class="logo">
+                <div class="logo-icon" style="background: linear-gradient(135deg, #e84141 0%, #6c5ce7 100%);">AO</div>
+                <div class="logo-text">Admin <span>Hub</span></div>
+            </a>
+            <ul class="nav-links">
+                <li><a href="{{ url_for('admin_hub') }}" class="active"><span class="nav-icon">&#9879;</span> Overview</a></li>
+                <li><a href="{{ url_for('admin_activity') }}"><span class="nav-icon">&#128203;</span> Activity Log</a></li>
+            </ul>
+            <div class="nav-user">
+                <span class="badge badge-admin" style="margin-right:0.5rem;">ADMIN</span>
+                <span>{{ session.get('admin_key_label', 'Admin') }}</span>
+                <a href="{{ url_for('admin_logout') }}" class="btn-ghost btn-sm" style="margin-left:0.5rem;">Logout</a>
+            </div>
         </div>
-        <div class="form-group" style="margin:0;">
-            <label for="role">Role</label>
-            <select id="role" name="role">
-                <option value="user">User</option>
-                <option value="admin">Admin</option>
-            </select>
+    </nav>
+
+    <div class="container page-content">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="flash-messages">
+            {% for category, message in messages %}
+            <div class="flash-msg flash-{{ category }}">{{ message }}</div>
+            {% endfor %}
         </div>
-        <button type="submit" class="btn btn-primary" style="margin-bottom:0;">Create Key</button>
-    </form>
-</div>
+        {% endif %}
+        {% endwith %}
 
-<!-- Generated Key Display (if just created) -->
-{% if new_key %}
-<div class="card section" style="border-color: var(--ao-success); background: var(--ao-success-bg);">
-    <div class="card-header" style="border-color: var(--ao-success);">
-        <h3 style="color: var(--ao-success);">New Key Created</h3>
-    </div>
-    <p style="color: var(--ao-success); margin-bottom:0.75rem;">Copy this key now — it won't be shown again in full.</p>
-    <div style="background: var(--ao-surface-3); padding: 1rem; border-radius: var(--ao-radius-sm); text-align: center;">
-        <code class="key-display" style="font-size: 1.1rem; user-select: all;">{{ new_key }}</code>
-    </div>
-</div>
-{% endif %}
+        <div class="admin-header">
+            <div>
+                <h1>Admin Hub</h1>
+                <p>Manage access keys, monitor activity, and control the system</p>
+            </div>
+        </div>
 
-<!-- Existing Keys -->
-<div class="section">
-    <div class="section-title">Access Keys</div>
-    {% if keys %}
-    <div class="table-wrap">
-        <table>
-            <thead>
-                <tr>
-                    <th>Label</th>
-                    <th>Key</th>
-                    <th>Role</th>
-                    <th>Status</th>
-                    <th>Created</th>
-                    <th>Last Used</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for key in keys %}
-                <tr>
-                    <td><strong>{{ key.label or 'Unlabeled' }}</strong></td>
-                    <td>
-                        <span class="key-display key-display-masked">
-                            {{ key.key_value[:8] }}...{{ key.key_value[-4:] }}
-                        </span>
-                    </td>
-                    <td>
-                        <span class="badge badge-{{ key.role }}">{{ key.role }}</span>
-                    </td>
-                    <td>
-                        {% if key.is_active %}
-                        <span class="badge badge-active">active</span>
-                        {% else %}
-                        <span class="badge badge-revoked">revoked</span>
-                        {% endif %}
-                    </td>
-                    <td style="font-size:0.82rem; color:var(--ao-text-dim);">{{ key.created_at[:16] }}</td>
-                    <td style="font-size:0.82rem; color:var(--ao-text-dim);">{{ key.last_used[:16] if key.last_used else 'Never' }}</td>
-                    <td>
-                        {% if key.is_active %}
-                        <form method="POST" action="{{ url_for('admin_revoke_key', key_id=key.id) }}" style="display:inline;">
-                            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Revoke this key?');">Revoke</button>
-                        </form>
-                        {% endif %}
-                        <form method="POST" action="{{ url_for('admin_delete_key', key_id=key.id) }}" style="display:inline; margin-left:0.25rem;">
-                            <button type="submit" class="btn btn-ghost btn-sm" onclick="return confirm('Permanently delete this key?');">Delete</button>
-                        </form>
-                    </td>
-                </tr>
+        <!-- Stats Row -->
+        <div class="admin-stat-row">
+            <div class="stat-card">
+                <div class="stat-label">Total Keys</div>
+                <div class="stat-number">{{ keys|length }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Active Keys</div>
+                <div class="stat-number">{{ keys|selectattr('is_active')|list|length }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Admin Keys</div>
+                <div class="stat-number">{{ keys|selectattr('role', 'equalto', 'admin')|list|length }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">User Keys</div>
+                <div class="stat-number">{{ keys|selectattr('role', 'equalto', 'user')|list|length }}</div>
+            </div>
+            <div class="stat-card" style="border-color: rgba(232,65,65,0.3);">
+                <div class="stat-label">Events Today</div>
+                <div class="stat-number" style="color: var(--ao-danger);">{{ stats.today_events }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Unique IPs</div>
+                <div class="stat-number">{{ stats.unique_ips }}</div>
+            </div>
+        </div>
+
+        <!-- Create New Key -->
+        <div class="card section">
+            <div class="card-header">
+                <h3>Create Access Key</h3>
+            </div>
+            <form method="POST" action="{{ url_for('admin_create_key') }}" style="display:grid; grid-template-columns:1fr 1fr auto; gap:0.75rem; align-items:end;">
+                <div class="form-group" style="margin:0;">
+                    <label for="label">Label</label>
+                    <input type="text" id="label" name="label" placeholder="e.g. John's key" required>
+                </div>
+                <div class="form-group" style="margin:0;">
+                    <label for="role">Role</label>
+                    <select id="role" name="role">
+                        <option value="user">User</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary" style="margin-bottom:0;">Create Key</button>
+            </form>
+        </div>
+
+        <!-- Generated Key Display -->
+        {% if new_key %}
+        <div class="card section" style="border-color: var(--ao-success); background: var(--ao-success-bg);">
+            <div class="card-header" style="border-color: var(--ao-success);">
+                <h3 style="color: var(--ao-success);">New Key Created</h3>
+            </div>
+            <p style="color: var(--ao-success); margin-bottom:0.75rem;">Copy this key now — it won't be shown again in full.</p>
+            <div style="background: var(--ao-surface-3); padding: 1rem; border-radius: var(--ao-radius-sm); text-align: center;">
+                <code class="key-display" style="font-size: 1.1rem; user-select: all;">{{ new_key }}</code>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Existing Keys -->
+        <div class="section">
+            <div class="section-title">Access Keys</div>
+            {% if keys %}
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Label</th>
+                            <th>Key</th>
+                            <th>Role</th>
+                            <th>Status</th>
+                            <th>Created By</th>
+                            <th>Created</th>
+                            <th>Last Used</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for key in keys %}
+                        <tr>
+                            <td><strong>{{ key.label or 'Unlabeled' }}</strong></td>
+                            <td>
+                                <span class="key-display key-display-masked">
+                                    {{ key.key_value[:8] }}...{{ key.key_value[-4:] }}
+                                </span>
+                            </td>
+                            <td><span class="badge badge-{{ key.role }}">{{ key.role }}</span></td>
+                            <td>
+                                {% if key.is_active %}
+                                <span class="badge badge-active">active</span>
+                                {% else %}
+                                <span class="badge badge-revoked">revoked</span>
+                                {% endif %}
+                            </td>
+                            <td style="font-size:0.82rem; color:var(--ao-text-dim);">{{ key.created_by }}</td>
+                            <td style="font-size:0.82rem; color:var(--ao-text-dim);">{{ key.created_at[:16] }}</td>
+                            <td style="font-size:0.82rem; color:var(--ao-text-dim);">{{ key.last_used[:16] if key.last_used else 'Never' }}</td>
+                            <td>
+                                {% if key.is_active %}
+                                <form method="POST" action="{{ url_for('admin_revoke_key', key_id=key.id) }}" style="display:inline;">
+                                    <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Revoke this key?');">Revoke</button>
+                                </form>
+                                {% endif %}
+                                <form method="POST" action="{{ url_for('admin_delete_key', key_id=key.id) }}" style="display:inline; margin-left:0.25rem;">
+                                    <button type="submit" class="btn btn-ghost btn-sm" onclick="return confirm('Permanently delete this key?');">Delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <div class="empty-icon">&#128273;</div>
+                <p>No access keys created yet.</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Recent Activity (quick view) -->
+        <div class="section">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div class="section-title">Recent Activity</div>
+                <a href="{{ url_for('admin_activity') }}" class="btn btn-outline btn-sm">View Full Log</a>
+            </div>
+            {% if recent_activity %}
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Actor</th>
+                            <th>Role</th>
+                            <th>Action</th>
+                            <th>Category</th>
+                            <th>IP</th>
+                            <th>Path</th>
+                            <th>Details</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for a in recent_activity[:20] %}
+                        <tr>
+                            <td style="font-size:0.8rem; white-space:nowrap; color:var(--ao-text-dim);">{{ a.timestamp[:19] }}</td>
+                            <td>
+                                {% if a.actor_label %}
+                                <strong>{{ a.actor_label }}</strong>
+                                {% else %}
+                                <span style="color:var(--ao-text-dim);">system</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if a.actor_role == 'admin' %}
+                                <span class="badge badge-admin">admin</span>
+                                {% else %}
+                                <span class="badge badge-user">{{ a.actor_role or 'user' }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <code style="font-size:0.82rem; background:var(--ao-surface-3); padding:0.15rem 0.4rem; border-radius:3px;">
+                                    {{ a.action }}
+                                </code>
+                            </td>
+                            <td style="font-size:0.82rem;">{{ a.category }}</td>
+                            <td style="font-size:0.8rem; color:var(--ao-text-dim); font-family:monospace;">{{ a.ip_address or '-' }}</td>
+                            <td style="font-size:0.8rem; color:var(--ao-text-dim);">{{ a.request_method }} {{ a.request_path or '' }}</td>
+                            <td style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:0.8rem; color:var(--ao-text-dim);">
+                                {{ a.details if a.details != '{}' else '' }}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <p>No activity recorded yet.</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Action Breakdown -->
+        {% if stats.by_action %}
+        <div class="section">
+            <div class="section-title">Action Breakdown</div>
+            <div class="grid-3" style="gap:0.5rem;">
+                {% for action, count in stats.by_action.items() %}
+                <div style="display:flex; justify-content:space-between; align-items:center; padding:0.5rem 0.75rem; background:var(--ao-surface-2); border-radius:var(--ao-radius-sm); border:1px solid var(--ao-border);">
+                    <code style="font-size:0.82rem;">{{ action }}</code>
+                    <span style="font-weight:600; color:var(--ao-primary);">{{ count }}</span>
+                </div>
                 {% endfor %}
-            </tbody>
-        </table>
+            </div>
+        </div>
+        {% endif %}
     </div>
-    {% else %}
-    <div class="empty-state">
-        <div class="empty-icon">&#128273;</div>
-        <p>No access keys created yet. Create one above to get started.</p>
-    </div>
-    {% endif %}
-</div>
-{% endblock %}
+
+    <footer class="footer-bar" style="text-align:center; padding:1.5rem; color:var(--ao-text-dim); font-size:0.8rem; border-top:1px solid var(--ao-border);">
+        Admin Hub — Academic Outreach v{{ app_version }}
+    </footer>
+</body>
+</html>

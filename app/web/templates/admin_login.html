@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Login — Academic Outreach</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="login-page" style="background: radial-gradient(circle at 30% 20%, rgba(232,65,65,0.12) 0%, transparent 50%), radial-gradient(circle at 70% 80%, rgba(108,92,231,0.08) 0%, transparent 50%), var(--ao-bg);">
+        <div class="login-card" style="border-color: rgba(232,65,65,0.3);">
+            <div class="login-logo">
+                <div class="logo-icon" style="background: linear-gradient(135deg, #e84141 0%, #6c5ce7 100%);">AO</div>
+                <h1>Admin Hub</h1>
+                <p style="color: var(--ao-danger);">Restricted Access — Admin Credentials Required</p>
+            </div>
+
+            {% if error %}
+            <div class="login-error">{{ error }}</div>
+            {% endif %}
+
+            <form method="POST" action="{{ url_for('admin_login') }}">
+                <div class="form-group">
+                    <label for="access_key">Admin Key</label>
+                    <input type="password" id="access_key" name="access_key"
+                           placeholder="Enter admin access key" autofocus required
+                           style="text-align:center; letter-spacing:0.05em; border-color: rgba(232,65,65,0.3);">
+                </div>
+                <button type="submit" class="btn" style="width:100%; padding:0.75rem; background: linear-gradient(135deg, #e84141 0%, #6c5ce7 100%); color: #fff; border:none; font-weight:600;">
+                    Authenticate
+                </button>
+            </form>
+
+            <div class="login-footer" style="margin-top:1.5rem;">
+                <span style="color:var(--ao-text-dim); font-size:0.82rem;">
+                    All admin actions are logged with IP, timestamp, and session data.
+                </span>
+                <br>
+                <a href="{{ url_for('login') }}" style="color:var(--ao-primary); font-size:0.85rem; margin-top:0.5rem; display:inline-block;">
+                    Back to user login
+                </a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

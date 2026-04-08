@@ -33,6 +33,8 @@ from app.database import (
     create_access_key,
     delete_access_key,
     get_access_keys,
+    get_admin_activity_log,
+    get_admin_activity_stats,
     get_all_settings,
     get_connection,
     get_draft,
@@ -43,9 +45,11 @@ from app.database import (
     get_setting,
     get_suppression_list,
     init_db,
+    log_admin_activity,
     revoke_access_key,
     set_settings_bulk,
     update_draft_status,
+    upsert_professor,
     validate_access_key,
 )
 from app.logger import get_logger
@@ -114,13 +118,45 @@ def create_app() -> Flask:
     def admin_required(f):
         @wraps(f)
         def decorated(*args, **kwargs):
-            if not session.get("authenticated"):
-                return redirect(url_for("login"))
-            if session.get("role") != "admin":
-                flash("Admin access required.", "error")
-                return redirect(url_for("dashboard"))
+            if not session.get("admin_authenticated"):
+                return redirect(url_for("admin_login"))
             return f(*args, **kwargs)
         return decorated
+
+    # ------------------------------------------------------------------
+    # Activity logging helper
+    # ------------------------------------------------------------------
+    def _log_activity(action: str, category: str = "general",
+                      target_type: str = None, target_id: str = None,
+                      details: dict = None, is_admin: bool = False):
+        """Log an activity entry with full request context."""
+        try:
+            conn = _conn()
+            try:
+                ip = request.headers.get("X-Forwarded-For", request.remote_addr)
+                if ip and "," in ip:
+                    ip = ip.split(",")[0].strip()
+                log_admin_activity(
+                    conn,
+                    actor_key_id=session.get("admin_key_id") if is_admin else session.get("key_id"),
+                    actor_label=session.get("admin_key_label", "") if is_admin else session.get("key_label", ""),
+                    actor_role="admin" if is_admin else session.get("role", "user"),
+                    action=action,
+                    category=category,
+                    target_type=target_type,
+                    target_id=str(target_id) if target_id is not None else None,
+                    details=details,
+                    ip_address=ip,
+                    user_agent=request.headers.get("User-Agent", "")[:500],
+                    request_method=request.method,
+                    request_path=request.path,
+                    session_id=session.get("_id", session.sid if hasattr(session, "sid") else None),
+                    response_code=None,
+                )
+            finally:
+                conn.close()
+        except Exception as exc:
+            logger.warning("Activity logging failed: %s", exc)
 
     # ------------------------------------------------------------------
     # Error handler
@@ -156,9 +192,17 @@ def create_app() -> Flask:
                         session["key_id"] = key_data["id"]
                         session["key_label"] = key_data["label"]
                         session["role"] = key_data["role"]
+                        _log_activity(
+                            "user_login", category="auth",
+                            details={"label": key_data["label"], "role": key_data["role"]},
+                        )
                         return redirect(url_for("dashboard"))
                     else:
                         error = "Invalid or revoked access key."
+                        _log_activity(
+                            "failed_login", category="auth",
+                            details={"key_prefix": key_value[:8] + "..." if len(key_value) > 8 else "short"},
+                        )
                 finally:
                     conn.close()
 
@@ -166,8 +210,67 @@ def create_app() -> Flask:
 
     @app.route("/logout")
     def logout():
+        label = session.get("key_label", "")
+        was_admin = session.get("admin_authenticated", False)
+        if was_admin:
+            _log_activity("admin_logout", category="auth", is_admin=True,
+                          details={"label": session.get("admin_key_label", "")})
+        elif session.get("authenticated"):
+            _log_activity("user_logout", category="auth", details={"label": label})
         session.clear()
         return redirect(url_for("login"))
+
+    # ------------------------------------------------------------------
+    # Admin Auth (separate login)
+    # ------------------------------------------------------------------
+    @app.route("/admin/login", methods=["GET", "POST"])
+    def admin_login():
+        if session.get("admin_authenticated"):
+            return redirect(url_for("admin_hub"))
+
+        error = None
+        if request.method == "POST":
+            key_value = request.form.get("access_key", "").strip()
+            if not key_value:
+                error = "Please enter an admin access key."
+            else:
+                conn = _conn()
+                try:
+                    key_data = validate_access_key(conn, key_value)
+                    if key_data and key_data["role"] == "admin":
+                        session["admin_authenticated"] = True
+                        session["admin_key_id"] = key_data["id"]
+                        session["admin_key_label"] = key_data["label"]
+                        _log_activity(
+                            "admin_login", category="auth", is_admin=True,
+                            details={"label": key_data["label"]},
+                        )
+                        return redirect(url_for("admin_hub"))
+                    elif key_data:
+                        error = "This key does not have admin privileges."
+                        _log_activity(
+                            "admin_login_denied", category="auth",
+                            details={"label": key_data["label"], "role": key_data["role"]},
+                        )
+                    else:
+                        error = "Invalid or revoked access key."
+                        _log_activity(
+                            "admin_failed_login", category="auth",
+                            details={"key_prefix": key_value[:8] + "..." if len(key_value) > 8 else "short"},
+                        )
+                finally:
+                    conn.close()
+
+        return render_template("admin_login.html", error=error)
+
+    @app.route("/admin/logout")
+    def admin_logout():
+        _log_activity("admin_logout", category="auth", is_admin=True,
+                      details={"label": session.get("admin_key_label", "")})
+        session.pop("admin_authenticated", None)
+        session.pop("admin_key_id", None)
+        session.pop("admin_key_label", None)
+        return redirect(url_for("admin_login"))
 
     # ------------------------------------------------------------------
     # Health check (no auth)
@@ -329,6 +432,8 @@ def create_app() -> Flask:
             if draft is None:
                 return jsonify({"error": "Draft not found"}), 404
             update_draft_status(conn, draft_id, "approved")
+            _log_activity("draft_approve", category="drafts",
+                          target_type="draft", target_id=str(draft_id))
             return jsonify({"success": True, "status": "approved"})
         except Exception as exc:
             return jsonify({"error": str(exc)}), 500
@@ -347,6 +452,9 @@ def create_app() -> Flask:
             if request.is_json:
                 notes = request.json.get("notes")
             update_draft_status(conn, draft_id, "rejected", notes=notes)
+            _log_activity("draft_reject", category="drafts",
+                          target_type="draft", target_id=str(draft_id),
+                          details={"notes": notes} if notes else None)
             return jsonify({"success": True, "status": "rejected"})
         except Exception as exc:
             return jsonify({"error": str(exc)}), 500
@@ -375,6 +483,9 @@ def create_app() -> Flask:
                 conn.execute("UPDATE drafts SET subject_lines = ? WHERE id = ?",
                              (json.dumps(subjects), draft_id))
             update_draft_status(conn, draft_id, "edited")
+            _log_activity("draft_edit", category="drafts",
+                          target_type="draft", target_id=str(draft_id),
+                          details={"body_changed": new_body is not None, "subject_changed": new_subject is not None})
             return jsonify({"success": True, "status": "edited"})
         except Exception as exc:
             return jsonify({"error": str(exc)}), 500
@@ -429,6 +540,8 @@ def create_app() -> Flask:
                         "subject": d.subject_lines_list[0] if d.subject_lines_list else "(no subject)",
                         "status": "dry_run",
                     })
+                _log_activity("send_dry_run", category="send",
+                              details={"count": len(results), "method": method})
                 return jsonify({"success": True, "dry_run": True, "count": len(results), "results": results})
 
             try:
@@ -445,6 +558,10 @@ def create_app() -> Flask:
                         results.append({"draft_id": d.id, "professor": p.name, "status": "sent"})
                     except Exception as send_exc:
                         results.append({"draft_id": d.id, "professor": p.name, "status": "failed", "error": str(send_exc)})
+                _log_activity("send_execute", category="send",
+                              details={"count": len(results), "method": method,
+                                       "sent": sum(1 for r in results if r["status"] == "sent"),
+                                       "failed": sum(1 for r in results if r["status"] == "failed")})
                 return jsonify({"success": True, "dry_run": False, "count": len(results), "results": results})
             except ImportError:
                 return jsonify({"error": "Sender module not available"}), 500
@@ -576,6 +693,8 @@ def create_app() -> Flask:
             except Exception:
                 pass
 
+            _log_activity("settings_update", category="settings",
+                          details={k: v for k, v in new_settings.items() if k != "smtp_password"})
             flash("Settings saved successfully.", "success")
             return redirect(url_for("settings_page"))
         except Exception as exc:
@@ -583,6 +702,110 @@ def create_app() -> Flask:
             return redirect(url_for("settings_page"))
         finally:
             conn.close()
+
+    # ------------------------------------------------------------------
+    # Professor Finder
+    # ------------------------------------------------------------------
+
+    @app.route("/finder")
+    @login_required
+    def finder_page():
+        from app.finder import list_known_universities
+        universities = list_known_universities()
+        return render_template("finder.html", universities=universities)
+
+    @app.route("/finder/search", methods=["POST"])
+    @login_required
+    def finder_search():
+        from app.finder import find_professors
+        data = request.get_json() or {}
+        query = data.get("scholar_query", "").strip()
+        universities = data.get("universities", [])
+        field = data.get("field", "").strip()
+        department = data.get("department", "Computer Science").strip()
+        max_results = min(int(data.get("max_results", 20)), 50)
+
+        if not query and not universities:
+            return jsonify({"success": False, "error": "Provide a Scholar query or select universities."})
+
+        try:
+            professors, warnings = find_professors(
+                query=query,
+                universities=universities if universities else None,
+                field=field,
+                department=department,
+                max_scholar_results=max_results,
+            )
+
+            results = []
+            for prof in professors:
+                source = "Scholar" if "scholar" in (prof.profile_url or "").lower() or "Scholar" in (prof.notes or "") else "Directory"
+                results.append({
+                    "name": prof.name,
+                    "university": prof.university or "",
+                    "email": prof.email or "",
+                    "field": prof.field or "",
+                    "title": prof.title or "",
+                    "profile_url": prof.profile_url or "",
+                    "research_summary": prof.research_summary or "",
+                    "notes": prof.notes or "",
+                    "source": source,
+                })
+
+            return jsonify({
+                "success": True,
+                "count": len(results),
+                "professors": results,
+                "warnings": warnings,
+            })
+        except Exception as exc:
+            logger.exception("Finder search failed")
+            return jsonify({"success": False, "error": str(exc)})
+
+    @app.route("/finder/save", methods=["POST"])
+    @login_required
+    def finder_save():
+        from app.database import upsert_professor
+        data = request.get_json() or {}
+        professors_data = data.get("professors", [])
+
+        if not professors_data:
+            return jsonify({"success": False, "error": "No professors to save."})
+
+        conn = _conn()
+        saved = 0
+        errors = 0
+        try:
+            for pd in professors_data:
+                try:
+                    prof = Professor(
+                        name=pd.get("name", ""),
+                        title=pd.get("title"),
+                        email=pd.get("email", ""),
+                        university=pd.get("university", ""),
+                        department=pd.get("department", "Computer Science"),
+                        field=pd.get("field", ""),
+                        profile_url=pd.get("profile_url"),
+                        research_summary=pd.get("research_summary"),
+                        notes=pd.get("notes"),
+                        status="new",
+                    )
+                    upsert_professor(conn, prof)
+                    saved += 1
+                except Exception as exc:
+                    errors += 1
+                    logger.warning("Failed to save professor %s: %s", pd.get("name"), exc)
+        finally:
+            conn.close()
+
+        _log_activity("finder_save_professors", category="finder",
+                      details={"saved": saved, "errors": errors,
+                               "names": [p.get("name") for p in professors_data[:10]]})
+        return jsonify({
+            "success": True,
+            "saved": saved,
+            "errors": errors,
+        })
 
     # ------------------------------------------------------------------
     # Admin Hub
@@ -594,7 +817,64 @@ def create_app() -> Flask:
         try:
             keys = get_access_keys(conn)
             new_key = request.args.get("new_key")
-            return render_template("admin.html", keys=keys, new_key=new_key)
+            stats = get_admin_activity_stats(conn)
+            recent_activity = get_admin_activity_log(conn, limit=50)
+            _log_activity("admin_view_hub", category="admin", is_admin=True)
+            return render_template("admin.html", keys=keys, new_key=new_key,
+                                   stats=stats, recent_activity=recent_activity)
+        finally:
+            conn.close()
+
+    @app.route("/admin/activity")
+    @admin_required
+    def admin_activity():
+        conn = _conn()
+        try:
+            category = request.args.get("category")
+            actor = request.args.get("actor")
+            action_filter = request.args.get("action")
+            limit = min(int(request.args.get("limit", 200)), 1000)
+
+            activities = get_admin_activity_log(
+                conn, category=category, actor_label=actor,
+                action=action_filter, limit=limit,
+            )
+            stats = get_admin_activity_stats(conn)
+
+            # Get unique values for filters
+            all_categories = conn.execute(
+                "SELECT DISTINCT category FROM admin_activity_log ORDER BY category"
+            ).fetchall()
+            all_actors = conn.execute(
+                "SELECT DISTINCT actor_label FROM admin_activity_log WHERE actor_label != '' ORDER BY actor_label"
+            ).fetchall()
+            all_actions = conn.execute(
+                "SELECT DISTINCT action FROM admin_activity_log ORDER BY action"
+            ).fetchall()
+
+            return render_template(
+                "admin_activity.html",
+                activities=activities, stats=stats,
+                categories=[r["category"] for r in all_categories],
+                actors=[r["actor_label"] for r in all_actors],
+                actions=[r["action"] for r in all_actions],
+                current_category=category or "",
+                current_actor=actor or "",
+                current_action=action_filter or "",
+            )
+        finally:
+            conn.close()
+
+    @app.route("/admin/activity/api")
+    @admin_required
+    def admin_activity_api():
+        """JSON API for activity log (for live refresh)."""
+        conn = _conn()
+        try:
+            category = request.args.get("category")
+            limit = min(int(request.args.get("limit", 50)), 500)
+            activities = get_admin_activity_log(conn, category=category, limit=limit)
+            return jsonify({"success": True, "activities": activities})
         finally:
             conn.close()
 
@@ -610,7 +890,10 @@ def create_app() -> Flask:
 
             key_value = "ao_" + secrets.token_hex(24)
             create_access_key(conn, key_value, label, role,
-                              created_by=session.get("key_label", "admin"))
+                              created_by=session.get("admin_key_label", "admin"))
+            _log_activity("admin_create_key", category="admin", is_admin=True,
+                          target_type="access_key",
+                          details={"label": label, "role": role})
             flash(f"Access key created for '{label}'.", "success")
             return redirect(url_for("admin_hub", new_key=key_value))
         except Exception as exc:
@@ -624,7 +907,13 @@ def create_app() -> Flask:
     def admin_revoke_key(key_id: int):
         conn = _conn()
         try:
+            # Get key info before revoking for logging
+            key_info = conn.execute("SELECT label, role FROM access_keys WHERE id = ?", (key_id,)).fetchone()
             revoke_access_key(conn, key_id)
+            _log_activity("admin_revoke_key", category="admin", is_admin=True,
+                          target_type="access_key", target_id=str(key_id),
+                          details={"label": key_info["label"] if key_info else "unknown",
+                                   "role": key_info["role"] if key_info else "unknown"})
             flash("Key revoked.", "success")
         except Exception as exc:
             flash(f"Failed to revoke key: {exc}", "error")
@@ -637,7 +926,12 @@ def create_app() -> Flask:
     def admin_delete_key(key_id: int):
         conn = _conn()
         try:
+            key_info = conn.execute("SELECT label, role FROM access_keys WHERE id = ?", (key_id,)).fetchone()
             delete_access_key(conn, key_id)
+            _log_activity("admin_delete_key", category="admin", is_admin=True,
+                          target_type="access_key", target_id=str(key_id),
+                          details={"label": key_info["label"] if key_info else "unknown",
+                                   "role": key_info["role"] if key_info else "unknown"})
             flash("Key deleted.", "success")
         except Exception as exc:
             flash(f"Failed to delete key: {exc}", "error")

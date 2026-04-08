@@ -19,12 +19,10 @@
                 <li><a href="{{ url_for('dashboard') }}" {% if request.endpoint == 'dashboard' %}class="active"{% endif %}><span class="nav-icon">&#9632;</span> Dashboard</a></li>
                 <li><a href="{{ url_for('professors_list') }}" {% if request.endpoint and 'professor' in request.endpoint %}class="active"{% endif %}><span class="nav-icon">&#9733;</span> Professors</a></li>
                 <li><a href="{{ url_for('drafts_list') }}" {% if request.endpoint and 'draft' in request.endpoint %}class="active"{% endif %}><span class="nav-icon">&#9998;</span> Drafts</a></li>
+                <li><a href="{{ url_for('finder_page') }}" {% if request.endpoint and 'finder' in request.endpoint %}class="active"{% endif %}><span class="nav-icon">&#128270;</span> Finder</a></li>
                 <li><a href="{{ url_for('send_page') }}" {% if request.endpoint and 'send' in request.endpoint %}class="active"{% endif %}><span class="nav-icon">&#9993;</span> Send</a></li>
                 <li><a href="{{ url_for('export_page') }}" {% if request.endpoint and 'export' in request.endpoint %}class="active"{% endif %}><span class="nav-icon">&#8681;</span> Export</a></li>
                 <li><a href="{{ url_for('settings_page') }}" {% if request.endpoint == 'settings_page' %}class="active"{% endif %}><span class="nav-icon">&#9881;</span> Settings</a></li>
-                {% if session.get('role') == 'admin' %}
-                <li><a href="{{ url_for('admin_hub') }}" {% if request.endpoint and 'admin' in request.endpoint %}class="active"{% endif %}><span class="nav-icon">&#9879;</span> Admin</a></li>
-                {% endif %}
             </ul>
             <div class="nav-user">
                 <span class="nav-user-dot"></span>

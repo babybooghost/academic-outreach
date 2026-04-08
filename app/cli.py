@@ -1044,3 +1044,142 @@ def web(port: int) -> None:
         console.print(f"[bold red]Web UI failed to start:[/bold red] {exc}")
         logger.exception("Web UI startup failed")
         raise SystemExit(1) from exc
+
+
+# ---------------------------------------------------------------------------
+# find
+# ---------------------------------------------------------------------------
+
+@cli.command("find")
+@click.option("--scholar", type=str, default=None, help="Google Scholar search query (e.g. 'blockchain fintech AI')")
+@click.option("--university", "-u", multiple=True, help="University to scrape (can specify multiple)")
+@click.option("--field", type=str, default="", help="Research field to tag professors with")
+@click.option("--department", type=str, default="Computer Science", help="Department name")
+@click.option("--max-results", type=int, default=20, help="Max results from Scholar search")
+@click.option("--list-universities", is_flag=True, help="List universities with known directory URLs")
+@click.option("--save/--no-save", default=True, help="Save found professors to database (default: save)")
+def find(
+    scholar: Optional[str],
+    university: Tuple[str, ...],
+    field: str,
+    department: str,
+    max_results: int,
+    list_universities: bool,
+    save: bool,
+) -> None:
+    """Find professors via Google Scholar and/or university faculty directories."""
+    config: Config = _bootstrap()
+    logger = get_logger(__name__)
+
+    from app.finder import find_professors, list_known_universities
+
+    # Just list universities
+    if list_universities:
+        unis = list_known_universities()
+        table: Table = Table(title="Universities with Known Faculty Directory URLs")
+        table.add_column("#", style="dim", justify="right")
+        table.add_column("University", style="cyan")
+        for i, u in enumerate(unis, 1):
+            table.add_row(str(i), u)
+        console.print(table)
+        console.print(f"\n[dim]Use: python main.py find -u \"MIT\" -u \"Stanford\" --field \"AI\"[/dim]")
+        return
+
+    # Need at least one search strategy
+    if not scholar and not university:
+        console.print(
+            "[bold yellow]Specify at least one search strategy:[/bold yellow]\n"
+            "  [cyan]--scholar[/cyan] \"query\"     Search Google Scholar\n"
+            "  [cyan]-u[/cyan] \"University\"        Scrape faculty directory\n"
+            "  [cyan]--list-universities[/cyan]     Show known university URLs\n\n"
+            "[dim]Example: python main.py find --scholar \"blockchain fintech\" -u MIT -u Stanford[/dim]"
+        )
+        return
+
+    console.print(
+        Panel(
+            "[bold]Professor Finder[/bold]\n"
+            + (f"Scholar query: [cyan]{scholar}[/cyan]\n" if scholar else "")
+            + (f"Universities: [cyan]{', '.join(university)}[/cyan]\n" if university else "")
+            + (f"Field: [cyan]{field}[/cyan]\n" if field else "")
+            + f"Department: [cyan]{department}[/cyan]",
+            style="blue",
+        )
+    )
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console,
+    ) as progress:
+        progress.add_task("Searching for professors...", total=None)
+        professors, warnings = find_professors(
+            query=scholar or "",
+            universities=list(university) if university else None,
+            field=field,
+            department=department,
+            max_scholar_results=max_results,
+        )
+
+    # Show warnings
+    if warnings:
+        console.print("\n[bold yellow]Warnings:[/bold yellow]")
+        for w in warnings:
+            console.print(f"  [yellow]⚠ {w}[/yellow]")
+
+    if not professors:
+        console.print("\n[yellow]No professors found. Try different search terms or universities.[/yellow]")
+        return
+
+    # Display results
+    results_table: Table = Table(title=f"Found {len(professors)} Professor(s)")
+    results_table.add_column("#", style="dim", justify="right")
+    results_table.add_column("Name", style="green")
+    results_table.add_column("University")
+    results_table.add_column("Email", style="dim")
+    results_table.add_column("Field", max_width=30)
+    results_table.add_column("Source")
+
+    for i, prof in enumerate(professors, 1):
+        source = "Scholar" if "scholar" in (prof.profile_url or "").lower() or "Scholar" in (prof.notes or "") else "Directory"
+        results_table.add_row(
+            str(i),
+            prof.name,
+            prof.university or "-",
+            prof.email or "[dim]needs lookup[/dim]",
+            (prof.field or "-")[:30],
+            source,
+        )
+    console.print(results_table)
+
+    # Save to database
+    if save:
+        from app.database import get_connection, upsert_professor
+
+        conn: sqlite3.Connection = get_connection(config.db_path)
+        saved: int = 0
+        skipped: int = 0
+        try:
+            for prof in professors:
+                try:
+                    upsert_professor(conn, prof)
+                    saved += 1
+                except Exception as exc:
+                    skipped += 1
+                    logger.warning("Failed to save professor %s: %s", prof.name, exc)
+        finally:
+            conn.close()
+
+        console.print(f"\n[green]Saved {saved} professor(s) to database.[/green]", end="")
+        if skipped:
+            console.print(f" [yellow]({skipped} skipped due to errors)[/yellow]")
+        else:
+            console.print()
+
+        audit_log(
+            action="find_professors",
+            detail=f"Found {len(professors)} professors (scholar={scholar}, universities={list(university)}, saved={saved})",
+            db_path=config.db_path,
+        )
+    else:
+        console.print("\n[dim]Use --save to import these professors into the database.[/dim]")

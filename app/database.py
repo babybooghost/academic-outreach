@@ -10,6 +10,7 @@ Set TURSO_DATABASE_URL and TURSO_AUTH_TOKEN env vars to use Turso.
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import sqlite3
@@ -229,6 +230,25 @@ CREATE TABLE IF NOT EXISTS access_keys (
     created_at TEXT    NOT NULL DEFAULT (datetime('now')),
     last_used  TEXT,
     created_by TEXT    NOT NULL DEFAULT 'admin'
+);
+
+CREATE TABLE IF NOT EXISTS admin_activity_log (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp     TEXT    NOT NULL DEFAULT (datetime('now')),
+    actor_key_id  INTEGER,
+    actor_label   TEXT    NOT NULL DEFAULT '',
+    actor_role    TEXT    NOT NULL DEFAULT '',
+    action        TEXT    NOT NULL,
+    category      TEXT    NOT NULL DEFAULT 'general',
+    target_type   TEXT,
+    target_id     TEXT,
+    details       TEXT    NOT NULL DEFAULT '{}',
+    ip_address    TEXT,
+    user_agent    TEXT,
+    request_method TEXT,
+    request_path  TEXT,
+    session_id    TEXT,
+    response_code INTEGER
 );
 """
 
@@ -906,3 +926,122 @@ def delete_access_key(conn: sqlite3.Connection, key_id: int) -> None:
         logger.error("delete_access_key failed for id=%d: %s", key_id, exc)
         conn.rollback()
         raise
+
+
+# ---------------------------------------------------------------------------
+# Admin Activity Log
+# ---------------------------------------------------------------------------
+
+def log_admin_activity(
+    conn: sqlite3.Connection,
+    *,
+    actor_key_id: Optional[int] = None,
+    actor_label: str = "",
+    actor_role: str = "",
+    action: str,
+    category: str = "general",
+    target_type: Optional[str] = None,
+    target_id: Optional[str] = None,
+    details: Optional[dict[str, Any]] = None,
+    ip_address: Optional[str] = None,
+    user_agent: Optional[str] = None,
+    request_method: Optional[str] = None,
+    request_path: Optional[str] = None,
+    session_id: Optional[str] = None,
+    response_code: Optional[int] = None,
+) -> int:
+    """Insert a detailed admin activity log entry. Returns the row id."""
+    try:
+        cursor: sqlite3.Cursor = conn.execute(
+            """
+            INSERT INTO admin_activity_log
+                (actor_key_id, actor_label, actor_role, action, category,
+                 target_type, target_id, details, ip_address, user_agent,
+                 request_method, request_path, session_id, response_code)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                actor_key_id, actor_label, actor_role, action, category,
+                target_type, target_id,
+                json.dumps(details) if details else "{}",
+                ip_address, user_agent,
+                request_method, request_path, session_id, response_code,
+            ),
+        )
+        conn.commit()
+        return cursor.lastrowid or 0
+    except sqlite3.Error as exc:
+        logger.error("log_admin_activity failed: %s", exc)
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        return 0
+
+
+def get_admin_activity_log(
+    conn: sqlite3.Connection,
+    category: Optional[str] = None,
+    actor_label: Optional[str] = None,
+    action: Optional[str] = None,
+    limit: int = 200,
+) -> list[dict[str, Any]]:
+    """Return recent admin activity log entries with optional filters."""
+    try:
+        conditions: list[str] = []
+        params: list[Any] = []
+
+        if category:
+            conditions.append("category = ?")
+            params.append(category)
+        if actor_label:
+            conditions.append("actor_label = ?")
+            params.append(actor_label)
+        if action:
+            conditions.append("action = ?")
+            params.append(action)
+
+        where = (" WHERE " + " AND ".join(conditions)) if conditions else ""
+        params.append(limit)
+
+        rows: list[sqlite3.Row] = conn.execute(
+            f"SELECT * FROM admin_activity_log{where} ORDER BY id DESC LIMIT ?",
+            params,
+        ).fetchall()
+        return [dict(r) for r in rows]
+    except sqlite3.Error as exc:
+        logger.error("get_admin_activity_log failed: %s", exc)
+        return []
+
+
+def get_admin_activity_stats(conn: sqlite3.Connection) -> dict[str, Any]:
+    """Return aggregate stats for the admin activity log."""
+    try:
+        total = conn.execute("SELECT COUNT(*) as cnt FROM admin_activity_log").fetchone()
+        today = conn.execute(
+            "SELECT COUNT(*) as cnt FROM admin_activity_log WHERE timestamp >= date('now')"
+        ).fetchone()
+        unique_actors = conn.execute(
+            "SELECT COUNT(DISTINCT actor_label) as cnt FROM admin_activity_log WHERE actor_label != ''"
+        ).fetchone()
+        unique_ips = conn.execute(
+            "SELECT COUNT(DISTINCT ip_address) as cnt FROM admin_activity_log WHERE ip_address IS NOT NULL"
+        ).fetchone()
+        by_category = conn.execute(
+            "SELECT category, COUNT(*) as cnt FROM admin_activity_log GROUP BY category ORDER BY cnt DESC"
+        ).fetchall()
+        by_action = conn.execute(
+            "SELECT action, COUNT(*) as cnt FROM admin_activity_log GROUP BY action ORDER BY cnt DESC LIMIT 15"
+        ).fetchall()
+
+        return {
+            "total_events": total["cnt"] if total else 0,
+            "today_events": today["cnt"] if today else 0,
+            "unique_actors": unique_actors["cnt"] if unique_actors else 0,
+            "unique_ips": unique_ips["cnt"] if unique_ips else 0,
+            "by_category": {r["category"]: r["cnt"] for r in by_category},
+            "by_action": {r["action"]: r["cnt"] for r in by_action},
+        }
+    except sqlite3.Error as exc:
+        logger.error("get_admin_activity_stats failed: %s", exc)
+        return {"total_events": 0, "today_events": 0, "unique_actors": 0, "unique_ips": 0, "by_category": {}, "by_action": {}}

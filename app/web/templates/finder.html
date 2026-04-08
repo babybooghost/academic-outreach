@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+{% block title %}Professor Finder{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Professor Finder</h1>
+    <p>Discover professors via Google Scholar and university faculty directories</p>
+</div>
+
+<div class="grid-2">
+    <!-- Google Scholar Search -->
+    <div class="card">
+        <div class="card-header"><h3>Google Scholar Search</h3></div>
+        <div class="form-group">
+            <label for="scholar_query">Search Query</label>
+            <input type="text" id="scholar_query" placeholder="e.g. blockchain fintech AI machine learning">
+            <div class="form-hint">Keywords to search for on Google Scholar author profiles</div>
+        </div>
+        <div class="form-group">
+            <label for="field">Research Field Tag</label>
+            <input type="text" id="field" placeholder="e.g. Computer Science, Fintech">
+            <div class="form-hint">Optional: tag found professors with this field</div>
+        </div>
+        <div class="form-group">
+            <label for="max_results">Max Results</label>
+            <input type="number" id="max_results" value="20" min="1" max="50">
+        </div>
+    </div>
+
+    <!-- Faculty Directory Scraper -->
+    <div class="card">
+        <div class="card-header"><h3>Faculty Directories</h3></div>
+        <div class="form-group">
+            <label>Select Universities</label>
+            <div style="max-height:220px; overflow-y:auto; border:1px solid var(--ao-border); border-radius:var(--ao-radius-sm); padding:0.5rem;">
+                {% for uni in universities %}
+                <label style="display:flex; align-items:center; gap:0.5rem; padding:0.25rem 0; cursor:pointer; font-size:0.9rem;">
+                    <input type="checkbox" class="uni-checkbox" value="{{ uni }}">
+                    {{ uni }}
+                </label>
+                {% endfor %}
+            </div>
+            <div class="form-hint">Scrape CS department faculty pages from selected universities</div>
+        </div>
+        <div class="form-group">
+            <label for="department">Department</label>
+            <input type="text" id="department" value="Computer Science">
+        </div>
+    </div>
+</div>
+
+<div style="margin-top:1rem; display:flex; gap:0.75rem; align-items:center;">
+    <button class="btn btn-primary" id="search-btn" onclick="runSearch()">Search Professors</button>
+    <span id="search-status" style="color:var(--ao-text-dim); font-size:0.9rem;"></span>
+</div>
+
+<!-- Results -->
+<div id="results-section" style="margin-top:2rem; display:none;">
+    <div class="section">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div class="section-title" id="results-title">Results</div>
+            <div style="display:flex; gap:0.5rem;">
+                <button class="btn btn-outline btn-sm" onclick="selectAll()">Select All</button>
+                <button class="btn btn-outline btn-sm" onclick="selectNone()">Deselect All</button>
+                <button class="btn btn-primary btn-sm" id="save-btn" onclick="saveSelected()">Save Selected to Database</button>
+            </div>
+        </div>
+
+        <div id="warnings-box" style="margin-bottom:1rem;"></div>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width:40px;"><input type="checkbox" id="select-all-cb" onchange="toggleAll(this)"></th>
+                        <th>Name</th>
+                        <th>University</th>
+                        <th>Email</th>
+                        <th>Field</th>
+                        <th>Source</th>
+                        <th>Profile</th>
+                    </tr>
+                </thead>
+                <tbody id="results-body"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div id="save-result" style="margin-top:1rem;"></div>
+
+{% block scripts %}
+<script>
+let foundProfessors = [];
+
+async function runSearch() {
+    const btn = document.getElementById('search-btn');
+    const status = document.getElementById('search-status');
+    btn.disabled = true;
+    btn.textContent = 'Searching...';
+    status.textContent = 'This may take a moment (web scraping is polite)...';
+
+    const query = document.getElementById('scholar_query').value.trim();
+    const field = document.getElementById('field').value.trim();
+    const department = document.getElementById('department').value.trim();
+    const maxResults = parseInt(document.getElementById('max_results').value) || 20;
+
+    const checkboxes = document.querySelectorAll('.uni-checkbox:checked');
+    const universities = Array.from(checkboxes).map(cb => cb.value);
+
+    if (!query && universities.length === 0) {
+        status.textContent = 'Enter a Scholar query or select universities.';
+        status.style.color = 'var(--ao-danger)';
+        btn.disabled = false;
+        btn.textContent = 'Search Professors';
+        return;
+    }
+
+    try {
+        const res = await fetch('/finder/search', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                scholar_query: query,
+                universities: universities,
+                field: field,
+                department: department || 'Computer Science',
+                max_results: maxResults,
+            }),
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            foundProfessors = data.professors;
+            renderResults(data.professors, data.warnings);
+            status.textContent = `Found ${data.count} professor(s).`;
+            status.style.color = 'var(--ao-success)';
+        } else {
+            status.textContent = data.error || 'Search failed.';
+            status.style.color = 'var(--ao-danger)';
+        }
+    } catch (err) {
+        status.textContent = 'Request failed: ' + err.message;
+        status.style.color = 'var(--ao-danger)';
+    }
+
+    btn.disabled = false;
+    btn.textContent = 'Search Professors';
+}
+
+function renderResults(professors, warnings) {
+    const section = document.getElementById('results-section');
+    const title = document.getElementById('results-title');
+    const body = document.getElementById('results-body');
+    const warningsBox = document.getElementById('warnings-box');
+
+    section.style.display = 'block';
+    title.textContent = `Results (${professors.length})`;
+
+    // Warnings
+    if (warnings && warnings.length > 0) {
+        warningsBox.innerHTML = warnings.map(w =>
+            '<div class="flash-msg flash-warning" style="margin-bottom:0.5rem;">' + w + '</div>'
+        ).join('');
+    } else {
+        warningsBox.innerHTML = '';
+    }
+
+    // Table rows
+    body.innerHTML = '';
+    professors.forEach((prof, idx) => {
+        const tr = document.createElement('tr');
+        const emailDisplay = prof.email
+            ? prof.email
+            : '<span style="color:var(--ao-text-dim); font-size:0.82rem;">needs lookup</span>';
+        const profileLink = prof.profile_url
+            ? `<a href="${prof.profile_url}" target="_blank" style="color:var(--ao-accent);">View</a>`
+            : '-';
+        const sourceBadge = prof.source === 'Scholar'
+            ? '<span class="badge" style="background:var(--ao-primary);">Scholar</span>'
+            : '<span class="badge" style="background:var(--ao-accent); color:#000;">Directory</span>';
+
+        tr.innerHTML = `
+            <td><input type="checkbox" class="prof-checkbox" data-idx="${idx}" checked></td>
+            <td style="font-weight:500;">${prof.name}</td>
+            <td>${prof.university || '-'}</td>
+            <td style="font-size:0.85rem;">${emailDisplay}</td>
+            <td style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${prof.field || '-'}</td>
+            <td>${sourceBadge}</td>
+            <td>${profileLink}</td>
+        `;
+        body.appendChild(tr);
+    });
+}
+
+function selectAll() {
+    document.querySelectorAll('.prof-checkbox').forEach(cb => cb.checked = true);
+    document.getElementById('select-all-cb').checked = true;
+}
+function selectNone() {
+    document.querySelectorAll('.prof-checkbox').forEach(cb => cb.checked = false);
+    document.getElementById('select-all-cb').checked = false;
+}
+function toggleAll(masterCb) {
+    document.querySelectorAll('.prof-checkbox').forEach(cb => cb.checked = masterCb.checked);
+}
+
+async function saveSelected() {
+    const checkboxes = document.querySelectorAll('.prof-checkbox:checked');
+    const selected = Array.from(checkboxes).map(cb => foundProfessors[parseInt(cb.dataset.idx)]);
+
+    if (selected.length === 0) {
+        document.getElementById('save-result').innerHTML =
+            '<div class="flash-msg flash-warning">No professors selected.</div>';
+        return;
+    }
+
+    const btn = document.getElementById('save-btn');
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+
+    try {
+        const res = await fetch('/finder/save', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({professors: selected}),
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            document.getElementById('save-result').innerHTML =
+                `<div class="flash-msg flash-success">Saved ${data.saved} professor(s) to database.` +
+                (data.errors > 0 ? ` (${data.errors} errors)` : '') + '</div>';
+        } else {
+            document.getElementById('save-result').innerHTML =
+                '<div class="flash-msg flash-error">' + (data.error || 'Save failed.') + '</div>';
+        }
+    } catch (err) {
+        document.getElementById('save-result').innerHTML =
+            '<div class="flash-msg flash-error">Request failed: ' + err.message + '</div>';
+    }
+
+    btn.disabled = false;
+    btn.textContent = 'Save Selected to Database';
+}
+</script>
+{% endblock %}
+{% endblock %}
