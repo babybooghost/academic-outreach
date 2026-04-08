@@ -95,16 +95,17 @@
             </form>
         </div>
 
-        <!-- Generated Key Display -->
+        <!-- Generated Key Display (persists in session until dismissed) -->
         {% if new_key %}
         <div class="card section" id="new-key-card" style="border-color: var(--ao-success); background: rgba(0,206,201,0.05);">
-            <div class="card-header" style="border-color: var(--ao-success);">
-                <h3 style="color: var(--ao-success);">New Key Created</h3>
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:0 0 0.75rem 0;">
+                <h3 style="color: var(--ao-success); margin:0;">Key for "{{ new_key_label }}"</h3>
+                <button class="btn btn-ghost btn-sm" onclick="dismissKey()" title="Dismiss this key display" style="opacity:0.6;">&times; Dismiss</button>
             </div>
             <div style="background: var(--ao-surface-3); padding: 1.25rem; border-radius: var(--ao-radius-sm); text-align: center; margin-bottom:1rem;">
                 <code id="new-key-value" style="font-size: 1.05rem; user-select: all; word-break: break-all; line-height:1.8;">{{ new_key }}</code>
             </div>
-            <div style="display:flex; gap:0.75rem; justify-content:center; align-items:center;">
+            <div style="display:flex; gap:0.75rem; justify-content:center; align-items:center; flex-wrap:wrap;">
                 <button class="btn btn-primary" onclick="copyKey()" id="copy-key-btn" style="min-width:160px;">
                     Copy Key
                 </button>
@@ -120,40 +121,17 @@
                 3. Click "Sign In"
             </div>
         </div>
-        <script>
-        function copyKey() {
-            const key = document.getElementById('new-key-value').textContent.trim();
-            navigator.clipboard.writeText(key).then(() => {
-                const btn = document.getElementById('copy-key-btn');
-                btn.textContent = 'Copied!';
-                btn.style.background = 'var(--ao-success)';
-                document.getElementById('copy-feedback').innerHTML = '<span style="color:var(--ao-success);">Key copied to clipboard</span>';
-                setTimeout(() => {
-                    btn.textContent = 'Copy Key';
-                    btn.style.background = '';
-                }, 3000);
-            });
-        }
-        function copyInstructions() {
-            const key = document.getElementById('new-key-value').textContent.trim();
-            const host = '{{ request.host_url }}'.replace(/\/$/, '');
-            const text = `Your Academic Outreach access key:\n\n${key}\n\nHow to log in:\n1. Go to ${host}/login\n2. Paste the key above\n3. Click "Sign In"\n\nKeep this key safe — don't share it publicly.`;
-            navigator.clipboard.writeText(text).then(() => {
-                const btn = document.getElementById('copy-instructions-btn');
-                btn.textContent = 'Copied!';
-                document.getElementById('copy-feedback').innerHTML = '<span style="color:var(--ao-success);">Key + instructions copied — ready to send to user</span>';
-                setTimeout(() => { btn.textContent = 'Copy with Instructions'; }, 3000);
-            });
-        }
-        </script>
         {% endif %}
 
         <!-- Existing Keys -->
         <div class="section">
-            <div class="section-title">Access Keys</div>
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
+                <div class="section-title" style="margin:0;">Access Keys</div>
+                <input type="text" id="key-search" placeholder="Search keys..." oninput="filterKeys()" style="width:220px; padding:0.4rem 0.75rem; font-size:0.85rem;">
+            </div>
             {% if keys %}
-            <div class="table-wrap">
-                <table>
+            <div class="table-wrap" style="margin-top:0.75rem;">
+                <table id="keys-table">
                     <thead>
                         <tr>
                             <th>Label</th>
@@ -168,7 +146,7 @@
                     </thead>
                     <tbody>
                         {% for key in keys %}
-                        <tr>
+                        <tr class="key-row">
                             <td><strong>{{ key.label or 'Unlabeled' }}</strong></td>
                             <td>
                                 <span class="key-display key-display-masked">
@@ -290,5 +268,44 @@
     <footer class="footer-bar" style="text-align:center; padding:1.5rem; color:var(--ao-text-dim); font-size:0.8rem; border-top:1px solid var(--ao-border);">
         Admin Hub — Academic Outreach v{{ app_version }}
     </footer>
+
+    <script>
+    function copyKey() {
+        const key = document.getElementById('new-key-value').textContent.trim();
+        navigator.clipboard.writeText(key).then(() => {
+            const btn = document.getElementById('copy-key-btn');
+            btn.textContent = 'Copied!';
+            btn.style.background = 'var(--ao-success)';
+            document.getElementById('copy-feedback').innerHTML = '<span style="color:var(--ao-success);">Key copied to clipboard</span>';
+            setTimeout(() => { btn.textContent = 'Copy Key'; btn.style.background = ''; }, 3000);
+        });
+    }
+
+    function copyInstructions() {
+        const key = document.getElementById('new-key-value').textContent.trim();
+        const host = '{{ request.host_url }}'.replace(/\/$/, '');
+        const text = `Your Academic Outreach access key:\n\n${key}\n\nHow to log in:\n1. Go to ${host}/login\n2. Paste the key above\n3. Click "Sign In"\n\nKeep this key safe — don't share it publicly.`;
+        navigator.clipboard.writeText(text).then(() => {
+            const btn = document.getElementById('copy-instructions-btn');
+            btn.textContent = 'Copied!';
+            document.getElementById('copy-feedback').innerHTML = '<span style="color:var(--ao-success);">Key + instructions copied — ready to send</span>';
+            setTimeout(() => { btn.textContent = 'Copy with Instructions'; }, 3000);
+        });
+    }
+
+    function dismissKey() {
+        fetch('/admin/keys/dismiss', { method: 'POST' }).then(() => {
+            document.getElementById('new-key-card').style.display = 'none';
+        });
+    }
+
+    function filterKeys() {
+        const q = document.getElementById('key-search').value.toLowerCase().trim();
+        document.querySelectorAll('.key-row').forEach(row => {
+            const text = row.textContent.toLowerCase();
+            row.style.display = text.includes(q) ? '' : 'none';
+        });
+    }
+    </script>
 </body>
 </html>

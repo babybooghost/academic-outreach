@@ -814,14 +814,24 @@ def create_app() -> Flask:
         conn = _conn()
         try:
             keys = get_access_keys(conn)
-            new_key = request.args.get("new_key")
+            # Key persists in session until dismissed
+            new_key = session.get("last_created_key")
+            new_key_label = session.get("last_created_key_label", "")
             stats = get_admin_activity_stats(conn)
             recent_activity = get_admin_activity_log(conn, limit=50)
             _log_activity("admin_view_hub", category="admin", is_admin=True)
             return render_template("admin.html", keys=keys, new_key=new_key,
+                                   new_key_label=new_key_label,
                                    stats=stats, recent_activity=recent_activity)
         finally:
             conn.close()
+
+    @app.route("/admin/keys/dismiss", methods=["POST"])
+    @admin_required
+    def admin_dismiss_key():
+        session.pop("last_created_key", None)
+        session.pop("last_created_key_label", None)
+        return jsonify({"success": True})
 
     @app.route("/admin/activity")
     @admin_required
@@ -892,8 +902,10 @@ def create_app() -> Flask:
             _log_activity("admin_create_key", category="admin", is_admin=True,
                           target_type="access_key",
                           details={"label": label, "role": role})
+            session["last_created_key"] = key_value
+            session["last_created_key_label"] = label
             flash(f"Access key created for '{label}'.", "success")
-            return redirect(url_for("admin_hub", new_key=key_value))
+            return redirect(url_for("admin_hub"))
         except Exception as exc:
             flash(f"Failed to create key: {exc}", "error")
             return redirect(url_for("admin_hub"))
