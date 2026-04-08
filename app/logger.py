@@ -19,14 +19,18 @@ from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
-from rich.console import Console
-from rich.logging import RichHandler
+try:
+    from rich.console import Console
+    from rich.logging import RichHandler
+    _HAS_RICH = True
+except ImportError:
+    _HAS_RICH = False
 
 # ---------------------------------------------------------------------------
 # Module-level state
 # ---------------------------------------------------------------------------
 _LOG_DIR: Optional[Path] = None
-_CONSOLE: Console = Console(stderr=True)
+_CONSOLE: Any = Console(stderr=True) if _HAS_RICH else None
 _INITIALIZED_LOGGERS: Dict[str, logging.Logger] = {}
 _DEFAULT_LOG_LEVEL: int = logging.INFO
 _DATE_FMT: str = "%Y-%m-%d %H:%M:%S"
@@ -111,15 +115,19 @@ def get_logger(
     file_handler.setFormatter(logging.Formatter(_FILE_FMT, datefmt=_DATE_FMT))
     logger.addHandler(file_handler)
 
-    # --- Rich console handler ---
-    console_handler: RichHandler = RichHandler(
-        console=_CONSOLE,
-        show_time=True,
-        show_path=False,
-        rich_tracebacks=True,
-        tracebacks_show_locals=False,
-        markup=True,
-    )
+    # --- Console handler (Rich if available, else basic StreamHandler) ---
+    if _HAS_RICH:
+        console_handler = RichHandler(
+            console=_CONSOLE,
+            show_time=True,
+            show_path=False,
+            rich_tracebacks=True,
+            tracebacks_show_locals=False,
+            markup=True,
+        )
+    else:
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(logging.Formatter(_FILE_FMT, datefmt=_DATE_FMT))
     console_handler.setLevel(effective_level)
     logger.addHandler(console_handler)
 

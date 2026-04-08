@@ -1,0 +1,10 @@
+# Slim dependencies for Vercel serverless deployment
+# Heavy packages (scikit-learn, numpy, lxml, google-api) are NOT needed
+# for the web review UI — they're only used by CLI commands.
+
+python-dotenv>=1.0.0
+jinja2>=3.1.0
+pyyaml>=6.0.0
+flask>=3.0.0
+requests>=2.31.0
+beautifulsoup4>=4.12.0

@@ -505,7 +505,16 @@ def load_config(
     followup_cfg = FollowUpPools(**merged["followup_pools"])
     fields_list: List[str] = list(merged.get("fields", DEFAULT_CONFIG_YAML["fields"]))
 
-    # 8. Ensure critical directories exist
+    # 8. On Vercel (serverless), only /tmp is writable
+    if os.environ.get("VERCEL"):
+        if not db_path.startswith("/tmp"):
+            db_path = "/tmp/outreach.db"
+        if not log_dir.startswith("/tmp"):
+            log_dir = "/tmp/logs"
+        if not output_dir.startswith("/tmp"):
+            output_dir = "/tmp/outputs"
+
+    # 9. Ensure critical directories exist
     Path(log_dir).mkdir(parents=True, exist_ok=True)
     Path(output_dir).mkdir(parents=True, exist_ok=True)
     Path(db_path).parent.mkdir(parents=True, exist_ok=True)

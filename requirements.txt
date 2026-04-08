@@ -1,32 +1,10 @@
-# Core
-click>=8.1.0
+# Slim dependencies for Vercel serverless deployment.
+# For local dev with all features (CLI, ML, Gmail API), use:
+#   pip install -r requirements-full.txt
+
 python-dotenv>=1.0.0
 jinja2>=3.1.0
 pyyaml>=6.0.0
-rich>=13.0.0
-
-# Web scraping / enrichment
+flask>=3.0.0
 requests>=2.31.0
 beautifulsoup4>=4.12.0
-lxml>=4.9.0
-
-# Keyword extraction
-yake>=0.4.8
-
-# ML / NLP
-scikit-learn>=1.3.0
-numpy>=1.24.0
-
-# Web UI
-flask>=3.0.0
-
-# Gmail API
-google-api-python-client>=2.100.0
-google-auth-httplib2>=0.1.1
-google-auth-oauthlib>=1.1.0
-
-# Email
-secure-smtplib>=0.1.1
-
-# Turso (cloud SQLite for Vercel deployment)
-libsql-experimental>=0.0.47
