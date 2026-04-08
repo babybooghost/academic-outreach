@@ -4,39 +4,90 @@
 {% block content %}
 <hgroup>
     <h1>Settings</h1>
-    <p>Current configuration and sender profiles</p>
+    <p>All settings are saved to the database — nothing is hardcoded</p>
 </hgroup>
 
-<!-- Configuration -->
-<article>
-    <header><strong>Application Configuration</strong></header>
-    {% if config_display %}
-    <figure>
-    <table class="striped">
-        <thead>
-            <tr>
-                <th>Setting</th>
-                <th>Value</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for key, value in config_display.items() %}
-            <tr>
-                <td><strong>{{ key }}</strong></td>
-                <td><code>{{ value }}</code></td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    </figure>
-    {% else %}
-    <p class="empty-state">Configuration not loaded.</p>
-    {% endif %}
+<!-- Flash messages -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+{% for category, message in messages %}
+<article class="flash-{{ category }}" style="padding: 0.75rem 1rem; margin-bottom: 1rem;
+    background: {{ 'var(--ins-color)' if category == 'success' else 'var(--del-color)' }}22;
+    border-left: 4px solid {{ 'var(--ins-color)' if category == 'success' else 'var(--del-color)' }};">
+    {{ message }}
 </article>
+{% endfor %}
+{% endif %}
+{% endwith %}
+
+<!-- Main Settings Form -->
+<form method="POST" action="{{ url_for('settings_save') }}">
+    <article>
+        <header><strong>LLM Configuration</strong></header>
+
+        <label for="llm_provider">LLM Provider</label>
+        <select id="llm_provider" name="llm_provider">
+            <option value="" {% if not effective.llm_provider %}selected{% endif %}>(None — keyword-only mode)</option>
+            <option value="openrouter" {% if effective.llm_provider == 'openrouter' %}selected{% endif %}>OpenRouter (recommended)</option>
+            <option value="openai" {% if effective.llm_provider == 'openai' %}selected{% endif %}>OpenAI Direct</option>
+            <option value="anthropic" {% if effective.llm_provider == 'anthropic' %}selected{% endif %}>Anthropic Direct</option>
+        </select>
+
+        <label for="llm_api_key">API Key</label>
+        <input type="password" id="llm_api_key" name="llm_api_key"
+               value="{{ effective.llm_api_key }}"
+               placeholder="sk-or-v1-... or sk-...">
+        <small>Your OpenRouter / OpenAI / Anthropic API key</small>
+
+        <label for="llm_model">Model</label>
+        <select id="llm_model" name="llm_model">
+            {% for model_id, model_name in llm_models.items() %}
+            <option value="{{ model_id }}" {% if effective.llm_model == model_id %}selected{% endif %}>
+                {{ model_name }} ({{ model_id }})
+            </option>
+            {% endfor %}
+        </select>
+        <small>Choose which LLM generates your emails. Faster/cheaper models at the top.</small>
+    </article>
+
+    <article>
+        <header><strong>Email Configuration</strong></header>
+
+        <label for="sender_email">Sender Email Address</label>
+        <input type="email" id="sender_email" name="sender_email"
+               value="{{ effective.sender_email }}"
+               placeholder="you@gmail.com">
+        <small>The email address that outreach emails are sent from</small>
+
+        <label for="email_provider">Email Provider</label>
+        <select id="email_provider" name="email_provider">
+            {% for provider_id, provider_name in email_providers.items() %}
+            <option value="{{ provider_id }}" {% if effective.email_provider == provider_id %}selected{% endif %}>
+                {{ provider_name }}
+            </option>
+            {% endfor %}
+        </select>
+        <small>SMTP settings are auto-configured based on provider</small>
+
+        <label for="smtp_user">SMTP Username (optional)</label>
+        <input type="text" id="smtp_user" name="smtp_user"
+               value="{{ effective.smtp_user }}"
+               placeholder="Leave blank to use sender email">
+
+        <label for="smtp_password">SMTP App Password (optional)</label>
+        <input type="password" id="smtp_password" name="smtp_password"
+               value="{{ effective.smtp_password }}"
+               placeholder="App-specific password for SMTP sending">
+        <small>Only needed for direct SMTP sending (not Gmail draft mode)</small>
+    </article>
+
+    <button type="submit">Save Settings</button>
+</form>
 
 <!-- Sender Profiles -->
 <article>
     <header><strong>Sender Profiles</strong></header>
+    <p><small>Manage who sends outreach emails — you, friends, etc. Add profiles via CLI: <code>python main.py profile add</code></small></p>
     {% if profiles %}
     <figure>
     <table class="striped">
@@ -67,7 +118,7 @@
     </table>
     </figure>
     {% else %}
-    <p class="empty-state">No sender profiles configured.</p>
+    <p class="empty-state">No sender profiles configured. Run <code>python main.py profile add</code> to create one.</p>
     {% endif %}
 </article>
 

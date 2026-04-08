@@ -26,14 +26,17 @@ from flask import (
 
 from app.config import load_config
 from app.database import (
+    get_all_settings,
     get_connection,
     get_draft,
     get_drafts,
     get_professor,
     get_professors,
     get_sender_profiles,
+    get_setting,
     get_suppression_list,
     init_db,
+    set_settings_bulk,
     update_draft_status,
 )
 from app.logger import get_logger
@@ -490,43 +493,89 @@ def create_app() -> Flask:
             return redirect(url_for("export_page"))
         return send_file(str(filepath), as_attachment=True)
 
+    # ------------------------------------------------------------------
+    # Available LLM models (for dropdown)
+    # ------------------------------------------------------------------
+    _LLM_MODELS: dict[str, str] = {
+        "google/gemini-2.5-flash-preview": "Gemini 2.5 Flash",
+        "google/gemini-2.5-pro-preview": "Gemini 2.5 Pro",
+        "anthropic/claude-haiku-4-5-20251001": "Claude Haiku",
+        "anthropic/claude-sonnet-4-6": "Claude Sonnet",
+        "anthropic/claude-opus-4-6": "Claude Opus",
+    }
+
+    _EMAIL_PROVIDERS: dict[str, str] = {
+        "gmail": "Gmail",
+        "outlook": "Outlook",
+        "hotmail": "Hotmail",
+    }
+
     @app.route("/settings")
     def settings_page():
-        """Show current config and sender profiles."""
+        """Show current config and sender profiles — everything editable."""
         conn = _conn()
         try:
             cfg = app.config.get("APP_CFG")
             profiles = get_sender_profiles(conn)
             suppression = get_suppression_list(conn)
 
-            # Build a safe config dict (hide secrets)
-            config_display: dict[str, Any] = {}
-            if cfg:
-                config_display = {
-                    "Database Path": cfg.db_path,
-                    "Log Directory": cfg.log_dir,
-                    "Output Directory": cfg.output_dir,
-                    "Email Provider": cfg.email_provider,
-                    "SMTP Host": cfg.smtp_host,
-                    "SMTP Port": cfg.smtp_port,
-                    "Sender Email": cfg.sender_email or "(not set)",
-                    "LLM Provider": cfg.llm_provider or "(not set)",
-                    "LLM Model": cfg.llm_model,
-                    "Rate Limit (per hour)": cfg.sending.rate_limit_per_hour,
-                    "Session Cap": cfg.sending.session_cap,
-                    "Cooldown (min-max)": f"{cfg.sending.cooldown_min}-{cfg.sending.cooldown_max}s",
-                    "Word Count Range": f"{cfg.generation.word_count_min}-{cfg.generation.word_count_max}",
-                    "Similarity Threshold": cfg.generation.similarity_threshold,
-                    "Minimum Score": cfg.scoring.thresholds.minimum_score,
-                    "High Quality Score": cfg.scoring.thresholds.high_quality,
-                }
+            # Load saved settings from DB (fall back to env vars / config)
+            saved = get_all_settings(conn)
+
+            # Current effective values: DB setting → env var → config default
+            effective: dict[str, str] = {
+                "sender_email": saved.get("sender_email", os.environ.get("SENDER_EMAIL", cfg.sender_email if cfg else "")),
+                "llm_provider": saved.get("llm_provider", os.environ.get("LLM_PROVIDER", cfg.llm_provider if cfg else "")),
+                "llm_api_key": saved.get("llm_api_key", os.environ.get("LLM_API_KEY", cfg.llm_api_key if cfg else "")),
+                "llm_model": saved.get("llm_model", os.environ.get("LLM_MODEL", cfg.llm_model if cfg else "google/gemini-2.5-flash-preview")),
+                "email_provider": saved.get("email_provider", os.environ.get("EMAIL_PROVIDER", cfg.email_provider if cfg else "gmail")),
+                "smtp_user": saved.get("smtp_user", os.environ.get("SMTP_USER", cfg.smtp_user if cfg else "")),
+                "smtp_password": saved.get("smtp_password", os.environ.get("SMTP_PASSWORD", cfg.smtp_password if cfg else "")),
+            }
 
             return render_template(
                 "settings.html",
-                config_display=config_display,
+                effective=effective,
+                llm_models=_LLM_MODELS,
+                email_providers=_EMAIL_PROVIDERS,
                 profiles=profiles,
                 suppression=suppression,
             )
+        finally:
+            conn.close()
+
+    @app.route("/settings", methods=["POST"])
+    def settings_save():
+        """Save runtime settings to the database."""
+        conn = _conn()
+        try:
+            # Collect form fields
+            new_settings: dict[str, str] = {}
+            for key in ("sender_email", "llm_provider", "llm_api_key", "llm_model",
+                        "email_provider", "smtp_user", "smtp_password"):
+                val = request.form.get(key, "").strip()
+                new_settings[key] = val
+
+            set_settings_bulk(conn, new_settings)
+
+            # Also update the live app config's env so the rest of the app
+            # picks up changes this session without restart
+            for key, val in new_settings.items():
+                if val:
+                    os.environ[key.upper()] = val
+
+            # Reload config so changes take effect immediately
+            try:
+                app.config["APP_CFG"] = load_config()
+            except Exception:
+                pass  # Non-fatal; settings are saved in DB regardless
+
+            flash("Settings saved successfully.", "success")
+            return redirect(url_for("settings_page"))
+        except Exception as exc:
+            logger.error("Settings save failed: %s", exc)
+            flash(f"Failed to save settings: {exc}", "error")
+            return redirect(url_for("settings_page"))
         finally:
             conn.close()
 

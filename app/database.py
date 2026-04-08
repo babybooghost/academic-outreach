@@ -214,6 +214,11 @@ CREATE TABLE IF NOT EXISTS audit_log (
     entity_id        INTEGER,
     details          TEXT    NOT NULL DEFAULT '{}'
 );
+
+CREATE TABLE IF NOT EXISTS app_settings (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL DEFAULT ''
+);
 """
 
 
@@ -746,4 +751,67 @@ def get_audit_log(
         return [AuditEntry.from_row(r) for r in rows]
     except sqlite3.Error as exc:
         logger.error("get_audit_log failed: %s", exc)
+        raise
+
+
+# ---------------------------------------------------------------------------
+# App Settings (key-value store for runtime configuration)
+# ---------------------------------------------------------------------------
+
+def get_setting(conn: sqlite3.Connection, key: str, default: str = "") -> str:
+    """Get a single setting value by key, returning *default* if not found."""
+    try:
+        row: Optional[sqlite3.Row] = conn.execute(
+            "SELECT value FROM app_settings WHERE key = ?", (key,)
+        ).fetchone()
+        return row["value"] if row else default
+    except sqlite3.Error as exc:
+        logger.error("get_setting failed for key=%s: %s", key, exc)
+        return default
+
+
+def set_setting(conn: sqlite3.Connection, key: str, value: str) -> None:
+    """Upsert a single setting key-value pair."""
+    try:
+        conn.execute(
+            """
+            INSERT INTO app_settings (key, value) VALUES (?, ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value
+            """,
+            (key, value),
+        )
+        conn.commit()
+    except sqlite3.Error as exc:
+        logger.error("set_setting failed for key=%s: %s", key, exc)
+        conn.rollback()
+        raise
+
+
+def get_all_settings(conn: sqlite3.Connection) -> dict[str, str]:
+    """Return all settings as a dict."""
+    try:
+        rows: list[sqlite3.Row] = conn.execute(
+            "SELECT key, value FROM app_settings ORDER BY key"
+        ).fetchall()
+        return {r["key"]: r["value"] for r in rows}
+    except sqlite3.Error as exc:
+        logger.error("get_all_settings failed: %s", exc)
+        return {}
+
+
+def set_settings_bulk(conn: sqlite3.Connection, settings: dict[str, str]) -> None:
+    """Upsert multiple settings at once."""
+    try:
+        for key, value in settings.items():
+            conn.execute(
+                """
+                INSERT INTO app_settings (key, value) VALUES (?, ?)
+                ON CONFLICT(key) DO UPDATE SET value = excluded.value
+                """,
+                (key, value),
+            )
+        conn.commit()
+    except sqlite3.Error as exc:
+        logger.error("set_settings_bulk failed: %s", exc)
+        conn.rollback()
         raise

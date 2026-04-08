@@ -341,8 +341,20 @@ class ConfigError(Exception):
     """Raised when configuration validation fails."""
 
 
-def _env(name: str, default: Optional[str] = None, required: bool = False) -> str:
-    """Read an environment variable with optional default / required check."""
+def _env(
+    name: str,
+    default: Optional[str] = None,
+    required: bool = False,
+    db_settings: Optional[Dict[str, str]] = None,
+) -> str:
+    """Read a config value.  Priority: DB setting → env var → default."""
+    # 1. Check DB settings first (key is lowercase version of env var name)
+    if db_settings:
+        db_key = name.lower()
+        db_val = db_settings.get(db_key)
+        if db_val:
+            return db_val
+    # 2. Env var
     value: Optional[str] = os.getenv(name, default)
     if required and not value:
         raise ConfigError(f"Required environment variable {name!r} is not set.")
@@ -428,40 +440,61 @@ def load_config(
     # 3. Validate yaml
     _validate_yaml(merged)
 
-    # 4. Read env vars
+    # 4. Load runtime settings from DB (if DB exists already)
+    db_path_initial: str = os.getenv("DB_PATH", str(root / "data" / "outreach.db"))
+    db_settings: Dict[str, str] = {}
+    try:
+        import sqlite3 as _sqlite3
+        _db_file = Path(db_path_initial)
+        if _db_file.exists():
+            _tmp_conn = _sqlite3.connect(str(_db_file))
+            _tmp_conn.row_factory = _sqlite3.Row
+            try:
+                rows = _tmp_conn.execute(
+                    "SELECT key, value FROM app_settings"
+                ).fetchall()
+                db_settings = {r["key"]: r["value"] for r in rows}
+            except _sqlite3.OperationalError:
+                pass  # Table doesn't exist yet — first run
+            finally:
+                _tmp_conn.close()
+    except Exception:
+        pass  # DB not reachable — use env vars only
+
+    # 5. Read env vars (DB settings take priority via _env())
     gmail_credentials_path: str = _env(
-        "GMAIL_CREDENTIALS_PATH", str(root / "credentials.json")
+        "GMAIL_CREDENTIALS_PATH", str(root / "credentials.json"), db_settings=db_settings,
     )
-    gmail_token_path: str = _env("GMAIL_TOKEN_PATH", str(root / "token.json"))
+    gmail_token_path: str = _env("GMAIL_TOKEN_PATH", str(root / "token.json"), db_settings=db_settings)
     # Determine email provider to set SMTP defaults
-    _email_provider_raw: str = _env("EMAIL_PROVIDER", "gmail").lower()
+    _email_provider_raw: str = _env("EMAIL_PROVIDER", "gmail", db_settings=db_settings).lower()
     _provider_defaults: Dict[str, Any] = merged.get("email_providers", {}).get(
         _email_provider_raw, {"smtp_host": "smtp.gmail.com", "smtp_port": 587}
     )
-    smtp_host: str = _env("SMTP_HOST", _provider_defaults.get("smtp_host", "smtp.gmail.com"))
-    smtp_port_raw: str = _env("SMTP_PORT", str(_provider_defaults.get("smtp_port", 587)))
+    smtp_host: str = _env("SMTP_HOST", _provider_defaults.get("smtp_host", "smtp.gmail.com"), db_settings=db_settings)
+    smtp_port_raw: str = _env("SMTP_PORT", str(_provider_defaults.get("smtp_port", 587)), db_settings=db_settings)
     try:
         smtp_port: int = int(smtp_port_raw)
     except ValueError as exc:
         raise ConfigError(f"SMTP_PORT must be an integer. Got: {smtp_port_raw!r}") from exc
 
-    smtp_user: str = _env("SMTP_USER", "")
-    smtp_password: str = _env("SMTP_PASSWORD", "")
-    sender_email: str = _env("SENDER_EMAIL", "")
-    llm_provider_raw: str = _env("LLM_PROVIDER", "")
+    smtp_user: str = _env("SMTP_USER", "", db_settings=db_settings)
+    smtp_password: str = _env("SMTP_PASSWORD", "", db_settings=db_settings)
+    sender_email: str = _env("SENDER_EMAIL", "", db_settings=db_settings)
+    llm_provider_raw: str = _env("LLM_PROVIDER", "", db_settings=db_settings)
     llm_provider: Optional[str] = llm_provider_raw if llm_provider_raw else None
-    llm_api_key_raw: str = _env("LLM_API_KEY", "")
+    llm_api_key_raw: str = _env("LLM_API_KEY", "", db_settings=db_settings)
     llm_api_key: Optional[str] = llm_api_key_raw if llm_api_key_raw else None
-    llm_model: str = _env("LLM_MODEL", merged.get("llm_models", {}).get("default_model", "google/gemini-2.5-flash-preview"))
-    email_provider: str = _env("EMAIL_PROVIDER", "gmail").lower()
-    db_path: str = _env("DB_PATH", str(root / "data" / "outreach.db"))
-    log_dir: str = _env("LOG_DIR", str(root / "logs"))
-    output_dir: str = _env("OUTPUT_DIR", str(root / "outputs"))
+    llm_model: str = _env("LLM_MODEL", merged.get("llm_models", {}).get("default_model", "google/gemini-2.5-flash-preview"), db_settings=db_settings)
+    email_provider: str = _env("EMAIL_PROVIDER", "gmail", db_settings=db_settings).lower()
+    db_path: str = _env("DB_PATH", str(root / "data" / "outreach.db"), db_settings=db_settings)
+    log_dir: str = _env("LOG_DIR", str(root / "logs"), db_settings=db_settings)
+    output_dir: str = _env("OUTPUT_DIR", str(root / "outputs"), db_settings=db_settings)
 
-    # 5. Cross-field env validation
+    # 6. Cross-field env validation
     _validate_env_vars(llm_provider, llm_api_key, smtp_port)
 
-    # 6. Build nested dataclasses from merged yaml
+    # 7. Build nested dataclasses from merged yaml
     scoring_cfg = ScoringConfig(
         weights=ScoringWeights(**merged["scoring"]["weights"]),
         thresholds=ScoringThresholds(**merged["scoring"]["thresholds"]),
@@ -472,7 +505,7 @@ def load_config(
     followup_cfg = FollowUpPools(**merged["followup_pools"])
     fields_list: List[str] = list(merged.get("fields", DEFAULT_CONFIG_YAML["fields"]))
 
-    # 7. Ensure critical directories exist
+    # 8. Ensure critical directories exist
     Path(log_dir).mkdir(parents=True, exist_ok=True)
     Path(output_dir).mkdir(parents=True, exist_ok=True)
     Path(db_path).parent.mkdir(parents=True, exist_ok=True)
