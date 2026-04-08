@@ -9,7 +9,6 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <script>
-    // Apply theme BEFORE render to avoid flash
     (function(){
         var t = localStorage.getItem('ao_theme') || 'system';
         var p = t === 'system' ? (matchMedia('(prefers-color-scheme:light)').matches ? 'light' : 'dark') : t;
@@ -34,12 +33,12 @@
                 <li><a href="{{ url_for('settings_page') }}" {% if request.endpoint == 'settings_page' %}class="active"{% endif %}><span class="nav-icon">&#9881;</span> Settings</a></li>
             </ul>
             <div class="nav-user">
-                <button class="theme-toggle" onclick="cycleTheme()" title="Toggle theme" aria-label="Toggle theme">
+                <button class="theme-toggle" onclick="cycleTheme()" title="Toggle theme" aria-label="Toggle theme" style="width:30px; height:30px; font-size:0.9rem;">
                     <span id="theme-icon">&#9790;</span>
                 </button>
                 <span class="nav-user-dot"></span>
                 <span>{{ session.get('key_label', 'User') }}</span>
-                <a href="{{ url_for('logout') }}" class="btn-ghost btn-sm" style="margin-left:0.25rem;">Logout</a>
+                <a href="{{ url_for('logout') }}" class="btn-ghost btn-sm" style="margin-left:0.15rem; font-size:0.8rem;">Logout</a>
             </div>
         </div>
     </nav>
@@ -58,7 +57,7 @@
         {% block content %}{% endblock %}
     </div>
 
-    <footer class="footer-bar" style="text-align:center; padding:1.5rem; color:var(--ao-text-dim); font-size:0.8rem; border-top:1px solid var(--ao-border);">
+    <footer class="footer-bar" style="text-align:center; padding:1.5rem; color:var(--ao-text-dim); font-size:0.78rem; border-top:1px solid var(--ao-border); background:var(--ao-bg-subtle); letter-spacing:0.01em;">
         Academic Outreach v{{ app_version }}
     </footer>
 
@@ -112,7 +111,7 @@
         {
             icon: '&#128270;',
             title: 'Professor Finder',
-            body: 'Go to <strong>Finder</strong> in the nav bar to search the OpenAlex database of 250M+ academic papers.<br><br>Search by topic (e.g. <code>blockchain fintech</code>), filter by university, and save professors to your database.'
+            body: 'Go to <strong>Finder</strong> to search across 5 academic databases — OpenAlex, Crossref, DBLP, arXiv, and Semantic Scholar.<br><br>Search by topic, filter by university presets, and save professors to your database.'
         },
         {
             icon: '&#9733;',
@@ -122,22 +121,22 @@
         {
             icon: '&#9881;',
             title: 'Configure Settings First',
-            body: 'Head to <strong>Settings</strong> to configure:<br><br>&#8226; <strong>Sender Email</strong> — your email address<br>&#8226; <strong>LLM Model</strong> — pick a model for email generation (or use keyword mode)<br>&#8226; <strong>Email Provider</strong> — Gmail, Outlook, etc.<br><br>You\'ll also need a <strong>sender profile</strong> (name, school, grade, interests) via the CLI.'
+            body: 'Head to <strong>Settings</strong> to configure:<br><br>&#8226; <strong>Sender Email</strong> — your email address<br>&#8226; <strong>LLM Model</strong> — pick a model for email generation<br>&#8226; <strong>Email Provider</strong> — Gmail, Outlook, etc.'
         },
         {
             icon: '&#9998;',
             title: 'Generate & Review Drafts',
-            body: 'Use <code>python main.py generate</code> to create personalized emails. Each draft gets a <strong>1-10 quality score</strong> and warnings like "too generic" or "no research reference".<br><br>Review, approve, edit, or reject drafts in the <strong>Drafts</strong> tab.'
+            body: 'Use the CLI to generate personalized emails. Each draft gets a <strong>1-10 quality score</strong> and warnings like "too generic" or "no research reference".<br><br>Review, approve, edit, or reject drafts in the <strong>Drafts</strong> tab.'
         },
         {
             icon: '&#9993;',
             title: 'Send via Gmail Drafts',
-            body: 'Approved emails go to the <strong>Send</strong> queue. The default mode creates <strong>Gmail drafts</strong> so you can review in Gmail before sending.<br><br>Use <code>--dry-run</code> to preview without touching Gmail.'
+            body: 'Approved emails go to the <strong>Send</strong> queue. The default mode creates <strong>Gmail drafts</strong> so you can review in Gmail before sending.<br><br>Use dry run to preview without touching Gmail.'
         },
         {
             icon: '&#127881;',
             title: 'You\'re All Set!',
-            body: 'Here\'s the workflow:<br><br><strong>1.</strong> Find professors (Finder or CSV import)<br><strong>2.</strong> Enrich with research data<br><strong>3.</strong> Generate personalized drafts<br><strong>4.</strong> Review & approve<br><strong>5.</strong> Create Gmail drafts & send<br><br>Click the <strong style="color:var(--ao-primary);">?</strong> button anytime to replay this tour.'
+            body: 'Here\'s the workflow:<br><br><strong>1.</strong> Find professors (Finder or CSV)<br><strong>2.</strong> Enrich with research data<br><strong>3.</strong> Generate personalized drafts<br><strong>4.</strong> Review & approve<br><strong>5.</strong> Create Gmail drafts & send<br><br>Click <strong style="color:var(--ao-primary-light);">?</strong> anytime to replay this tour.'
         }
     ];
 
