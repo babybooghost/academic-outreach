@@ -42,13 +42,22 @@ _FILE_FMT: str = "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
 # ---------------------------------------------------------------------------
 def _resolve_log_dir(log_dir: Optional[str] = None) -> Path:
     """Return a concrete, existing log directory."""
+    import os as _os
     global _LOG_DIR  # noqa: PLW0603
     if log_dir is not None:
         _LOG_DIR = Path(log_dir)
     if _LOG_DIR is None:
-        # Fallback: <project_root>/logs
-        _LOG_DIR = Path(__file__).resolve().parent.parent / "logs"
-    _LOG_DIR.mkdir(parents=True, exist_ok=True)
+        # On Vercel (serverless), only /tmp is writable
+        if _os.environ.get("VERCEL"):
+            _LOG_DIR = Path("/tmp/logs")
+        else:
+            _LOG_DIR = Path(__file__).resolve().parent.parent / "logs"
+    try:
+        _LOG_DIR.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        # Read-only filesystem (e.g. Vercel) — fall back to /tmp
+        _LOG_DIR = Path("/tmp/logs")
+        _LOG_DIR.mkdir(parents=True, exist_ok=True)
     return _LOG_DIR
 
 
