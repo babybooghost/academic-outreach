@@ -89,8 +89,31 @@ def create_app() -> Flask:
         return get_connection(c.db_path)
 
     # ------------------------------------------------------------------
+    # Error handler
+    # ------------------------------------------------------------------
+    @app.errorhandler(Exception)
+    def handle_exception(e):
+        """Show detailed errors (useful for debugging on Vercel)."""
+        import traceback
+        tb = traceback.format_exc()
+        logger.error("Unhandled exception: %s\n%s", e, tb)
+        return (
+            f"<h1>Error</h1><pre style='white-space:pre-wrap'>{tb}</pre>"
+        ), 500
+
+    # ------------------------------------------------------------------
     # Routes
     # ------------------------------------------------------------------
+
+    @app.route("/health")
+    def health_check():
+        """Simple health check endpoint."""
+        cfg = app.config.get("APP_CFG")
+        return jsonify({
+            "status": "ok",
+            "config_loaded": cfg is not None,
+            "db_path": cfg.db_path if cfg else None,
+        })
 
     @app.route("/")
     def dashboard():
