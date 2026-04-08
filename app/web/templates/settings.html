@@ -33,12 +33,6 @@
             <option value="anthropic" {% if effective.llm_provider == 'anthropic' %}selected{% endif %}>Anthropic Direct</option>
         </select>
 
-        <label for="llm_api_key">API Key</label>
-        <input type="password" id="llm_api_key" name="llm_api_key"
-               value="{{ effective.llm_api_key }}"
-               placeholder="sk-or-v1-... or sk-...">
-        <small>Your OpenRouter / OpenAI / Anthropic API key</small>
-
         <label for="llm_model">Model</label>
         <select id="llm_model" name="llm_model">
             {% for model_id, model_name in llm_models.items() %}

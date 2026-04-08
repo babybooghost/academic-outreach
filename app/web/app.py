@@ -526,7 +526,7 @@ def create_app() -> Flask:
             effective: dict[str, str] = {
                 "sender_email": saved.get("sender_email", os.environ.get("SENDER_EMAIL", cfg.sender_email if cfg else "")),
                 "llm_provider": saved.get("llm_provider", os.environ.get("LLM_PROVIDER", cfg.llm_provider if cfg else "")),
-                "llm_api_key": saved.get("llm_api_key", os.environ.get("LLM_API_KEY", cfg.llm_api_key if cfg else "")),
+                "llm_api_key_set": bool(os.environ.get("LLM_API_KEY", cfg.llm_api_key if cfg else "")),
                 "llm_model": saved.get("llm_model", os.environ.get("LLM_MODEL", cfg.llm_model if cfg else "google/gemini-2.5-flash-preview")),
                 "email_provider": saved.get("email_provider", os.environ.get("EMAIL_PROVIDER", cfg.email_provider if cfg else "gmail")),
                 "smtp_user": saved.get("smtp_user", os.environ.get("SMTP_USER", cfg.smtp_user if cfg else "")),
@@ -551,7 +551,7 @@ def create_app() -> Flask:
         try:
             # Collect form fields
             new_settings: dict[str, str] = {}
-            for key in ("sender_email", "llm_provider", "llm_api_key", "llm_model",
+            for key in ("sender_email", "llm_provider", "llm_model",
                         "email_provider", "smtp_user", "smtp_password"):
                 val = request.form.get(key, "").strip()
                 new_settings[key] = val
