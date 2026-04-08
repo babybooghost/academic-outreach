@@ -4,9 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Dashboard{% endblock %} — AO</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script>
+    // Apply theme BEFORE render to avoid flash
+    (function(){
+        var t = localStorage.getItem('ao_theme') || 'system';
+        var p = t === 'system' ? (matchMedia('(prefers-color-scheme:light)').matches ? 'light' : 'dark') : t;
+        document.documentElement.setAttribute('data-theme', p);
+    })();
+    </script>
 </head>
 <body>
     <nav class="navbar">
@@ -25,6 +34,9 @@
                 <li><a href="{{ url_for('settings_page') }}" {% if request.endpoint == 'settings_page' %}class="active"{% endif %}><span class="nav-icon">&#9881;</span> Settings</a></li>
             </ul>
             <div class="nav-user">
+                <button class="theme-toggle" onclick="cycleTheme()" title="Toggle theme" aria-label="Toggle theme">
+                    <span id="theme-icon">&#9790;</span>
+                </button>
                 <span class="nav-user-dot"></span>
                 <span>{{ session.get('key_label', 'User') }}</span>
                 <a href="{{ url_for('logout') }}" class="btn-ghost btn-sm" style="margin-left:0.25rem;">Logout</a>
@@ -49,6 +61,157 @@
     <footer class="footer-bar" style="text-align:center; padding:1.5rem; color:var(--ao-text-dim); font-size:0.8rem; border-top:1px solid var(--ao-border);">
         Academic Outreach v{{ app_version }}
     </footer>
+
+    <!-- Help / Tutorial FAB -->
+    <button class="help-fab" onclick="startTutorial()" title="Quick Tour">?</button>
+
+    <!-- Tutorial Overlay -->
+    <div class="tutorial-overlay" id="tutorial-overlay">
+        <div class="tutorial-card" id="tutorial-card">
+            <div class="tutorial-step-counter" id="tutorial-dots"></div>
+            <div class="tutorial-icon" id="tutorial-icon"></div>
+            <div class="tutorial-title" id="tutorial-title"></div>
+            <div class="tutorial-body" id="tutorial-body"></div>
+            <div class="tutorial-nav">
+                <button class="tutorial-skip" onclick="closeTutorial()">Skip Tour</button>
+                <div style="display:flex; gap:0.5rem;">
+                    <button class="btn btn-outline btn-sm" id="tutorial-prev" onclick="tutorialPrev()">Back</button>
+                    <button class="btn btn-primary btn-sm" id="tutorial-next" onclick="tutorialNext()" style="min-width:100px;">Next</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // ---- Theme System ----
+    function getTheme() { return localStorage.getItem('ao_theme') || 'system'; }
+    function applyTheme(t) {
+        const pref = t === 'system' ? (matchMedia('(prefers-color-scheme:light)').matches ? 'light' : 'dark') : t;
+        document.documentElement.setAttribute('data-theme', pref);
+        const icons = {'dark':'&#9790;','light':'&#9728;','system':'&#9788;'};
+        const el = document.getElementById('theme-icon');
+        if (el) el.innerHTML = icons[t] || icons.dark;
+    }
+    function cycleTheme() {
+        const order = ['dark','light','system'];
+        const cur = getTheme();
+        const next = order[(order.indexOf(cur)+1) % order.length];
+        localStorage.setItem('ao_theme', next);
+        applyTheme(next);
+    }
+    applyTheme(getTheme());
+    matchMedia('(prefers-color-scheme:light)').addEventListener('change', () => { if(getTheme()==='system') applyTheme('system'); });
+
+    // ---- Tutorial System ----
+    const TUTORIAL_STEPS = [
+        {
+            icon: '&#128075;',
+            title: 'Welcome to Academic Outreach',
+            body: 'This tool helps you discover professors, generate personalized outreach emails, review them, and send via Gmail drafts. Let\'s take a quick tour!<br><br><strong>Everything is designed for quality over volume.</strong>'
+        },
+        {
+            icon: '&#128270;',
+            title: 'Professor Finder',
+            body: 'Go to <strong>Finder</strong> in the nav bar to search the OpenAlex database of 250M+ academic papers.<br><br>Search by topic (e.g. <code>blockchain fintech</code>), filter by university, and save professors to your database.'
+        },
+        {
+            icon: '&#9733;',
+            title: 'Professor Database',
+            body: 'The <strong>Professors</strong> tab shows everyone you\'ve imported or found. Each professor gets enriched with research summaries and keywords for better email personalization.'
+        },
+        {
+            icon: '&#9881;',
+            title: 'Configure Settings First',
+            body: 'Head to <strong>Settings</strong> to configure:<br><br>&#8226; <strong>Sender Email</strong> — your email address<br>&#8226; <strong>LLM Model</strong> — pick a model for email generation (or use keyword mode)<br>&#8226; <strong>Email Provider</strong> — Gmail, Outlook, etc.<br><br>You\'ll also need a <strong>sender profile</strong> (name, school, grade, interests) via the CLI.'
+        },
+        {
+            icon: '&#9998;',
+            title: 'Generate & Review Drafts',
+            body: 'Use <code>python main.py generate</code> to create personalized emails. Each draft gets a <strong>1-10 quality score</strong> and warnings like "too generic" or "no research reference".<br><br>Review, approve, edit, or reject drafts in the <strong>Drafts</strong> tab.'
+        },
+        {
+            icon: '&#9993;',
+            title: 'Send via Gmail Drafts',
+            body: 'Approved emails go to the <strong>Send</strong> queue. The default mode creates <strong>Gmail drafts</strong> so you can review in Gmail before sending.<br><br>Use <code>--dry-run</code> to preview without touching Gmail.'
+        },
+        {
+            icon: '&#127881;',
+            title: 'You\'re All Set!',
+            body: 'Here\'s the workflow:<br><br><strong>1.</strong> Find professors (Finder or CSV import)<br><strong>2.</strong> Enrich with research data<br><strong>3.</strong> Generate personalized drafts<br><strong>4.</strong> Review & approve<br><strong>5.</strong> Create Gmail drafts & send<br><br>Click the <strong style="color:var(--ao-primary);">?</strong> button anytime to replay this tour.'
+        }
+    ];
+
+    let tutorialStep = 0;
+    let tutorialActive = false;
+
+    function startTutorial() {
+        tutorialStep = 0;
+        tutorialActive = true;
+        document.getElementById('tutorial-overlay').classList.add('active');
+        renderTutorialStep();
+    }
+
+    function closeTutorial() {
+        tutorialActive = false;
+        document.getElementById('tutorial-overlay').classList.remove('active');
+        localStorage.setItem('ao_tutorial_seen', '1');
+    }
+
+    function tutorialNext() {
+        if (tutorialStep < TUTORIAL_STEPS.length - 1) { tutorialStep++; renderTutorialStep(); }
+        else closeTutorial();
+    }
+
+    function tutorialPrev() {
+        if (tutorialStep > 0) { tutorialStep--; renderTutorialStep(); }
+    }
+
+    function renderTutorialStep() {
+        const step = TUTORIAL_STEPS[tutorialStep];
+        const card = document.getElementById('tutorial-card');
+        card.style.animation = 'none'; card.offsetHeight;
+        card.style.animation = 'tutorialSlideIn 0.4s cubic-bezier(0.16,1,0.3,1) both';
+        document.getElementById('tutorial-icon').innerHTML = step.icon;
+        document.getElementById('tutorial-title').textContent = step.title;
+        document.getElementById('tutorial-body').innerHTML = step.body;
+        document.getElementById('tutorial-dots').innerHTML = TUTORIAL_STEPS.map((_, i) => {
+            let cls = 'tutorial-dot';
+            if (i < tutorialStep) cls += ' done'; else if (i === tutorialStep) cls += ' active';
+            return `<div class="${cls}"></div>`;
+        }).join('');
+        document.getElementById('tutorial-prev').style.display = tutorialStep === 0 ? 'none' : '';
+        document.getElementById('tutorial-next').textContent = tutorialStep === TUTORIAL_STEPS.length - 1 ? 'Get Started' : 'Next';
+    }
+
+    if (!localStorage.getItem('ao_tutorial_seen')) setTimeout(startTutorial, 800);
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && tutorialActive) closeTutorial();
+        if (e.key === 'ArrowRight' && tutorialActive) tutorialNext();
+        if (e.key === 'ArrowLeft' && tutorialActive) tutorialPrev();
+    });
+    document.getElementById('tutorial-overlay').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeTutorial(); });
+
+    // ---- Toast helper ----
+    function showToast(message, type = 'success', duration = 3000) {
+        const existing = document.querySelector('.toast');
+        if (existing) existing.remove();
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        setTimeout(() => { toast.classList.add('toast-hide'); setTimeout(() => toast.remove(), 400); }, duration);
+    }
+
+    // ---- Clipboard helper with fallback ----
+    function copyToClipboard(text) {
+        if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text);
+        const ta = document.createElement('textarea');
+        ta.value = text; ta.style.cssText = 'position:fixed;left:-9999px;top:-9999px;opacity:0;';
+        document.body.appendChild(ta); ta.focus(); ta.select();
+        return new Promise((res, rej) => { document.execCommand('copy') ? res() : rej(new Error('fail')); ta.remove(); });
+    }
+    </script>
 
     {% block scripts %}{% endblock %}
 </body>

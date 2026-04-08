@@ -115,6 +115,23 @@ def create_app() -> Flask:
             return f(*args, **kwargs)
         return decorated
 
+    # Ensure user_signups table exists (for upgrades from old DB)
+    if cfg:
+        try:
+            conn = get_connection(cfg.db_path)
+            conn.execute("""CREATE TABLE IF NOT EXISTS user_signups (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email TEXT NOT NULL UNIQUE,
+                display_name TEXT NOT NULL,
+                password_hash TEXT NOT NULL,
+                key_value TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )""")
+            conn.commit()
+            conn.close()
+        except Exception:
+            pass
+
     def admin_required(f):
         @wraps(f)
         def decorated(*args, **kwargs):
@@ -171,6 +188,15 @@ def create_app() -> Flask:
         ), 500
 
     # ------------------------------------------------------------------
+    # Homepage (public landing page)
+    # ------------------------------------------------------------------
+    @app.route("/")
+    def homepage():
+        if session.get("authenticated"):
+            return redirect(url_for("dashboard"))
+        return render_template("homepage.html")
+
+    # ------------------------------------------------------------------
     # Auth routes
     # ------------------------------------------------------------------
     @app.route("/login", methods=["GET", "POST"])
@@ -208,6 +234,95 @@ def create_app() -> Flask:
 
         return render_template("login.html", error=error)
 
+    @app.route("/signup", methods=["GET", "POST"])
+    def signup():
+        if session.get("authenticated"):
+            return redirect(url_for("dashboard"))
+
+        error = None
+        access_key = None
+
+        if request.method == "POST":
+            email = request.form.get("email", "").strip()
+            display_name = request.form.get("display_name", "").strip()
+            password = request.form.get("password", "")
+            password_confirm = request.form.get("password_confirm", "")
+
+            if not email or not display_name:
+                error = "Email and display name are required."
+            elif len(password) < 6:
+                error = "Password must be at least 6 characters."
+            elif password != password_confirm:
+                error = "Passwords do not match."
+            else:
+                conn = _conn()
+                try:
+                    # Check if email already registered
+                    existing = conn.execute(
+                        "SELECT id FROM user_signups WHERE email = ?", (email,)
+                    ).fetchone()
+                    if existing:
+                        error = "This email is already registered. Use your existing key to log in."
+                    else:
+                        # Hash password
+                        pw_hash = hashlib.sha256(
+                            (password + app.secret_key).encode()
+                        ).hexdigest()
+
+                        # Generate access key
+                        key_value = "ao_" + secrets.token_hex(24)
+
+                        # Store signup record
+                        conn.execute(
+                            """INSERT INTO user_signups
+                               (email, display_name, password_hash, key_value, created_at)
+                               VALUES (?, ?, ?, ?, ?)""",
+                            (email, display_name, pw_hash, key_value,
+                             datetime.utcnow().isoformat()),
+                        )
+                        conn.commit()
+
+                        # Create the actual access key
+                        create_access_key(
+                            conn, key_value, display_name, "user",
+                            created_by=f"signup:{email}",
+                        )
+
+                        # Log signup in admin activity
+                        ip = request.headers.get("X-Forwarded-For", request.remote_addr)
+                        if ip and "," in ip:
+                            ip = ip.split(",")[0].strip()
+                        log_admin_activity(
+                            conn,
+                            actor_key_id=None,
+                            actor_label=display_name,
+                            actor_role="user",
+                            action="user_signup",
+                            category="auth",
+                            target_type="access_key",
+                            target_id=None,
+                            details={
+                                "email": email,
+                                "display_name": display_name,
+                            },
+                            ip_address=ip,
+                            user_agent=request.headers.get("User-Agent", "")[:500],
+                            request_method=request.method,
+                            request_path=request.path,
+                            session_id=None,
+                            response_code=None,
+                        )
+
+                        access_key = key_value
+                        logger.info("New signup: %s (%s)", display_name, email)
+                except Exception as exc:
+                    logger.exception("Signup failed")
+                    error = f"Signup failed: {exc}"
+                finally:
+                    conn.close()
+
+        return render_template("signup.html", error=error, access_key=access_key)
+
     @app.route("/logout")
     def logout():
         label = session.get("key_label", "")
@@ -218,7 +333,7 @@ def create_app() -> Flask:
         elif session.get("authenticated"):
             _log_activity("user_logout", category="auth", details={"label": label})
         session.clear()
-        return redirect(url_for("login"))
+        return redirect(url_for("homepage"))
 
     # ------------------------------------------------------------------
     # Admin Auth (separate login)
@@ -287,7 +402,7 @@ def create_app() -> Flask:
     # ------------------------------------------------------------------
     # Dashboard
     # ------------------------------------------------------------------
-    @app.route("/")
+    @app.route("/dashboard")
     @login_required
     def dashboard():
         conn = _conn()

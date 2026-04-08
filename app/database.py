@@ -250,6 +250,15 @@ CREATE TABLE IF NOT EXISTS admin_activity_log (
     session_id    TEXT,
     response_code INTEGER
 );
+
+CREATE TABLE IF NOT EXISTS user_signups (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    email          TEXT    NOT NULL UNIQUE,
+    display_name   TEXT    NOT NULL,
+    password_hash  TEXT    NOT NULL,
+    key_value      TEXT    NOT NULL,
+    created_at     TEXT    NOT NULL DEFAULT (datetime('now'))
+);
 """
 
 

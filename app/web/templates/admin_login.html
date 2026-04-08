@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Login — Academic Outreach</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon-admin.svg') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
@@ -41,8 +42,18 @@
                 <a href="{{ url_for('login') }}" style="color:var(--ao-primary); font-size:0.85rem; margin-top:0.5rem; display:inline-block;">
                     Back to user login
                 </a>
+                <br>
+                <a href="{{ url_for('homepage') }}" style="color:var(--ao-text-dim); font-size:0.82rem; margin-top:0.25rem; display:inline-block;">&larr; Back to home</a>
             </div>
         </div>
     </div>
+
+    <script>
+    function applyTheme(t) {
+        const pref = t === 'system' ? (matchMedia('(prefers-color-scheme:light)').matches ? 'light' : 'dark') : t;
+        document.documentElement.setAttribute('data-theme', pref);
+    }
+    applyTheme(localStorage.getItem('ao_theme') || 'system');
+    </script>
 </body>
 </html>

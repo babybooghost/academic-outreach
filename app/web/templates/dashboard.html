@@ -2,13 +2,13 @@
 {% block title %}Dashboard{% endblock %}
 
 {% block content %}
-<div class="page-header">
+<div class="page-header animate-in">
     <h1>Dashboard</h1>
     <p>Overview of your academic outreach pipeline</p>
 </div>
 
 <!-- Summary Cards -->
-<div class="grid-5">
+<div class="grid-5 animate-in animate-in-1">
     <div class="stat-card">
         <div class="stat-label">Professors</div>
         <div class="stat-number">{{ total_professors }}</div>
@@ -58,7 +58,8 @@
 </div>
 
 <!-- Quick Actions -->
-<div class="quick-actions">
+<div class="quick-actions animate-in animate-in-2">
+    <a href="{{ url_for('finder_page') }}" class="btn btn-primary">Find Professors</a>
     <a href="{{ url_for('drafts_list', status='generated') }}" class="btn btn-outline">Review Queue</a>
     <a href="{{ url_for('send_page') }}" class="btn btn-outline">Send Queue</a>
     <a href="{{ url_for('export_page') }}" class="btn btn-outline">Export Drafts</a>

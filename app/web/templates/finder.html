@@ -2,19 +2,19 @@
 {% block title %}Professor Finder{% endblock %}
 
 {% block content %}
-<div class="page-header">
+<div class="page-header animate-in">
     <h1>Professor Finder</h1>
-    <p>Search millions of academic papers to discover professors in your field</p>
+    <p>Search across OpenAlex, Crossref, DBLP, arXiv & Semantic Scholar to discover professors</p>
 </div>
 
 <!-- Search Form -->
-<div class="card" style="margin-bottom:1.5rem;">
+<div class="card animate-in animate-in-1" style="margin-bottom:1.5rem;">
     <div class="card-header"><h3>Search Parameters</h3></div>
 
     <div class="form-group">
         <label for="scholar_query">Research Topic</label>
         <input type="text" id="scholar_query" placeholder="blockchain fintech, machine learning, cryptography, AI..." style="font-size:1rem; padding:0.75rem;">
-        <div class="form-hint">Searches the OpenAlex database of 250M+ academic works</div>
+        <div class="form-hint">Searches 5 databases: OpenAlex (250M+), Crossref (150M+), DBLP (CS), arXiv (preprints), Semantic Scholar</div>
     </div>
 
     <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:1rem;">
@@ -22,7 +22,7 @@
             <label for="field">Field Tag <span style="color:var(--ao-text-dim);">(optional)</span></label>
             <input type="text" id="field" placeholder="e.g. Computer Science">
         </div>
-        <div class="form-group" style="margin:0;">
+        <div class="form-group" style="margin:0; position:relative;">
             <label for="uni-input">Filter by University <span style="color:var(--ao-text-dim);">(optional)</span></label>
             <input type="text" id="uni-input" placeholder="Type to search... e.g. MIT, Stanford" autocomplete="off">
             <div id="uni-dropdown" style="display:none; position:absolute; z-index:100; background:var(--ao-surface-2); border:1px solid var(--ao-border); border-radius:var(--ao-radius-sm); max-height:200px; overflow-y:auto; width:100%; box-shadow:0 8px 24px rgba(0,0,0,0.4);"></div>
@@ -57,7 +57,7 @@
 
 <!-- Results -->
 <div id="results-section" style="display:none;">
-    <div class="section">
+    <div class="section animate-in">
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
             <div class="section-title" id="results-title" style="margin:0;">Results</div>
             <div style="display:flex; gap:0.5rem;">
@@ -79,6 +79,7 @@
                         <th>Field</th>
                         <th>Notable Work</th>
                         <th style="text-align:right;">Citations</th>
+                        <th>Source</th>
                         <th>Link</th>
                     </tr>
                 </thead>
@@ -97,19 +98,18 @@ let selectedUnis = new Set();
 
 const ALL_UNIS = {{ universities | tojson }};
 
+// IMPORTANT: Use exact OpenAlex display names for reliable filtering
 const PRESETS = {
     ivy: ['Brown University','Columbia University','Cornell University','Dartmouth College','Harvard University','Princeton University','University of Pennsylvania','Yale University'],
-    top10: ['MIT','Stanford University','Carnegie Mellon University','UC Berkeley','University of Illinois Urbana-Champaign','Cornell University','University of Washington','Georgia Institute of Technology','Princeton University','University of Michigan'],
+    top10: ['Massachusetts Institute of Technology','Stanford University','Carnegie Mellon University','University of California, Berkeley','University of Illinois Urbana-Champaign','Cornell University','University of Washington','Georgia Institute of Technology','Princeton University','University of Michigan'],
     texas: ['University of Texas at Austin','Texas A&M University','University of Houston','University of Texas at Dallas','Rice University','University of Texas at San Antonio','Texas Tech University','University of North Texas','Southern Methodist University','Baylor University'],
-    uc: ['UC Berkeley','UCLA','UC San Diego','UC Santa Barbara','UC Irvine','UC Davis','UC Santa Cruz','UC Riverside'],
-    intl: ['University of Oxford','University of Cambridge','Imperial College London','ETH Zurich','EPFL','University of Toronto','University of Waterloo','National University of Singapore','Tsinghua University','Peking University','University of Tokyo','Seoul National University','KAIST','Technical University of Munich','University of Melbourne']
+    uc: ['University of California, Berkeley','University of California, Los Angeles','University of California, San Diego','University of California, Santa Barbara','University of California, Irvine','University of California, Davis','University of California, Santa Cruz','University of California, Riverside'],
+    intl: ['University of Oxford','University of Cambridge','Imperial College London','ETH Zurich','École Polytechnique Fédérale de Lausanne','University of Toronto','University of Waterloo','National University of Singapore','Tsinghua University','Peking University','University of Tokyo','Seoul National University','Korea Advanced Institute of Science and Technology','Technical University of Munich','University of Melbourne']
 };
 
 // --- University tag input ---
 const uniInput = document.getElementById('uni-input');
 const uniDropdown = document.getElementById('uni-dropdown');
-const uniInputWrapper = uniInput.parentElement;
-uniInputWrapper.style.position = 'relative';
 
 uniInput.addEventListener('input', () => {
     const q = uniInput.value.toLowerCase().trim();
@@ -207,13 +207,16 @@ async function runSearch() {
                 ? `Found ${data.count} professor(s), sorted by citation impact.`
                 : 'No results. Try broader keywords or remove university filters.';
             status.style.color = data.count > 0 ? 'var(--ao-success)' : 'var(--ao-text-dim)';
+            if (data.count > 0) showToast(`Found ${data.count} professor(s)`);
         } else {
             status.textContent = data.error || 'Search failed.';
             status.style.color = 'var(--ao-danger)';
+            showToast(data.error || 'Search failed', 'error');
         }
     } catch (err) {
         status.textContent = 'Request failed: ' + err.message;
         status.style.color = 'var(--ao-danger)';
+        showToast('Request failed', 'error');
     }
 
     btn.disabled = false;
@@ -240,7 +243,18 @@ function renderResults(professors, warnings) {
             ? `<a href="${prof.profile_url}" target="_blank" rel="noopener" style="color:var(--ao-accent); font-size:0.85rem;">View</a>`
             : '<span style="color:var(--ao-text-dim);">-</span>';
 
+        // Extract source from notes
+        const srcMatch = (prof.notes || '').match(/Source:\s*([^|]+)/);
+        let source = srcMatch ? srcMatch[1].trim() : 'Unknown';
+        const srcColors = {
+            'OpenAlex': '#6c5ce7', 'OpenAlex Author': '#a29bfe',
+            'Crossref': '#00b894', 'DBLP': '#fdcb6e',
+            'arXiv': '#ff6b6b', 'Semantic Scholar': '#74b9ff'
+        };
+        const srcColor = srcColors[source] || 'var(--ao-text-dim)';
+
         const tr = document.createElement('tr');
+        tr.style.animation = `fadeInUp 0.3s ease ${idx * 0.03}s both`;
         tr.innerHTML = `
             <td><input type="checkbox" class="prof-checkbox" data-idx="${idx}" checked></td>
             <td><strong>${esc(prof.name)}</strong></td>
@@ -248,6 +262,7 @@ function renderResults(professors, warnings) {
             <td style="font-size:0.88rem; max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${esc(prof.field)}">${esc(prof.field || '-')}</td>
             <td style="font-size:0.82rem; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--ao-text-dim);" title="${esc(prof.research_summary)}">${esc(prof.research_summary || '-')}</td>
             <td style="text-align:right; font-weight:600; font-size:0.9rem; ${citations >= 1000 ? 'color:var(--ao-success);' : citations >= 100 ? 'color:var(--ao-accent);' : ''}">${citDisplay}</td>
+            <td><span style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:12px; background:${srcColor}22; color:${srcColor}; font-weight:600; white-space:nowrap;">${esc(source)}</span></td>
             <td>${profileLink}</td>
         `;
         body.appendChild(tr);
@@ -265,7 +280,7 @@ async function saveSelected() {
         .map(cb => foundProfessors[parseInt(cb.dataset.idx)]);
 
     if (!selected.length) {
-        document.getElementById('save-result').innerHTML = '<div class="flash-msg flash-warning">No professors selected.</div>';
+        showToast('No professors selected', 'error');
         return;
     }
 
@@ -280,11 +295,19 @@ async function saveSelected() {
             body: JSON.stringify({professors: selected}),
         });
         const data = await res.json();
-        document.getElementById('save-result').innerHTML = data.success
-            ? `<div class="flash-msg flash-success">Saved ${data.saved} professor(s). <a href="/professors" style="color:var(--ao-success); font-weight:600;">View Professors &rarr;</a></div>`
-            : `<div class="flash-msg flash-error">${esc(data.error || 'Save failed.')}</div>`;
+        if (data.success) {
+            document.getElementById('save-result').innerHTML =
+                `<div class="flash-msg flash-success">Saved ${data.saved} professor(s). <a href="/professors" style="color:var(--ao-success); font-weight:600;">View Professors &rarr;</a></div>`;
+            showToast(`Saved ${data.saved} professor(s)`);
+        } else {
+            document.getElementById('save-result').innerHTML =
+                `<div class="flash-msg flash-error">${esc(data.error || 'Save failed.')}</div>`;
+            showToast('Save failed', 'error');
+        }
     } catch (err) {
-        document.getElementById('save-result').innerHTML = `<div class="flash-msg flash-error">Error: ${esc(err.message)}</div>`;
+        document.getElementById('save-result').innerHTML =
+            `<div class="flash-msg flash-error">Error: ${esc(err.message)}</div>`;
+        showToast('Save failed', 'error');
     }
 
     btn.disabled = false;

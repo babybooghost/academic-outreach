@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Hub — Academic Outreach</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon-admin.svg') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
@@ -270,14 +271,33 @@
     </footer>
 
     <script>
+    // Clipboard helper with fallback for non-HTTPS
+    function _copyText(text) {
+        if (navigator.clipboard && window.isSecureContext) {
+            return navigator.clipboard.writeText(text);
+        }
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.cssText = 'position:fixed;left:-9999px;top:-9999px;opacity:0;';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        return new Promise((resolve, reject) => {
+            document.execCommand('copy') ? resolve() : reject(new Error('Copy failed'));
+            ta.remove();
+        });
+    }
+
     function copyKey() {
         const key = document.getElementById('new-key-value').textContent.trim();
-        navigator.clipboard.writeText(key).then(() => {
+        _copyText(key).then(() => {
             const btn = document.getElementById('copy-key-btn');
             btn.textContent = 'Copied!';
             btn.style.background = 'var(--ao-success)';
             document.getElementById('copy-feedback').innerHTML = '<span style="color:var(--ao-success);">Key copied to clipboard</span>';
             setTimeout(() => { btn.textContent = 'Copy Key'; btn.style.background = ''; }, 3000);
+        }).catch(() => {
+            document.getElementById('copy-feedback').innerHTML = '<span style="color:var(--ao-warning);">Copy failed — please select and copy manually</span>';
         });
     }
 
@@ -285,11 +305,13 @@
         const key = document.getElementById('new-key-value').textContent.trim();
         const host = '{{ request.host_url }}'.replace(/\/$/, '');
         const text = `Your Academic Outreach access key:\n\n${key}\n\nHow to log in:\n1. Go to ${host}/login\n2. Paste the key above\n3. Click "Sign In"\n\nKeep this key safe — don't share it publicly.`;
-        navigator.clipboard.writeText(text).then(() => {
+        _copyText(text).then(() => {
             const btn = document.getElementById('copy-instructions-btn');
             btn.textContent = 'Copied!';
             document.getElementById('copy-feedback').innerHTML = '<span style="color:var(--ao-success);">Key + instructions copied — ready to send</span>';
             setTimeout(() => { btn.textContent = 'Copy with Instructions'; }, 3000);
+        }).catch(() => {
+            document.getElementById('copy-feedback').innerHTML = '<span style="color:var(--ao-warning);">Copy failed — please select and copy manually</span>';
         });
     }
 

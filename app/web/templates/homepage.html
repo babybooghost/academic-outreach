@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Academic Outreach — Personalized Professor Outreach</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <!-- Top Nav -->
+    <nav class="hp-nav">
+        <div class="hp-nav-inner">
+            <a href="{{ url_for('homepage') }}" class="logo">
+                <div class="logo-icon">AO</div>
+                <div class="logo-text">Academic <span>Outreach</span></div>
+            </a>
+            <div style="display:flex; align-items:center; gap:0.75rem;">
+                <button class="theme-toggle" onclick="cycleTheme()" title="Toggle theme" aria-label="Toggle theme">
+                    <span id="theme-icon-hp">&#9790;</span>
+                </button>
+                <a href="{{ url_for('login') }}" class="btn btn-ghost btn-sm">Log In</a>
+                <a href="{{ url_for('signup') }}" class="btn btn-primary btn-sm">Sign Up</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero -->
+    <section class="hp-hero">
+        <div class="hp-hero-bg"></div>
+        <div class="container" style="position:relative; z-index:1;">
+            <div class="hp-hero-content">
+                <div class="hp-badge animate-in">Built for students, by students</div>
+                <h1 class="hp-hero-title animate-in animate-in-1">
+                    Personalized professor outreach<br>
+                    <span class="hp-gradient-text">at scale.</span>
+                </h1>
+                <p class="hp-hero-sub animate-in animate-in-2">
+                    Discover professors, generate tailored emails with quality scoring,
+                    and create Gmail drafts — all from one platform.
+                </p>
+                <div class="hp-hero-actions animate-in animate-in-3">
+                    <a href="{{ url_for('signup') }}" class="btn btn-primary" style="padding:0.85rem 2rem; font-size:1rem;">
+                        Get Started Free
+                    </a>
+                    <a href="#how-it-works" class="btn btn-outline" style="padding:0.85rem 2rem; font-size:1rem;">
+                        See How It Works
+                    </a>
+                </div>
+                <div class="hp-hero-stats animate-in animate-in-4">
+                    <div class="hp-stat"><strong>250M+</strong><span>Academic Papers</span></div>
+                    <div class="hp-stat-divider"></div>
+                    <div class="hp-stat"><strong>100+</strong><span>Universities</span></div>
+                    <div class="hp-stat-divider"></div>
+                    <div class="hp-stat"><strong>1-10</strong><span>Quality Score</span></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features -->
+    <section class="hp-section" id="features">
+        <div class="container">
+            <div class="hp-section-header animate-in">
+                <div class="hp-section-label">Features</div>
+                <h2 class="hp-section-title">Everything you need for<br>academic outreach</h2>
+            </div>
+            <div class="hp-features-grid">
+                <div class="hp-feature-card animate-in animate-in-1">
+                    <div class="hp-feature-icon">&#128270;</div>
+                    <h3>Professor Finder</h3>
+                    <p>Search OpenAlex's 250M+ paper database. Filter by university, field, and topic. One-click save to your database.</p>
+                </div>
+                <div class="hp-feature-card animate-in animate-in-2">
+                    <div class="hp-feature-icon">&#9998;</div>
+                    <h3>Smart Email Generation</h3>
+                    <p>Jinja2 templates with variation pools create unique emails. Optional LLM mode for even more personalization.</p>
+                </div>
+                <div class="hp-feature-card animate-in animate-in-3">
+                    <div class="hp-feature-icon">&#127919;</div>
+                    <h3>Quality Scoring</h3>
+                    <p>Every draft gets a 1-10 score across specificity, authenticity, relevance, conciseness, and completeness.</p>
+                </div>
+                <div class="hp-feature-card animate-in animate-in-4">
+                    <div class="hp-feature-icon">&#128101;</div>
+                    <h3>Similarity Detection</h3>
+                    <p>Flags emails that look too similar. Genericness detector warns when a draft "could apply to almost anyone."</p>
+                </div>
+                <div class="hp-feature-card animate-in animate-in-5">
+                    <div class="hp-feature-icon">&#9993;</div>
+                    <h3>Gmail Draft Mode</h3>
+                    <p>Creates drafts in your Gmail — review before sending. Rate limiting, cooldowns, and suppression lists built in.</p>
+                </div>
+                <div class="hp-feature-card animate-in">
+                    <div class="hp-feature-icon">&#128274;</div>
+                    <h3>Access Key Auth</h3>
+                    <p>Secure key-based access. Admin hub with full activity logging — every action tracked with IP, timestamp, and session.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- How It Works -->
+    <section class="hp-section hp-section-alt" id="how-it-works">
+        <div class="container">
+            <div class="hp-section-header animate-in">
+                <div class="hp-section-label">How It Works</div>
+                <h2 class="hp-section-title">Five steps to your first outreach</h2>
+            </div>
+            <div class="hp-steps">
+                <div class="hp-step animate-in animate-in-1">
+                    <div class="hp-step-number">1</div>
+                    <div class="hp-step-content">
+                        <h3>Find Professors</h3>
+                        <p>Use the Finder to search by research topic. Filter by Ivy League, Top CS, Texas schools, UC system, or any of 100+ universities.</p>
+                    </div>
+                </div>
+                <div class="hp-step animate-in animate-in-2">
+                    <div class="hp-step-number">2</div>
+                    <div class="hp-step-content">
+                        <h3>Enrich & Summarize</h3>
+                        <p>The system fetches research papers, extracts keywords, and builds a profile of each professor's work — so your emails reference real research.</p>
+                    </div>
+                </div>
+                <div class="hp-step animate-in animate-in-3">
+                    <div class="hp-step-number">3</div>
+                    <div class="hp-step-content">
+                        <h3>Generate Drafts</h3>
+                        <p>Personalized emails generated from templates with built-in variation. Each gets quality scored and checked for genericness.</p>
+                    </div>
+                </div>
+                <div class="hp-step animate-in animate-in-4">
+                    <div class="hp-step-number">4</div>
+                    <div class="hp-step-content">
+                        <h3>Review & Approve</h3>
+                        <p>Read every email, edit if needed, approve the good ones, reject the rest. You're always in control.</p>
+                    </div>
+                </div>
+                <div class="hp-step animate-in animate-in-5">
+                    <div class="hp-step-number">5</div>
+                    <div class="hp-step-content">
+                        <h3>Send as Gmail Drafts</h3>
+                        <p>Approved emails become Gmail drafts. Review one final time in Gmail, then hit send when ready.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="hp-section">
+        <div class="container" style="text-align:center;">
+            <div class="hp-section-header animate-in">
+                <h2 class="hp-section-title">Ready to start your outreach?</h2>
+                <p style="color:var(--ao-text-muted); font-size:1.1rem; margin-top:0.75rem;">
+                    Sign up in 10 seconds. No credit card, no strings attached.
+                </p>
+            </div>
+            <div class="animate-in animate-in-1" style="display:flex; gap:1rem; justify-content:center; margin-top:1.5rem;">
+                <a href="{{ url_for('signup') }}" class="btn btn-primary" style="padding:0.85rem 2.5rem; font-size:1rem;">Create Account</a>
+                <a href="{{ url_for('login') }}" class="btn btn-outline" style="padding:0.85rem 2.5rem; font-size:1rem;">Log In</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="hp-footer">
+        <div class="container" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+            <div style="display:flex; align-items:center; gap:0.5rem;">
+                <div class="logo-icon" style="width:24px; height:24px; font-size:11px; border-radius:6px;">AO</div>
+                <span style="font-weight:600; color:var(--ao-text-muted); font-size:0.85rem;">Academic Outreach v{{ app_version }}</span>
+            </div>
+            <div style="font-size:0.8rem; color:var(--ao-text-dim);">
+                Built for legitimate academic outreach. Quality over volume.
+            </div>
+        </div>
+    </footer>
+
+    <script>
+    // Theme
+    function getTheme() { return localStorage.getItem('ao_theme') || 'system'; }
+    function applyTheme(t) {
+        const pref = t === 'system' ? (matchMedia('(prefers-color-scheme:light)').matches ? 'light' : 'dark') : t;
+        document.documentElement.setAttribute('data-theme', pref);
+        const icons = {'dark':'&#9790;','light':'&#9728;','system':'&#9788;'};
+        const el = document.getElementById('theme-icon-hp');
+        if (el) el.innerHTML = icons[t] || icons.dark;
+    }
+    function cycleTheme() {
+        const order = ['dark','light','system'];
+        const cur = getTheme();
+        const next = order[(order.indexOf(cur)+1) % order.length];
+        localStorage.setItem('ao_theme', next);
+        applyTheme(next);
+    }
+    applyTheme(getTheme());
+    matchMedia('(prefers-color-scheme:light)').addEventListener('change', () => { if(getTheme()==='system') applyTheme('system'); });
+
+    // Intersection Observer for scroll animations
+    const obs = new IntersectionObserver((entries) => {
+        entries.forEach(e => { if(e.isIntersecting) { e.target.classList.add('animate-visible'); obs.unobserve(e.target); } });
+    }, {threshold: 0.1});
+    document.querySelectorAll('.animate-in').forEach(el => obs.observe(el));
+    </script>
+</body>
+</html>

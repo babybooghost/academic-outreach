@@ -4,13 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login — Academic Outreach</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
     <div class="login-page">
-        <div class="login-card">
+        <div class="login-card" style="animation: slideUp 0.6s cubic-bezier(0.16,1,0.3,1) both;">
             <div class="login-logo">
                 <div class="logo-icon">AO</div>
                 <h1>Academic Outreach</h1>
@@ -34,9 +35,23 @@
             </form>
 
             <div class="login-footer">
-                Request access from your admin if you don't have a key.
+                Don't have a key? <a href="{{ url_for('signup') }}" style="color:var(--ao-primary-light); font-weight:600;">Sign up</a>
+                <br>
+                <a href="{{ url_for('homepage') }}" style="color:var(--ao-text-dim); font-size:0.82rem; margin-top:0.25rem; display:inline-block;">&larr; Back to home</a>
             </div>
         </div>
     </div>
+
+    <script>
+    function applyTheme(t) {
+        const pref = t === 'system' ? (matchMedia('(prefers-color-scheme:light)').matches ? 'light' : 'dark') : t;
+        document.documentElement.setAttribute('data-theme', pref);
+    }
+    applyTheme(localStorage.getItem('ao_theme') || 'system');
+    </script>
+
+    <style>
+    @keyframes slideUp { from { opacity:0; transform:translateY(30px) scale(0.96); } to { opacity:1; transform:translateY(0) scale(1); } }
+    </style>
 </body>
 </html>
