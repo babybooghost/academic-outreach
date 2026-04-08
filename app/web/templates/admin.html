@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}Admin Hub{% endblock %}
+
+{% block content %}
+<div class="admin-header">
+    <div>
+        <h1>Admin Hub</h1>
+        <p>Manage access keys, users, and system settings</p>
+    </div>
+</div>
+
+<!-- Stats Row -->
+<div class="admin-stat-row">
+    <div class="stat-card">
+        <div class="stat-label">Total Keys</div>
+        <div class="stat-number">{{ keys|length }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Active</div>
+        <div class="stat-number">{{ keys|selectattr('is_active')|list|length }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Admin Keys</div>
+        <div class="stat-number">{{ keys|selectattr('role', 'equalto', 'admin')|list|length }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">User Keys</div>
+        <div class="stat-number">{{ keys|selectattr('role', 'equalto', 'user')|list|length }}</div>
+    </div>
+</div>
+
+<!-- Create New Key -->
+<div class="card section">
+    <div class="card-header">
+        <h3>Create Access Key</h3>
+    </div>
+    <form method="POST" action="{{ url_for('admin_create_key') }}" style="display:grid; grid-template-columns:1fr 1fr auto auto; gap:0.75rem; align-items:end;">
+        <div class="form-group" style="margin:0;">
+            <label for="label">Label</label>
+            <input type="text" id="label" name="label" placeholder="e.g. John's key" required>
+        </div>
+        <div class="form-group" style="margin:0;">
+            <label for="role">Role</label>
+            <select id="role" name="role">
+                <option value="user">User</option>
+                <option value="admin">Admin</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary" style="margin-bottom:0;">Create Key</button>
+    </form>
+</div>
+
+<!-- Generated Key Display (if just created) -->
+{% if new_key %}
+<div class="card section" style="border-color: var(--ao-success); background: var(--ao-success-bg);">
+    <div class="card-header" style="border-color: var(--ao-success);">
+        <h3 style="color: var(--ao-success);">New Key Created</h3>
+    </div>
+    <p style="color: var(--ao-success); margin-bottom:0.75rem;">Copy this key now — it won't be shown again in full.</p>
+    <div style="background: var(--ao-surface-3); padding: 1rem; border-radius: var(--ao-radius-sm); text-align: center;">
+        <code class="key-display" style="font-size: 1.1rem; user-select: all;">{{ new_key }}</code>
+    </div>
+</div>
+{% endif %}
+
+<!-- Existing Keys -->
+<div class="section">
+    <div class="section-title">Access Keys</div>
+    {% if keys %}
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Label</th>
+                    <th>Key</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                    <th>Last Used</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for key in keys %}
+                <tr>
+                    <td><strong>{{ key.label or 'Unlabeled' }}</strong></td>
+                    <td>
+                        <span class="key-display key-display-masked">
+                            {{ key.key_value[:8] }}...{{ key.key_value[-4:] }}
+                        </span>
+                    </td>
+                    <td>
+                        <span class="badge badge-{{ key.role }}">{{ key.role }}</span>
+                    </td>
+                    <td>
+                        {% if key.is_active %}
+                        <span class="badge badge-active">active</span>
+                        {% else %}
+                        <span class="badge badge-revoked">revoked</span>
+                        {% endif %}
+                    </td>
+                    <td style="font-size:0.82rem; color:var(--ao-text-dim);">{{ key.created_at[:16] }}</td>
+                    <td style="font-size:0.82rem; color:var(--ao-text-dim);">{{ key.last_used[:16] if key.last_used else 'Never' }}</td>
+                    <td>
+                        {% if key.is_active %}
+                        <form method="POST" action="{{ url_for('admin_revoke_key', key_id=key.id) }}" style="display:inline;">
+                            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Revoke this key?');">Revoke</button>
+                        </form>
+                        {% endif %}
+                        <form method="POST" action="{{ url_for('admin_delete_key', key_id=key.id) }}" style="display:inline; margin-left:0.25rem;">
+                            <button type="submit" class="btn btn-ghost btn-sm" onclick="return confirm('Permanently delete this key?');">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-icon">&#128273;</div>
+        <p>No access keys created yet. Create one above to get started.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

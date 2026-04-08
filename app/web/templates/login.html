@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login — Academic Outreach</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="login-page">
+        <div class="login-card">
+            <div class="login-logo">
+                <div class="logo-icon">AO</div>
+                <h1>Academic Outreach</h1>
+                <p>Personalized professor outreach at scale</p>
+            </div>
+
+            {% if error %}
+            <div class="login-error">{{ error }}</div>
+            {% endif %}
+
+            <form method="POST" action="{{ url_for('login') }}">
+                <div class="form-group">
+                    <label for="access_key">Access Key</label>
+                    <input type="password" id="access_key" name="access_key"
+                           placeholder="Enter your access key" autofocus required
+                           style="text-align:center; letter-spacing:0.05em;">
+                </div>
+                <button type="submit" class="btn btn-primary" style="width:100%; padding:0.75rem;">
+                    Sign In
+                </button>
+            </form>
+
+            <div class="login-footer">
+                Request access from your admin if you don't have a key.
+            </div>
+        </div>
+    </div>
+</body>
+</html>

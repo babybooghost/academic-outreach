@@ -2,65 +2,63 @@
 {% block title %}Professors{% endblock %}
 
 {% block content %}
-<hgroup>
+<div class="page-header">
     <h1>Professors</h1>
-    <p>{{ professors|length }} professor{{ 's' if professors|length != 1 else '' }} found</p>
-</hgroup>
+    <p>Manage your professor database</p>
+</div>
 
-<!-- Filters -->
-<form method="get" action="{{ url_for('professors_list') }}" class="filter-form">
-    <div class="grid">
-        <label>
-            Status
-            <select name="status" onchange="this.form.submit()">
-                <option value="">All Statuses</option>
-                {% for s in statuses %}
-                <option value="{{ s }}" {% if current_status == s %}selected{% endif %}>{{ s }}</option>
-                {% endfor %}
-            </select>
-        </label>
-        <label>
-            Field
-            <select name="field" onchange="this.form.submit()">
-                <option value="">All Fields</option>
-                {% for f in fields %}
-                <option value="{{ f }}" {% if current_field == f %}selected{% endif %}>{{ f }}</option>
-                {% endfor %}
-            </select>
-        </label>
-        <label>
-            &nbsp;
-            <button type="submit" class="outline">Filter</button>
-        </label>
-    </div>
-</form>
+<div class="filter-bar">
+    <form method="GET" style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap; width:100%; margin:0;">
+        <select name="status">
+            <option value="">All Statuses</option>
+            {% for s in statuses %}
+            <option value="{{ s }}" {% if current_status == s %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+        </select>
+        <select name="field">
+            <option value="">All Fields</option>
+            {% for f in fields %}
+            <option value="{{ f }}" {% if current_field == f %}selected{% endif %}>{{ f }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-outline btn-sm">Filter</button>
+        {% if current_status or current_field %}
+        <a href="{{ url_for('professors_list') }}" class="btn btn-ghost btn-sm">Clear</a>
+        {% endif %}
+    </form>
+</div>
 
 {% if professors %}
-<figure>
-<table class="striped">
-    <thead>
-        <tr>
-            <th>Name</th>
-            <th>University</th>
-            <th>Department</th>
-            <th>Field</th>
-            <th>Status</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for p in professors %}
-        <tr class="clickable-row" onclick="window.location='{{ url_for('professor_detail', prof_id=p.id) }}'">
-            <td><strong>{{ p.name }}</strong></td>
-            <td>{{ p.university }}</td>
-            <td>{{ p.department }}</td>
-            <td>{{ p.field }}</td>
-            <td><span class="badge badge-{{ p.status }}">{{ p.status }}</span></td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
-</figure>
+<div class="table-wrap">
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>University</th>
+                <th>Department</th>
+                <th>Field</th>
+                <th>Status</th>
+                <th>Email</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for prof in professors %}
+            <tr class="clickable-row" onclick="window.location='{{ url_for('professor_detail', prof_id=prof.id) }}'">
+                <td><strong>{{ prof.name }}</strong>{% if prof.title %}<br><small>{{ prof.title }}</small>{% endif %}</td>
+                <td>{{ prof.university }}</td>
+                <td>{{ prof.department }}</td>
+                <td>{{ prof.field }}</td>
+                <td><span class="badge badge-{{ prof.status }}">{{ prof.status }}</span></td>
+                <td style="font-size:0.85rem; color:var(--ao-text-dim);">{{ prof.email }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
 {% else %}
-<p class="empty-state">No professors match the current filters.</p>
+<div class="empty-state">
+    <div class="empty-icon">&#9733;</div>
+    <p>No professors found. Import a CSV via CLI: <code>python main.py import data/sample_professors.csv</code></p>
+</div>
 {% endif %}
 {% endblock %}

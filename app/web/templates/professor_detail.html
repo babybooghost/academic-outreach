@@ -2,122 +2,83 @@
 {% block title %}{{ professor.name }}{% endblock %}
 
 {% block content %}
-<nav aria-label="breadcrumb">
-    <ul>
-        <li><a href="{{ url_for('professors_list') }}">Professors</a></li>
-        <li>{{ professor.name }}</li>
-    </ul>
-</nav>
-
-<hgroup>
+<div class="page-header">
     <h1>{{ professor.name }}</h1>
-    <p>{{ professor.university }} &mdash; {{ professor.department }}</p>
-</hgroup>
+    <p>{{ professor.title or '' }} &mdash; {{ professor.university }}, {{ professor.department }}</p>
+</div>
 
-<div class="grid">
-    <!-- Professor Info -->
-    <article>
-        <header><strong>Profile</strong></header>
-        <dl>
-            {% if professor.title %}
-            <dt>Title</dt>
-            <dd>{{ professor.title }}</dd>
-            {% endif %}
-            <dt>Email</dt>
-            <dd><a href="mailto:{{ professor.email }}">{{ professor.email }}</a></dd>
-            <dt>Field</dt>
-            <dd>{{ professor.field }}</dd>
-            {% if professor.lab_name %}
-            <dt>Lab</dt>
-            <dd>{{ professor.lab_name }}</dd>
-            {% endif %}
-            {% if professor.profile_url %}
-            <dt>Profile URL</dt>
-            <dd><a href="{{ professor.profile_url }}" target="_blank" rel="noopener">View Profile</a></dd>
-            {% endif %}
-            <dt>Status</dt>
-            <dd><span class="badge badge-{{ professor.status }}">{{ professor.status }}</span></dd>
-        </dl>
-    </article>
+<div class="detail-layout">
+    <div class="professor-context">
+        <div class="card">
+            <div class="card-header"><h3>Profile</h3></div>
+            <div style="display:flex; flex-direction:column; gap:0.6rem;">
+                <div><label>Email</label><div>{{ professor.email }}</div></div>
+                <div><label>Field</label><div>{{ professor.field }}</div></div>
+                {% if professor.lab_name %}<div><label>Lab</label><div>{{ professor.lab_name }}</div></div>{% endif %}
+                <div><label>Status</label><div><span class="badge badge-{{ professor.status }} badge-lg">{{ professor.status }}</span></div></div>
+                {% if professor.profile_url %}
+                <div><label>Profile</label><div><a href="{{ professor.profile_url }}" target="_blank">View Profile</a></div></div>
+                {% endif %}
+            </div>
+        </div>
 
-    <!-- Research Info -->
-    <article>
-        <header><strong>Research</strong></header>
-        {% if professor.research_summary %}
-        <h4>Summary</h4>
-        <p>{{ professor.research_summary }}</p>
+        {% if professor.keywords_list %}
+        <div class="card" style="margin-top:1rem;">
+            <div class="card-header"><h3>Keywords</h3></div>
+            <div class="keyword-tags">
+                {% for kw in professor.keywords_list %}
+                <span class="badge badge-keyword">{{ kw }}</span>
+                {% endfor %}
+            </div>
+        </div>
         {% endif %}
 
         {% if professor.summary %}
-        <h4>AI Summary</h4>
-        <p>{{ professor.summary }}</p>
-        {% endif %}
-
-        {% if professor.keywords_list %}
-        <h4>Keywords</h4>
-        <div class="keyword-tags">
-            {% for kw in professor.keywords_list %}
-            <span class="badge badge-keyword">{{ kw }}</span>
-            {% endfor %}
+        <div class="card" style="margin-top:1rem;">
+            <div class="card-header"><h3>Research Summary</h3></div>
+            <p style="font-size:0.9rem;">{{ professor.summary }}</p>
         </div>
         {% endif %}
 
         {% if professor.talking_points_list %}
-        <h4>Talking Points</h4>
-        <ul>
-            {% for tp in professor.talking_points_list %}
-            <li>{{ tp }}</li>
-            {% endfor %}
-        </ul>
+        <div class="card" style="margin-top:1rem;">
+            <div class="card-header"><h3>Talking Points</h3></div>
+            <ul class="talking-points">
+                {% for tp in professor.talking_points_list %}
+                <li>{{ tp }}</li>
+                {% endfor %}
+            </ul>
+        </div>
         {% endif %}
+    </div>
 
-        {% if professor.recent_work %}
-        <h4>Recent Work</h4>
-        <p>{{ professor.recent_work }}</p>
+    <div>
+        <div class="section-title">Drafts for {{ professor.name }} ({{ drafts|length }})</div>
+        {% if drafts %}
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr><th>ID</th><th>Subject</th><th>Score</th><th>Status</th><th>Created</th></tr>
+                </thead>
+                <tbody>
+                    {% for d in drafts %}
+                    <tr class="clickable-row" onclick="window.location='{{ url_for('draft_detail', draft_id=d.id) }}'">
+                        <td>#{{ d.id }}</td>
+                        <td>{{ d.subject_lines_list[0] if d.subject_lines_list else '(no subject)' }}</td>
+                        <td>
+                            {% set sc = d.overall_score %}
+                            <span class="score-badge {% if sc >= 7.5 %}score-high{% elif sc >= 4.0 %}score-mid{% else %}score-low{% endif %}">{{ "%.1f"|format(sc) }}</span>
+                        </td>
+                        <td><span class="badge badge-{{ d.status }}">{{ d.status }}</span></td>
+                        <td style="font-size:0.82rem; color:var(--ao-text-dim);">{{ d.created_at[:16] }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state"><div class="empty-icon">&#9998;</div><p>No drafts generated yet.</p></div>
         {% endif %}
-    </article>
+    </div>
 </div>
-
-<!-- Associated Drafts -->
-<h2>Drafts ({{ drafts|length }})</h2>
-{% if drafts %}
-<figure>
-<table class="striped">
-    <thead>
-        <tr>
-            <th>ID</th>
-            <th>Subject</th>
-            <th>Score</th>
-            <th>Warnings</th>
-            <th>Status</th>
-            <th>Created</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for d in drafts %}
-        <tr class="clickable-row" onclick="window.location='{{ url_for('draft_detail', draft_id=d.id) }}'">
-            <td>#{{ d.id }}</td>
-            <td>{{ d.subject_lines_list[0] if d.subject_lines_list else '(no subject)' }}</td>
-            <td>
-                <span class="score-badge {% if d.overall_score >= 7 %}score-high{% elif d.overall_score >= 5 %}score-mid{% else %}score-low{% endif %}">
-                    {{ '%.1f'|format(d.overall_score) }}
-                </span>
-            </td>
-            <td>
-                {% if d.warnings_list %}
-                <span class="warning-count">{{ d.warnings_list|length }}</span>
-                {% else %}
-                <span class="text-muted">0</span>
-                {% endif %}
-            </td>
-            <td><span class="badge badge-{{ d.status }}">{{ d.status }}</span></td>
-            <td>{{ d.created_at[:16] }}</td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
-</figure>
-{% else %}
-<p class="empty-state">No drafts generated for this professor yet.</p>
-{% endif %}
 {% endblock %}

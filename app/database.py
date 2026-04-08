@@ -219,6 +219,17 @@ CREATE TABLE IF NOT EXISTS app_settings (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL DEFAULT ''
 );
+
+CREATE TABLE IF NOT EXISTS access_keys (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    key_value  TEXT    NOT NULL UNIQUE,
+    label      TEXT    NOT NULL DEFAULT '',
+    role       TEXT    NOT NULL DEFAULT 'user',
+    is_active  INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+    last_used  TEXT,
+    created_by TEXT    NOT NULL DEFAULT 'admin'
+);
 """
 
 
@@ -813,5 +824,85 @@ def set_settings_bulk(conn: sqlite3.Connection, settings: dict[str, str]) -> Non
         conn.commit()
     except sqlite3.Error as exc:
         logger.error("set_settings_bulk failed: %s", exc)
+        conn.rollback()
+        raise
+
+
+# ---------------------------------------------------------------------------
+# Access Keys
+# ---------------------------------------------------------------------------
+
+def create_access_key(conn: sqlite3.Connection, key_value: str, label: str, role: str = "user", created_by: str = "admin") -> int:
+    """Create a new access key and return its id."""
+    try:
+        cursor: sqlite3.Cursor = conn.execute(
+            """
+            INSERT INTO access_keys (key_value, label, role, is_active, created_by)
+            VALUES (?, ?, ?, 1, ?)
+            """,
+            (key_value, label, role, created_by),
+        )
+        conn.commit()
+        return cursor.lastrowid or 0
+    except sqlite3.Error as exc:
+        logger.error("create_access_key failed: %s", exc)
+        conn.rollback()
+        raise
+
+
+def validate_access_key(conn: sqlite3.Connection, key_value: str) -> Optional[dict[str, Any]]:
+    """Validate an access key. Returns key row dict if valid, None otherwise."""
+    try:
+        row: Optional[sqlite3.Row] = conn.execute(
+            "SELECT * FROM access_keys WHERE key_value = ? AND is_active = 1",
+            (key_value,),
+        ).fetchone()
+        if row:
+            # Update last_used
+            conn.execute(
+                "UPDATE access_keys SET last_used = ? WHERE id = ?",
+                (_now_iso(), row["id"]),
+            )
+            conn.commit()
+            return dict(row)
+        return None
+    except sqlite3.Error as exc:
+        logger.error("validate_access_key failed: %s", exc)
+        return None
+
+
+def get_access_keys(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+    """Return all access keys."""
+    try:
+        rows: list[sqlite3.Row] = conn.execute(
+            "SELECT * FROM access_keys ORDER BY created_at DESC"
+        ).fetchall()
+        return [dict(r) for r in rows]
+    except sqlite3.Error as exc:
+        logger.error("get_access_keys failed: %s", exc)
+        return []
+
+
+def revoke_access_key(conn: sqlite3.Connection, key_id: int) -> None:
+    """Deactivate an access key."""
+    try:
+        conn.execute(
+            "UPDATE access_keys SET is_active = 0 WHERE id = ?",
+            (key_id,),
+        )
+        conn.commit()
+    except sqlite3.Error as exc:
+        logger.error("revoke_access_key failed for id=%d: %s", key_id, exc)
+        conn.rollback()
+        raise
+
+
+def delete_access_key(conn: sqlite3.Connection, key_id: int) -> None:
+    """Delete an access key permanently."""
+    try:
+        conn.execute("DELETE FROM access_keys WHERE id = ?", (key_id,))
+        conn.commit()
+    except sqlite3.Error as exc:
+        logger.error("delete_access_key failed for id=%d: %s", key_id, exc)
         conn.rollback()
         raise

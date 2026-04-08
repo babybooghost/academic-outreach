@@ -2,146 +2,108 @@
 {% block title %}Settings{% endblock %}
 
 {% block content %}
-<hgroup>
+<div class="page-header">
     <h1>Settings</h1>
-    <p>All settings are saved to the database — nothing is hardcoded</p>
-</hgroup>
+    <p>All settings saved to database — nothing hardcoded</p>
+</div>
 
-<!-- Flash messages -->
-{% with messages = get_flashed_messages(with_categories=true) %}
-{% if messages %}
-{% for category, message in messages %}
-<article class="flash-{{ category }}" style="padding: 0.75rem 1rem; margin-bottom: 1rem;
-    background: {{ 'var(--ins-color)' if category == 'success' else 'var(--del-color)' }}22;
-    border-left: 4px solid {{ 'var(--ins-color)' if category == 'success' else 'var(--del-color)' }};">
-    {{ message }}
-</article>
-{% endfor %}
-{% endif %}
-{% endwith %}
-
-<!-- Main Settings Form -->
 <form method="POST" action="{{ url_for('settings_save') }}">
-    <article>
-        <header><strong>LLM Configuration</strong></header>
+    <div class="grid-2">
+        <!-- LLM Config -->
+        <div class="card">
+            <div class="card-header"><h3>LLM Configuration</h3></div>
+            <div class="form-group">
+                <label for="llm_provider">Provider</label>
+                <select id="llm_provider" name="llm_provider">
+                    <option value="" {% if not effective.llm_provider %}selected{% endif %}>(None — keyword mode)</option>
+                    <option value="openrouter" {% if effective.llm_provider == 'openrouter' %}selected{% endif %}>OpenRouter</option>
+                    <option value="openai" {% if effective.llm_provider == 'openai' %}selected{% endif %}>OpenAI</option>
+                    <option value="anthropic" {% if effective.llm_provider == 'anthropic' %}selected{% endif %}>Anthropic</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="llm_model">Model</label>
+                <select id="llm_model" name="llm_model">
+                    {% for model_id, model_name in llm_models.items() %}
+                    <option value="{{ model_id }}" {% if effective.llm_model == model_id %}selected{% endif %}>{{ model_name }}</option>
+                    {% endfor %}
+                </select>
+                <div class="form-hint">Faster/cheaper models at the top</div>
+            </div>
+            <div style="padding:0.5rem 0.75rem; background:var(--ao-surface-3); border-radius:var(--ao-radius-sm); font-size:0.82rem;">
+                API Key: {% if effective.llm_api_key_set %}<span style="color:var(--ao-success);">Set (server-side)</span>{% else %}<span style="color:var(--ao-danger);">Not configured</span>{% endif %}
+            </div>
+        </div>
 
-        <label for="llm_provider">LLM Provider</label>
-        <select id="llm_provider" name="llm_provider">
-            <option value="" {% if not effective.llm_provider %}selected{% endif %}>(None — keyword-only mode)</option>
-            <option value="openrouter" {% if effective.llm_provider == 'openrouter' %}selected{% endif %}>OpenRouter (recommended)</option>
-            <option value="openai" {% if effective.llm_provider == 'openai' %}selected{% endif %}>OpenAI Direct</option>
-            <option value="anthropic" {% if effective.llm_provider == 'anthropic' %}selected{% endif %}>Anthropic Direct</option>
-        </select>
+        <!-- Email Config -->
+        <div class="card">
+            <div class="card-header"><h3>Email Configuration</h3></div>
+            <div class="form-group">
+                <label for="sender_email">Sender Email</label>
+                <input type="email" id="sender_email" name="sender_email" value="{{ effective.sender_email }}" placeholder="you@gmail.com">
+            </div>
+            <div class="form-group">
+                <label for="email_provider">Provider</label>
+                <select id="email_provider" name="email_provider">
+                    {% for pid, pname in email_providers.items() %}
+                    <option value="{{ pid }}" {% if effective.email_provider == pid %}selected{% endif %}>{{ pname }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="smtp_user">SMTP Username</label>
+                <input type="text" id="smtp_user" name="smtp_user" value="{{ effective.smtp_user }}" placeholder="Optional">
+            </div>
+            <div class="form-group">
+                <label for="smtp_password">SMTP Password</label>
+                <input type="password" id="smtp_password" name="smtp_password" value="{{ effective.smtp_password }}" placeholder="App password">
+                <div class="form-hint">Only for direct SMTP sending</div>
+            </div>
+        </div>
+    </div>
 
-        <label for="llm_model">Model</label>
-        <select id="llm_model" name="llm_model">
-            {% for model_id, model_name in llm_models.items() %}
-            <option value="{{ model_id }}" {% if effective.llm_model == model_id %}selected{% endif %}>
-                {{ model_name }} ({{ model_id }})
-            </option>
-            {% endfor %}
-        </select>
-        <small>Choose which LLM generates your emails. Faster/cheaper models at the top.</small>
-    </article>
-
-    <article>
-        <header><strong>Email Configuration</strong></header>
-
-        <label for="sender_email">Sender Email Address</label>
-        <input type="email" id="sender_email" name="sender_email"
-               value="{{ effective.sender_email }}"
-               placeholder="you@gmail.com">
-        <small>The email address that outreach emails are sent from</small>
-
-        <label for="email_provider">Email Provider</label>
-        <select id="email_provider" name="email_provider">
-            {% for provider_id, provider_name in email_providers.items() %}
-            <option value="{{ provider_id }}" {% if effective.email_provider == provider_id %}selected{% endif %}>
-                {{ provider_name }}
-            </option>
-            {% endfor %}
-        </select>
-        <small>SMTP settings are auto-configured based on provider</small>
-
-        <label for="smtp_user">SMTP Username (optional)</label>
-        <input type="text" id="smtp_user" name="smtp_user"
-               value="{{ effective.smtp_user }}"
-               placeholder="Leave blank to use sender email">
-
-        <label for="smtp_password">SMTP App Password (optional)</label>
-        <input type="password" id="smtp_password" name="smtp_password"
-               value="{{ effective.smtp_password }}"
-               placeholder="App-specific password for SMTP sending">
-        <small>Only needed for direct SMTP sending (not Gmail draft mode)</small>
-    </article>
-
-    <button type="submit">Save Settings</button>
+    <button type="submit" class="btn btn-primary" style="margin-top:1rem;">Save Settings</button>
 </form>
 
 <!-- Sender Profiles -->
-<article>
-    <header><strong>Sender Profiles</strong></header>
-    <p><small>Manage who sends outreach emails — you, friends, etc. Add profiles via CLI: <code>python main.py profile add</code></small></p>
+<div class="section" style="margin-top:2rem;">
+    <div class="section-title">Sender Profiles</div>
     {% if profiles %}
-    <figure>
-    <table class="striped">
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Name</th>
-                <th>School</th>
-                <th>Grade</th>
-                <th>Email</th>
-                <th>Interests</th>
-                <th>Graduation</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for p in profiles %}
-            <tr>
-                <td>#{{ p.id }}</td>
-                <td>{{ p.name }}</td>
-                <td>{{ p.school }}</td>
-                <td>{{ p.grade }}</td>
-                <td>{{ p.email }}</td>
-                <td>{{ p.interests[:60] }}{% if p.interests|length > 60 %}...{% endif %}</td>
-                <td>{{ p.graduation_year or 'N/A' }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    </figure>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>ID</th><th>Name</th><th>School</th><th>Grade</th><th>Email</th><th>Interests</th></tr></thead>
+            <tbody>
+                {% for p in profiles %}
+                <tr>
+                    <td>#{{ p.id }}</td><td>{{ p.name }}</td><td>{{ p.school }}</td>
+                    <td>{{ p.grade }}</td><td>{{ p.email }}</td>
+                    <td style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ p.interests }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
     {% else %}
-    <p class="empty-state">No sender profiles configured. Run <code>python main.py profile add</code> to create one.</p>
+    <div class="empty-state"><p>No profiles. Run <code>python main.py profile add</code></p></div>
     {% endif %}
-</article>
+</div>
 
 <!-- Suppression List -->
-<article>
-    <header><strong>Suppression List</strong></header>
+<div class="section">
+    <div class="section-title">Suppression List</div>
     {% if suppression %}
-    <figure>
-    <table class="striped">
-        <thead>
-            <tr>
-                <th>Email</th>
-                <th>Reason</th>
-                <th>Added</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for s in suppression %}
-            <tr>
-                <td>{{ s.email }}</td>
-                <td>{{ s.reason }}</td>
-                <td>{{ s.added_at }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    </figure>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Email</th><th>Reason</th><th>Added</th></tr></thead>
+            <tbody>
+                {% for s in suppression %}
+                <tr><td>{{ s.email }}</td><td>{{ s.reason }}</td><td style="color:var(--ao-text-dim);">{{ s.added_at }}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
     {% else %}
-    <p class="empty-state">Suppression list is empty.</p>
+    <div class="empty-state"><p>Suppression list is empty.</p></div>
     {% endif %}
-</article>
+</div>
 {% endblock %}

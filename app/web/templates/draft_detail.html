@@ -2,276 +2,111 @@
 {% block title %}Draft #{{ draft.id }}{% endblock %}
 
 {% block content %}
-<nav aria-label="breadcrumb">
-    <ul>
-        <li><a href="{{ url_for('drafts_list') }}">Drafts</a></li>
-        <li>Draft #{{ draft.id }}</li>
-    </ul>
-</nav>
+<div class="page-header">
+    <h1>Draft #{{ draft.id }}</h1>
+    <p>{{ professor.name if professor else 'Unknown' }} &mdash; {{ professor.university if professor else '' }}</p>
+</div>
 
-<div class="grid detail-layout">
-    <!-- Left Panel: Professor Context -->
-    <article class="professor-context">
-        <header><strong>Professor Context</strong></header>
+<div class="detail-layout">
+    <!-- Left: Context -->
+    <div class="professor-context">
         {% if professor %}
-        <dl>
-            <dt>Name</dt>
-            <dd><a href="{{ url_for('professor_detail', prof_id=professor.id) }}">{{ professor.name }}</a></dd>
-            <dt>University</dt>
-            <dd>{{ professor.university }}</dd>
-            <dt>Field</dt>
-            <dd>{{ professor.field }}</dd>
-            {% if professor.department %}
-            <dt>Department</dt>
-            <dd>{{ professor.department }}</dd>
-            {% endif %}
-            {% if professor.research_summary %}
-            <dt>Research Summary</dt>
-            <dd>{{ professor.research_summary[:300] }}{% if professor.research_summary|length > 300 %}...{% endif %}</dd>
-            {% endif %}
-        </dl>
-
-        {% if professor.keywords_list %}
-        <h5>Keywords</h5>
-        <div class="keyword-tags">
-            {% for kw in professor.keywords_list %}
-            <span class="badge badge-keyword">{{ kw }}</span>
-            {% endfor %}
+        <div class="card">
+            <div class="card-header"><h3>Professor</h3></div>
+            <div style="display:flex; flex-direction:column; gap:0.5rem;">
+                <div><label>Name</label><div><a href="{{ url_for('professor_detail', prof_id=professor.id) }}">{{ professor.name }}</a></div></div>
+                <div><label>Email</label><div style="font-size:0.88rem;">{{ professor.email }}</div></div>
+                <div><label>Field</label><div>{{ professor.field }}</div></div>
+                <div><label>University</label><div>{{ professor.university }}</div></div>
+            </div>
         </div>
         {% endif %}
 
-        {% if professor.talking_points_list %}
-        <h5>Talking Points</h5>
-        <ul class="talking-points">
-            {% for tp in professor.talking_points_list %}
-            <li>{{ tp }}</li>
-            {% endfor %}
-        </ul>
-        {% endif %}
-        {% else %}
-        <p class="text-muted">Professor data not available.</p>
-        {% endif %}
-    </article>
-
-    <!-- Right Panel: Draft Content -->
-    <div class="draft-content-panel">
-        <!-- Status & Actions -->
-        <article>
-            <header class="draft-header">
-                <div>
-                    <span class="badge badge-{{ draft.status }} badge-lg">{{ draft.status }}</span>
-                    <span class="text-muted">Draft #{{ draft.id }} &middot; Session #{{ draft.session_id }}</span>
-                </div>
-                <div class="action-buttons" id="action-buttons">
-                    {% if draft.status in ('generated', 'edited') %}
-                    <button class="btn-approve" onclick="approveDraft({{ draft.id }})">Approve</button>
-                    <button class="btn-reject outline" onclick="rejectDraft({{ draft.id }})">Reject</button>
-                    {% endif %}
-                    <button class="outline" onclick="toggleEdit()">Edit</button>
-                </div>
-            </header>
-
-            <!-- Subject Lines -->
-            <h4>Subject Lines</h4>
-            <div id="subject-display">
-                {% for subj in draft.subject_lines_list %}
-                <div class="subject-option {% if loop.first %}subject-primary{% endif %}">
-                    {% if loop.first %}<strong>Primary:</strong>{% else %}Alt {{ loop.index }}:{% endif %}
-                    {{ subj }}
+        <div class="card" style="margin-top:1rem;">
+            <div class="card-header"><h3>Scores</h3></div>
+            <div class="scores-grid">
+                {% set dims = [('Specificity', draft.specificity_score), ('Authenticity', draft.authenticity_score), ('Relevance', draft.relevance_score), ('Conciseness', draft.conciseness_score), ('Completeness', draft.completeness_score)] %}
+                {% for name, val in dims %}
+                <div class="score-item">
+                    <label>{{ name }}</label>
+                    <div class="score-bar-container">
+                        {% set pct = (val * 10)|int %}
+                        <div class="score-bar {% if val >= 7.5 %}bar-high{% elif val >= 4.0 %}bar-mid{% else %}bar-low{% endif %}" style="width:{{ pct }}%;">
+                            {{ "%.1f"|format(val) }}
+                        </div>
+                    </div>
                 </div>
                 {% endfor %}
             </div>
-
-            <!-- Email Body -->
-            <h4>Email Body</h4>
-            <div id="body-display" class="email-preview">
-                {{ draft.body|replace('\n', '<br>')|safe }}
+            <div style="margin-top:1rem; text-align:center;">
+                <span style="font-size:0.8rem; color:var(--ao-text-dim);">Overall</span><br>
+                {% set sc = draft.overall_score %}
+                <span class="score-badge badge-lg {% if sc >= 7.5 %}score-high{% elif sc >= 4.0 %}score-mid{% else %}score-low{% endif %}">
+                    {{ "%.1f"|format(sc) }} / 10
+                </span>
             </div>
+        </div>
 
-            <!-- Edit Mode (hidden by default) -->
-            <div id="edit-mode" style="display: none;">
-                <h4>Edit Subject</h4>
-                <input type="text" id="edit-subject"
-                       value="{{ draft.subject_lines_list[0] if draft.subject_lines_list else '' }}"
-                       placeholder="Subject line">
-                <h4>Edit Body</h4>
-                <textarea id="edit-body" rows="15">{{ draft.body }}</textarea>
-                <div class="grid">
-                    <button onclick="saveDraft({{ draft.id }})">Save Changes</button>
-                    <button class="outline" onclick="toggleEdit()">Cancel</button>
-                </div>
-            </div>
-        </article>
-
-        <!-- Scores -->
-        <article>
-            <header><strong>Quality Scores</strong></header>
-            <div class="scores-grid">
-                <div class="score-item">
-                    <label>Overall</label>
-                    <div class="score-bar-container">
-                        <div class="score-bar {% if draft.overall_score >= 7 %}bar-high{% elif draft.overall_score >= 5 %}bar-mid{% else %}bar-low{% endif %}"
-                             style="width: {{ (draft.overall_score / 10 * 100)|int }}%">
-                            {{ '%.1f'|format(draft.overall_score) }}
-                        </div>
-                    </div>
-                </div>
-                <div class="score-item">
-                    <label>Specificity</label>
-                    <div class="score-bar-container">
-                        <div class="score-bar {% if draft.specificity_score >= 7 %}bar-high{% elif draft.specificity_score >= 5 %}bar-mid{% else %}bar-low{% endif %}"
-                             style="width: {{ (draft.specificity_score / 10 * 100)|int }}%">
-                            {{ '%.1f'|format(draft.specificity_score) }}
-                        </div>
-                    </div>
-                </div>
-                <div class="score-item">
-                    <label>Authenticity</label>
-                    <div class="score-bar-container">
-                        <div class="score-bar {% if draft.authenticity_score >= 7 %}bar-high{% elif draft.authenticity_score >= 5 %}bar-mid{% else %}bar-low{% endif %}"
-                             style="width: {{ (draft.authenticity_score / 10 * 100)|int }}%">
-                            {{ '%.1f'|format(draft.authenticity_score) }}
-                        </div>
-                    </div>
-                </div>
-                <div class="score-item">
-                    <label>Relevance</label>
-                    <div class="score-bar-container">
-                        <div class="score-bar {% if draft.relevance_score >= 7 %}bar-high{% elif draft.relevance_score >= 5 %}bar-mid{% else %}bar-low{% endif %}"
-                             style="width: {{ (draft.relevance_score / 10 * 100)|int }}%">
-                            {{ '%.1f'|format(draft.relevance_score) }}
-                        </div>
-                    </div>
-                </div>
-                <div class="score-item">
-                    <label>Conciseness</label>
-                    <div class="score-bar-container">
-                        <div class="score-bar {% if draft.conciseness_score >= 7 %}bar-high{% elif draft.conciseness_score >= 5 %}bar-mid{% else %}bar-low{% endif %}"
-                             style="width: {{ (draft.conciseness_score / 10 * 100)|int }}%">
-                            {{ '%.1f'|format(draft.conciseness_score) }}
-                        </div>
-                    </div>
-                </div>
-                <div class="score-item">
-                    <label>Completeness</label>
-                    <div class="score-bar-container">
-                        <div class="score-bar {% if draft.completeness_score >= 7 %}bar-high{% elif draft.completeness_score >= 5 %}bar-mid{% else %}bar-low{% endif %}"
-                             style="width: {{ (draft.completeness_score / 10 * 100)|int }}%">
-                            {{ '%.1f'|format(draft.completeness_score) }}
-                        </div>
-                    </div>
-                </div>
-                {% if draft.similarity_score is not none %}
-                <div class="score-item">
-                    <label>Similarity</label>
-                    <div class="score-bar-container">
-                        <div class="score-bar {% if draft.similarity_score < 0.7 %}bar-high{% elif draft.similarity_score < 0.85 %}bar-mid{% else %}bar-low{% endif %}"
-                             style="width: {{ (draft.similarity_score * 100)|int }}%">
-                            {{ '%.2f'|format(draft.similarity_score) }}
-                        </div>
-                    </div>
-                </div>
-                {% endif %}
-            </div>
-        </article>
-
-        <!-- Warnings -->
         {% if draft.warnings_list %}
-        <article class="warnings-panel">
-            <header><strong>Warnings</strong></header>
+        <div class="card warnings-panel" style="margin-top:1rem;">
+            <div class="card-header"><h3>Warnings</h3></div>
             <ul class="warnings-list">
                 {% for w in draft.warnings_list %}
                 <li class="warning-item">{{ w }}</li>
                 {% endfor %}
             </ul>
-        </article>
+        </div>
         {% endif %}
+    </div>
 
-        <!-- Metadata -->
-        <article>
-            <header><strong>Metadata</strong></header>
-            <dl>
-                <dt>Template Variant</dt>
-                <dd>{{ draft.template_variant or 'N/A' }}</dd>
-                <dt>Created At</dt>
-                <dd>{{ draft.created_at }}</dd>
-                {% if draft.reviewed_at %}
-                <dt>Reviewed At</dt>
-                <dd>{{ draft.reviewed_at }}</dd>
+    <!-- Right: Draft Content -->
+    <div class="draft-content-panel">
+        <div class="draft-header">
+            <div>
+                <span class="badge badge-{{ draft.status }} badge-lg">{{ draft.status }}</span>
+                <code style="margin-left:0.5rem;">{{ draft.template_variant }}</code>
+            </div>
+            <div class="action-buttons">
+                {% if draft.status in ('generated', 'edited') %}
+                <button class="btn btn-success btn-sm" onclick="draftAction({{ draft.id }}, 'approve')">Approve</button>
+                <button class="btn btn-danger btn-sm" onclick="draftAction({{ draft.id }}, 'reject')">Reject</button>
                 {% endif %}
-                {% if draft.reviewer_notes %}
-                <dt>Reviewer Notes</dt>
-                <dd>{{ draft.reviewer_notes }}</dd>
-                {% endif %}
-            </dl>
-        </article>
+            </div>
+        </div>
+
+        <!-- Subject Lines -->
+        <div class="card">
+            <div class="card-header"><h3>Subject Lines</h3></div>
+            {% for subj in draft.subject_lines_list %}
+            <div class="subject-option {% if loop.first %}subject-primary{% endif %}">{{ subj }}</div>
+            {% endfor %}
+        </div>
+
+        <!-- Email Body -->
+        <div class="card">
+            <div class="card-header"><h3>Email Body</h3></div>
+            <div class="email-preview">{{ draft.body }}</div>
+        </div>
+
+        {% if draft.similarity_score is not none %}
+        <div class="card">
+            <div class="card-header"><h3>Similarity</h3></div>
+            <p>Cross-draft similarity: <strong>{{ "%.2f"|format(draft.similarity_score) }}</strong>
+            {% if draft.similarity_score > 0.85 %}<span class="badge badge-error">Too similar</span>{% endif %}
+            </p>
+        </div>
+        {% endif %}
     </div>
 </div>
-{% endblock %}
 
 {% block scripts %}
 <script>
-let editMode = false;
-
-function toggleEdit() {
-    editMode = !editMode;
-    document.getElementById('edit-mode').style.display = editMode ? 'block' : 'none';
-    document.getElementById('body-display').style.display = editMode ? 'none' : 'block';
-    document.getElementById('subject-display').style.display = editMode ? 'none' : 'block';
-}
-
-async function approveDraft(id) {
-    if (!confirm('Approve this draft?')) return;
-    try {
-        const resp = await fetch(`/drafts/${id}/approve`, { method: 'POST' });
-        const data = await resp.json();
-        if (data.success) {
-            location.reload();
-        } else {
-            alert('Error: ' + (data.error || 'Unknown error'));
-        }
-    } catch (e) {
-        alert('Request failed: ' + e.message);
-    }
-}
-
-async function rejectDraft(id) {
-    const notes = prompt('Rejection reason (optional):');
-    try {
-        const resp = await fetch(`/drafts/${id}/reject`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ notes: notes }),
-        });
-        const data = await resp.json();
-        if (data.success) {
-            location.reload();
-        } else {
-            alert('Error: ' + (data.error || 'Unknown error'));
-        }
-    } catch (e) {
-        alert('Request failed: ' + e.message);
-    }
-}
-
-async function saveDraft(id) {
-    const body = document.getElementById('edit-body').value;
-    const subject = document.getElementById('edit-subject').value;
-    try {
-        const resp = await fetch(`/drafts/${id}/edit`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ body: body, subject: subject }),
-        });
-        const data = await resp.json();
-        if (data.success) {
-            location.reload();
-        } else {
-            alert('Error: ' + (data.error || 'Unknown error'));
-        }
-    } catch (e) {
-        alert('Request failed: ' + e.message);
-    }
+async function draftAction(id, action) {
+    const res = await fetch(`/drafts/${id}/${action}`, {method:'POST', headers:{'Content-Type':'application/json'}});
+    const data = await res.json();
+    if (data.success) location.reload();
+    else alert(data.error || 'Action failed');
 }
 </script>
+{% endblock %}
 {% endblock %}

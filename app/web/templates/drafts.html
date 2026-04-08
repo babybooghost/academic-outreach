@@ -2,137 +2,66 @@
 {% block title %}Drafts{% endblock %}
 
 {% block content %}
-<hgroup>
+<div class="page-header">
     <h1>Drafts</h1>
-    <p>{{ drafts|length }} draft{{ 's' if drafts|length != 1 else '' }} found</p>
-</hgroup>
+    <p>Review and manage generated email drafts</p>
+</div>
 
-<!-- Filters -->
-<form method="get" action="{{ url_for('drafts_list') }}" class="filter-form">
-    <div class="grid">
-        <label>
-            Session
-            <select name="session" onchange="this.form.submit()">
-                <option value="">All Sessions</option>
-                {% for s in sessions %}
-                <option value="{{ s }}" {% if current_session|string == s|string %}selected{% endif %}>Session #{{ s }}</option>
-                {% endfor %}
-            </select>
-        </label>
-        <label>
-            Status
-            <select name="status" onchange="this.form.submit()">
-                <option value="">All Statuses</option>
-                {% for s in statuses %}
-                <option value="{{ s }}" {% if current_status == s %}selected{% endif %}>{{ s }}</option>
-                {% endfor %}
-            </select>
-        </label>
-        <label>
-            &nbsp;
-            <button type="submit" class="outline">Filter</button>
-        </label>
-    </div>
-</form>
+<div class="filter-bar">
+    <form method="GET" style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap; width:100%; margin:0;">
+        <select name="status">
+            <option value="">All Statuses</option>
+            {% for s in statuses %}
+            <option value="{{ s }}" {% if current_status == s %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+        </select>
+        <select name="session">
+            <option value="">All Sessions</option>
+            {% for sid in sessions %}
+            <option value="{{ sid }}" {% if current_session == sid %}selected{% endif %}>Session #{{ sid }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-outline btn-sm">Filter</button>
+        {% if current_status or current_session %}
+        <a href="{{ url_for('drafts_list') }}" class="btn btn-ghost btn-sm">Clear</a>
+        {% endif %}
+    </form>
+</div>
 
 {% if drafts %}
-<!-- Bulk Actions -->
-<form id="bulk-form">
-    <div class="bulk-actions">
-        <button type="button" class="outline secondary btn-sm" onclick="bulkApprove()">Approve Selected</button>
-        <button type="button" class="outline secondary btn-sm" onclick="bulkReject()">Reject Selected</button>
-        <label class="select-all-label">
-            <input type="checkbox" id="select-all" onchange="toggleAll(this)"> Select All
-        </label>
-    </div>
-
-    <figure>
-    <table class="striped">
+<div class="table-wrap">
+    <table>
         <thead>
             <tr>
-                <th class="col-check"><input type="checkbox" onchange="toggleAll(this)"></th>
-                <th>Professor</th>
-                <th>Subject</th>
-                <th>Score</th>
-                <th>Warnings</th>
-                <th>Status</th>
-                <th>Session</th>
-                <th>Created</th>
+                <th>ID</th><th>Professor</th><th>Subject</th><th>Template</th>
+                <th>Score</th><th>Warnings</th><th>Status</th><th>Created</th>
             </tr>
         </thead>
         <tbody>
             {% for d in drafts %}
-            <tr>
-                <td class="col-check">
-                    <input type="checkbox" class="draft-check" value="{{ d.id }}">
+            <tr class="clickable-row" onclick="window.location='{{ url_for('draft_detail', draft_id=d.id) }}'">
+                <td>#{{ d.id }}</td>
+                <td>{{ prof_map.get(d.professor_id, 'Unknown') }}</td>
+                <td style="max-width:250px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                    {{ d.subject_lines_list[0] if d.subject_lines_list else '(no subject)' }}
+                </td>
+                <td><code>{{ d.template_variant }}</code></td>
+                <td>
+                    {% set sc = d.overall_score %}
+                    <span class="score-badge {% if sc >= 7.5 %}score-high{% elif sc >= 4.0 %}score-mid{% else %}score-low{% endif %}">{{ "%.1f"|format(sc) }}</span>
                 </td>
                 <td>
-                    <a href="{{ url_for('professor_detail', prof_id=d.professor_id) }}">
-                        {{ prof_map.get(d.professor_id, 'Unknown') }}
-                    </a>
-                </td>
-                <td>
-                    <a href="{{ url_for('draft_detail', draft_id=d.id) }}">
-                        {{ d.subject_lines_list[0][:50] if d.subject_lines_list else '(no subject)' }}{% if d.subject_lines_list and d.subject_lines_list[0]|length > 50 %}...{% endif %}
-                    </a>
-                </td>
-                <td>
-                    <span class="score-badge {% if d.overall_score >= 7 %}score-high{% elif d.overall_score >= 5 %}score-mid{% else %}score-low{% endif %}">
-                        {{ '%.1f'|format(d.overall_score) }}
-                    </span>
-                </td>
-                <td>
-                    {% if d.warnings_list %}
-                    <span class="warning-count" title="{{ d.warnings_list|join(', ') }}">{{ d.warnings_list|length }}</span>
-                    {% else %}
-                    <span class="text-muted">0</span>
-                    {% endif %}
+                    {% if d.warnings_list %}<span class="warning-count">{{ d.warnings_list|length }}</span>
+                    {% else %}<span style="color:var(--ao-text-dim);">&mdash;</span>{% endif %}
                 </td>
                 <td><span class="badge badge-{{ d.status }}">{{ d.status }}</span></td>
-                <td>#{{ d.session_id }}</td>
-                <td>{{ d.created_at[:16] }}</td>
+                <td style="font-size:0.82rem; color:var(--ao-text-dim);">{{ d.created_at[:16] }}</td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
-    </figure>
-</form>
+</div>
 {% else %}
-<p class="empty-state">No drafts match the current filters.</p>
+<div class="empty-state"><div class="empty-icon">&#9998;</div><p>No drafts found. Generate via CLI: <code>python main.py generate</code></p></div>
 {% endif %}
-{% endblock %}
-
-{% block scripts %}
-<script>
-function toggleAll(source) {
-    document.querySelectorAll('.draft-check').forEach(cb => cb.checked = source.checked);
-}
-
-function getSelectedIds() {
-    return Array.from(document.querySelectorAll('.draft-check:checked')).map(cb => cb.value);
-}
-
-async function bulkAction(action) {
-    const ids = getSelectedIds();
-    if (ids.length === 0) { alert('No drafts selected.'); return; }
-    if (!confirm(`${action} ${ids.length} draft(s)?`)) return;
-
-    const results = [];
-    for (const id of ids) {
-        try {
-            const resp = await fetch(`/drafts/${id}/${action}`, { method: 'POST' });
-            const data = await resp.json();
-            results.push({ id, ...data });
-        } catch (e) {
-            results.push({ id, error: e.message });
-        }
-    }
-    const ok = results.filter(r => r.success).length;
-    alert(`${ok} of ${ids.length} drafts ${action}d successfully.`);
-    location.reload();
-}
-
-function bulkApprove() { bulkAction('approve'); }
-function bulkReject() { bulkAction('reject'); }
-</script>
 {% endblock %}

@@ -2,83 +2,43 @@
 {% block title %}Export{% endblock %}
 
 {% block content %}
-<hgroup>
+<div class="page-header">
     <h1>Export</h1>
-    <p>Export drafts and data for external review</p>
-</hgroup>
+    <p>Download your drafts and tracking data</p>
+</div>
 
-<article>
-    <header><strong>Export Drafts</strong></header>
-    <p>Generate a CSV file containing all drafts with professor details, scores, and status information.</p>
-
-    <div class="grid">
-        <div>
-            <h5>Included Fields</h5>
-            <ul>
-                <li>Draft ID, Professor ID, Session ID</li>
-                <li>Subject line (primary)</li>
-                <li>Full email body</li>
-                <li>Overall score</li>
-                <li>Status</li>
-                <li>Warnings</li>
-                <li>Creation date</li>
-            </ul>
-        </div>
-        <div>
-            <h5>Format Options</h5>
-            <label>
-                <input type="radio" name="format" value="csv" checked>
-                CSV (Comma-Separated Values)
-            </label>
-        </div>
+<div class="grid-3">
+    <div class="card" style="text-align:center;">
+        <div class="card-header"><h3>Drafts CSV</h3></div>
+        <p>Export all drafts with scores, statuses, and metadata.</p>
+        <button class="btn btn-primary" onclick="triggerExport()">Export CSV</button>
     </div>
+    <div class="card" style="text-align:center;">
+        <div class="card-header"><h3>Audit Log</h3></div>
+        <p>Full audit trail of all actions taken in the system.</p>
+        <button class="btn btn-outline" disabled>Coming Soon</button>
+    </div>
+    <div class="card" style="text-align:center;">
+        <div class="card-header"><h3>Tracking Sheet</h3></div>
+        <p>16-column tracking spreadsheet with all outreach data.</p>
+        <button class="btn btn-outline" disabled>Coming Soon</button>
+    </div>
+</div>
 
-    <button id="export-btn" onclick="triggerExport()">Generate Export</button>
-</article>
-
-<!-- Results -->
-<article id="export-results" style="display: none;">
-    <header><strong>Export Result</strong></header>
-    <div id="export-content"></div>
-</article>
-{% endblock %}
+<div id="export-result" style="margin-top:1.5rem;"></div>
 
 {% block scripts %}
 <script>
 async function triggerExport() {
-    const btn = document.getElementById('export-btn');
-    const resultsPanel = document.getElementById('export-results');
-    const resultsContent = document.getElementById('export-content');
-
-    btn.disabled = true;
-    btn.setAttribute('aria-busy', 'true');
-    resultsPanel.style.display = 'none';
-
-    try {
-        const resp = await fetch('/export', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ format: 'csv' }),
-        });
-        const data = await resp.json();
-        resultsPanel.style.display = 'block';
-
-        if (data.error) {
-            resultsContent.innerHTML = `<p class="error-text">Error: ${data.error}</p>`;
-            return;
-        }
-
-        resultsContent.innerHTML = `
-            <p>Export generated successfully: <strong>${data.filename}</strong></p>
-            <a href="${data.download_url}" role="button">Download File</a>
-        `;
-    } catch (e) {
-        resultsPanel.style.display = 'block';
-        resultsContent.innerHTML = `<p class="error-text">Request failed: ${e.message}</p>`;
-    } finally {
-        btn.disabled = false;
-        btn.removeAttribute('aria-busy');
+    const res = await fetch('/export', {method:'POST', headers:{'Content-Type':'application/json'}});
+    const data = await res.json();
+    const el = document.getElementById('export-result');
+    if (data.success) {
+        el.innerHTML = '<div class="flash-msg flash-success">Export ready: <a href="' + data.download_url + '" style="color:var(--ao-success); font-weight:600;">Download ' + data.filename + '</a></div>';
+    } else {
+        el.innerHTML = '<div class="flash-msg flash-error">' + (data.error || 'Export failed') + '</div>';
     }
 }
 </script>
+{% endblock %}
 {% endblock %}

@@ -2,156 +2,69 @@
 {% block title %}Send Queue{% endblock %}
 
 {% block content %}
-<hgroup>
+<div class="page-header">
     <h1>Send Queue</h1>
-    <p>{{ send_queue|length }} draft{{ 's' if send_queue|length != 1 else '' }} ready to send</p>
-</hgroup>
+    <p>Approved drafts ready to send</p>
+</div>
 
 {% if send_queue %}
-<figure>
-<table class="striped">
-    <thead>
-        <tr>
-            <th>Draft ID</th>
-            <th>Professor</th>
-            <th>Email</th>
-            <th>Subject</th>
-            <th>Score</th>
-            <th>Status</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for d in send_queue %}
-        {% set prof = prof_map.get(d.professor_id) %}
-        <tr>
-            <td><a href="{{ url_for('draft_detail', draft_id=d.id) }}">#{{ d.id }}</a></td>
-            <td>{{ prof.name if prof else 'Unknown' }}</td>
-            <td>{{ prof.email if prof else 'Unknown' }}</td>
-            <td>{{ d.subject_lines_list[0][:50] if d.subject_lines_list else '(no subject)' }}</td>
-            <td>
-                <span class="score-badge {% if d.overall_score >= 7 %}score-high{% elif d.overall_score >= 5 %}score-mid{% else %}score-low{% endif %}">
-                    {{ '%.1f'|format(d.overall_score) }}
-                </span>
-            </td>
-            <td><span class="badge badge-{{ d.status }}">{{ d.status }}</span></td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
-</figure>
+<div class="table-wrap">
+    <table>
+        <thead>
+            <tr>
+                <th>Draft</th><th>Professor</th><th>Email</th><th>Subject</th><th>Score</th><th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for d in send_queue %}
+            {% set prof = prof_map.get(d.professor_id) %}
+            <tr>
+                <td><a href="{{ url_for('draft_detail', draft_id=d.id) }}">#{{ d.id }}</a></td>
+                <td>{{ prof.name if prof else 'Unknown' }}</td>
+                <td style="font-size:0.85rem; color:var(--ao-text-dim);">{{ prof.email if prof else '' }}</td>
+                <td style="max-width:250px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                    {{ d.subject_lines_list[0] if d.subject_lines_list else '(no subject)' }}
+                </td>
+                <td>
+                    {% set sc = d.overall_score %}
+                    <span class="score-badge {% if sc >= 7.5 %}score-high{% elif sc >= 4.0 %}score-mid{% else %}score-low{% endif %}">{{ "%.1f"|format(sc) }}</span>
+                </td>
+                <td><span class="badge badge-{{ d.status }}">{{ d.status }}</span></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
 
-<!-- Send Controls -->
-<article>
-    <header><strong>Send Controls</strong></header>
-    <div class="grid">
-        <label>
-            Method
-            <select id="send-method">
-                <option value="gmail_draft">Gmail Draft (safe)</option>
-                <option value="smtp">SMTP Send</option>
-            </select>
-        </label>
-        <label>
-            Limit
-            <input type="number" id="send-limit" value="{{ send_queue|length }}" min="1" max="{{ send_queue|length }}">
-        </label>
-        <label>
-            Options
-            <label class="checkbox-label">
-                <input type="checkbox" id="dry-run" checked>
-                Dry Run (preview only)
-            </label>
-        </label>
-    </div>
-    <div class="grid">
-        <button id="send-btn" onclick="triggerSend()">Send Emails</button>
-        <div></div>
-        <div></div>
-    </div>
-</article>
-
-<!-- Results Area -->
-<article id="results-panel" style="display: none;">
-    <header><strong>Send Results</strong></header>
-    <div id="results-content"></div>
-    <div id="progress-bar" style="display: none;">
-        <progress></progress>
-        <p>Processing...</p>
-    </div>
-</article>
-
+<div style="margin-top:1.5rem; display:flex; gap:0.75rem;">
+    <button class="btn btn-primary" onclick="triggerSend(false)">Send All ({{ send_queue|length }})</button>
+    <button class="btn btn-outline" onclick="triggerSend(true)">Dry Run</button>
+</div>
+<div id="send-results" style="margin-top:1rem;"></div>
 {% else %}
-<article>
-    <p class="empty-state">No approved drafts in the queue. <a href="{{ url_for('drafts_list', status='generated') }}">Review pending drafts</a> to approve them for sending.</p>
-</article>
+<div class="empty-state">
+    <div class="empty-icon">&#9993;</div>
+    <p>No approved drafts in the send queue. Approve drafts first.</p>
+</div>
 {% endif %}
-{% endblock %}
 
 {% block scripts %}
 <script>
-async function triggerSend() {
-    const method = document.getElementById('send-method').value;
-    const limit = parseInt(document.getElementById('send-limit').value);
-    const dryRun = document.getElementById('dry-run').checked;
-
-    const action = dryRun ? 'preview' : 'SEND';
-    if (!dryRun && !confirm(`You are about to SEND up to ${limit} email(s) via ${method}. This cannot be undone. Continue?`)) {
-        return;
-    }
-
-    const resultsPanel = document.getElementById('results-panel');
-    const resultsContent = document.getElementById('results-content');
-    const progressBar = document.getElementById('progress-bar');
-    const sendBtn = document.getElementById('send-btn');
-
-    resultsPanel.style.display = 'block';
-    progressBar.style.display = 'block';
-    resultsContent.innerHTML = '';
-    sendBtn.disabled = true;
-
-    try {
-        const resp = await fetch('/send', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                dry_run: dryRun,
-                method: method,
-                limit: limit,
-            }),
-        });
-        const data = await resp.json();
-        progressBar.style.display = 'none';
-
-        if (data.error) {
-            resultsContent.innerHTML = `<p class="error-text">Error: ${data.error}</p>`;
-            return;
-        }
-
-        let html = `<p><strong>${data.dry_run ? 'Dry Run Preview' : 'Send Complete'}</strong>: ${data.count} draft(s) processed.</p>`;
-        if (data.results && data.results.length > 0) {
-            html += '<table class="striped"><thead><tr><th>Draft</th><th>Professor</th>';
-            if (data.results[0].email) html += '<th>Email</th>';
-            html += '<th>Status</th></tr></thead><tbody>';
-            for (const r of data.results) {
-                const statusClass = r.status === 'sent' || r.status === 'dry_run' ? 'badge-approved' : 'badge-failed';
-                html += `<tr><td>#${r.draft_id}</td><td>${r.professor}</td>`;
-                if (r.email) html += `<td>${r.email}</td>`;
-                html += `<td><span class="badge ${statusClass}">${r.status}</span></td></tr>`;
-                if (r.error) html += `<tr><td colspan="4" class="error-text">Error: ${r.error}</td></tr>`;
-            }
-            html += '</tbody></table>';
-        }
-        resultsContent.innerHTML = html;
-
-        if (!dryRun) {
-            setTimeout(() => location.reload(), 3000);
-        }
-    } catch (e) {
-        progressBar.style.display = 'none';
-        resultsContent.innerHTML = `<p class="error-text">Request failed: ${e.message}</p>`;
-    } finally {
-        sendBtn.disabled = false;
+async function triggerSend(dryRun) {
+    const res = await fetch('/send', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({dry_run: dryRun, method:'gmail_draft', limit:50})
+    });
+    const data = await res.json();
+    const el = document.getElementById('send-results');
+    if (data.success) {
+        el.innerHTML = '<div class="card" style="border-color:var(--ao-success);"><div class="card-header"><h3>' +
+            (dryRun ? 'Dry Run' : 'Sent') + ': ' + data.count + ' emails</h3></div>' +
+            '<pre style="font-size:0.85rem;color:var(--ao-text-muted);">' + JSON.stringify(data.results, null, 2) + '</pre></div>';
+    } else {
+        el.innerHTML = '<div class="flash-msg flash-error">' + (data.error || 'Send failed') + '</div>';
     }
 }
 </script>
+{% endblock %}
 {% endblock %}
