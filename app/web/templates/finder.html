@@ -41,7 +41,9 @@
         <span style="font-size:0.82rem; color:var(--ao-text-dim); padding-top:0.3rem;">Quick:</span>
         <button class="btn btn-ghost btn-sm" onclick="addPreset('ivy')">Ivy League</button>
         <button class="btn btn-ghost btn-sm" onclick="addPreset('top10')">Top 10 CS</button>
+        <button class="btn btn-ghost btn-sm" onclick="addPreset('texas')">Texas</button>
         <button class="btn btn-ghost btn-sm" onclick="addPreset('uc')">UC System</button>
+        <button class="btn btn-ghost btn-sm" onclick="addPreset('intl')">Top International</button>
         <button class="btn btn-ghost btn-sm" onclick="clearUnis()" style="color:var(--ao-danger);">Clear All</button>
     </div>
 
@@ -96,9 +98,11 @@ let selectedUnis = new Set();
 const ALL_UNIS = {{ universities | tojson }};
 
 const PRESETS = {
-    ivy: ['Columbia University','Cornell University','Harvard University','Princeton University','University of Pennsylvania','Yale University','Brown University','Dartmouth College'],
+    ivy: ['Brown University','Columbia University','Cornell University','Dartmouth College','Harvard University','Princeton University','University of Pennsylvania','Yale University'],
     top10: ['MIT','Stanford University','Carnegie Mellon University','UC Berkeley','University of Illinois Urbana-Champaign','Cornell University','University of Washington','Georgia Institute of Technology','Princeton University','University of Michigan'],
-    uc: ['UC Berkeley','UCLA','University of California, San Diego','University of California, Santa Barbara','University of California, Irvine','University of California, Davis']
+    texas: ['University of Texas at Austin','Texas A&M University','University of Houston','University of Texas at Dallas','Rice University','University of Texas at San Antonio','Texas Tech University','University of North Texas','Southern Methodist University','Baylor University'],
+    uc: ['UC Berkeley','UCLA','UC San Diego','UC Santa Barbara','UC Irvine','UC Davis','UC Santa Cruz','UC Riverside'],
+    intl: ['University of Oxford','University of Cambridge','Imperial College London','ETH Zurich','EPFL','University of Toronto','University of Waterloo','National University of Singapore','Tsinghua University','Peking University','University of Tokyo','Seoul National University','KAIST','Technical University of Munich','University of Melbourne']
 };
 
 // --- University tag input ---

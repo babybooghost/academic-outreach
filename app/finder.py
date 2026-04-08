@@ -37,19 +37,60 @@ _HEADERS: Dict[str, str] = {
 _TIMEOUT: int = 20
 _POLITE_DELAY: float = 0.3  # OpenAlex is generous, minimal delay needed
 
-# Top universities for filtering
+# Top universities for filtering — US, international, and Texas schools
 _TOP_UNIVERSITIES: list[str] = [
-    "MIT", "Stanford University", "UC Berkeley", "Carnegie Mellon University",
-    "Georgia Institute of Technology", "Princeton University", "Cornell University",
-    "Columbia University", "University of Michigan", "University of Chicago",
-    "Harvard University", "Yale University", "University of Pennsylvania",
-    "Northwestern University", "New York University", "UCLA",
-    "University of Illinois Urbana-Champaign", "University of Washington",
-    "California Institute of Technology", "Duke University",
-    "University of Oxford", "University of Cambridge", "ETH Zurich",
-    "University of Toronto", "National University of Singapore",
-    "Tsinghua University", "Peking University", "University of Tokyo",
+    # --- Ivy League ---
+    "Brown University", "Columbia University", "Cornell University",
+    "Dartmouth College", "Harvard University", "Princeton University",
+    "University of Pennsylvania", "Yale University",
+    # --- Top US CS / Engineering ---
+    "MIT", "Stanford University", "Carnegie Mellon University",
+    "California Institute of Technology", "Georgia Institute of Technology",
+    "University of Michigan", "University of Illinois Urbana-Champaign",
+    "University of Washington", "University of Wisconsin-Madison",
+    "University of Maryland", "Purdue University",
+    # --- UC System ---
+    "UC Berkeley", "UCLA", "UC San Diego", "UC Santa Barbara",
+    "UC Irvine", "UC Davis", "UC Santa Cruz", "UC Riverside",
+    # --- Texas ---
+    "University of Texas at Austin", "Texas A&M University",
+    "University of Houston", "University of Texas at Dallas",
+    "Rice University", "University of Texas at San Antonio",
+    "Texas Tech University", "University of North Texas",
+    "Southern Methodist University", "Baylor University",
+    # --- Other Top US ---
+    "University of Chicago", "Northwestern University",
+    "New York University", "Duke University",
+    "University of Southern California", "Boston University",
+    "University of Wisconsin-Madison", "Ohio State University",
+    "Penn State University", "University of Minnesota",
+    "University of Virginia", "University of North Carolina at Chapel Hill",
+    "University of Florida", "University of Colorado Boulder",
+    "Arizona State University", "University of Arizona",
+    "Northeastern University", "Georgetown University",
+    "Emory University", "Vanderbilt University",
+    "Washington University in St. Louis", "Johns Hopkins University",
+    "University of Notre Dame", "University of Rochester",
+    "Case Western Reserve University", "Rutgers University",
+    "University of Pittsburgh", "Indiana University",
+    "University of Iowa", "University of Oregon",
+    "Virginia Tech", "North Carolina State University",
+    "University of Massachusetts Amherst",
+    # --- Top International ---
+    "University of Oxford", "University of Cambridge",
     "Imperial College London", "University College London",
+    "London School of Economics", "University of Edinburgh",
+    "ETH Zurich", "EPFL",
+    "University of Toronto", "University of Waterloo",
+    "University of British Columbia", "McGill University",
+    "National University of Singapore", "Nanyang Technological University",
+    "Tsinghua University", "Peking University",
+    "University of Tokyo", "Seoul National University", "KAIST",
+    "Technical University of Munich", "University of Melbourne",
+    "University of Sydney", "Australian National University",
+    "Tel Aviv University", "Technion - Israel Institute of Technology",
+    "EPFL", "University of Amsterdam",
+    "KU Leuven", "University of Hong Kong",
 ]
 
 
