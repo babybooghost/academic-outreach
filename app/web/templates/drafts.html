@@ -52,7 +52,7 @@
                 </td>
                 <td>
                     {% if d.warnings_list %}<span class="warning-count">{{ d.warnings_list|length }}</span>
-                    {% else %}<span style="color:var(--ao-text-dim);">&mdash;</span>{% endif %}
+                    {% else %}<span style="color:var(--ao-text-dim);">-</span>{% endif %}
                 </td>
                 <td><span class="badge badge-{{ d.status }}">{{ d.status }}</span></td>
                 <td style="font-size:0.82rem; color:var(--ao-text-dim);">{{ d.created_at[:16] }}</td>

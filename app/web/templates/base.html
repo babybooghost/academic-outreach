@@ -3,12 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Dashboard{% endblock %} — AO</title>
+    <title>{% block title %}Dashboard{% endblock %} | AO</title>
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <script>
+    // Apply theme BEFORE render to avoid flash
     (function(){
         var t = localStorage.getItem('ao_theme') || 'system';
         var p = t === 'system' ? (matchMedia('(prefers-color-scheme:light)').matches ? 'light' : 'dark') : t;
@@ -33,12 +34,12 @@
                 <li><a href="{{ url_for('settings_page') }}" {% if request.endpoint == 'settings_page' %}class="active"{% endif %}><span class="nav-icon">&#9881;</span> Settings</a></li>
             </ul>
             <div class="nav-user">
-                <button class="theme-toggle" onclick="cycleTheme()" title="Toggle theme" aria-label="Toggle theme" style="width:30px; height:30px; font-size:0.9rem;">
+                <button class="theme-toggle" onclick="cycleTheme()" title="Toggle theme" aria-label="Toggle theme">
                     <span id="theme-icon">&#9790;</span>
                 </button>
                 <span class="nav-user-dot"></span>
                 <span>{{ session.get('key_label', 'User') }}</span>
-                <a href="{{ url_for('logout') }}" class="btn-ghost btn-sm" style="margin-left:0.15rem; font-size:0.8rem;">Logout</a>
+                <a href="{{ url_for('logout') }}" class="btn-ghost btn-sm" style="margin-left:0.25rem;">Logout</a>
             </div>
         </div>
     </nav>
@@ -57,7 +58,7 @@
         {% block content %}{% endblock %}
     </div>
 
-    <footer class="footer-bar" style="text-align:center; padding:1.5rem; color:var(--ao-text-dim); font-size:0.78rem; border-top:1px solid var(--ao-border); background:var(--ao-bg-subtle); letter-spacing:0.01em;">
+    <footer class="footer-bar" style="text-align:center; padding:1.5rem; color:var(--ao-text-dim); font-size:0.8rem; border-top:1px solid var(--ao-border);">
         Academic Outreach v{{ app_version }}
     </footer>
 
@@ -111,7 +112,7 @@
         {
             icon: '&#128270;',
             title: 'Professor Finder',
-            body: 'Go to <strong>Finder</strong> to search across 5 academic databases — OpenAlex, Crossref, DBLP, arXiv, and Semantic Scholar.<br><br>Search by topic, filter by university presets, and save professors to your database.'
+            body: 'Go to <strong>Finder</strong> in the nav bar to search the OpenAlex database of 250M+ academic papers.<br><br>Search by topic (e.g. <code>blockchain fintech</code>), filter by university, and save professors to your database.'
         },
         {
             icon: '&#9733;',
@@ -121,22 +122,22 @@
         {
             icon: '&#9881;',
             title: 'Configure Settings First',
-            body: 'Head to <strong>Settings</strong> to configure:<br><br>&#8226; <strong>Sender Email</strong> — your email address<br>&#8226; <strong>LLM Model</strong> — pick a model for email generation<br>&#8226; <strong>Email Provider</strong> — Gmail, Outlook, etc.'
+            body: 'Head to <strong>Settings</strong> to configure:<br><br>&#8226; <strong>Sender Email</strong>: your email address<br>&#8226; <strong>LLM Model</strong>: pick a model for email generation (or use keyword mode)<br>&#8226; <strong>Email Provider</strong>: Gmail, Outlook, etc.<br><br>You\'ll also need a <strong>sender profile</strong> (name, school, grade, interests) via the CLI.'
         },
         {
             icon: '&#9998;',
             title: 'Generate & Review Drafts',
-            body: 'Use the CLI to generate personalized emails. Each draft gets a <strong>1-10 quality score</strong> and warnings like "too generic" or "no research reference".<br><br>Review, approve, edit, or reject drafts in the <strong>Drafts</strong> tab.'
+            body: 'Use <code>python main.py generate</code> to create personalized emails. Each draft gets a <strong>1-10 quality score</strong> and warnings like "too generic" or "no research reference".<br><br>Review, approve, edit, or reject drafts in the <strong>Drafts</strong> tab.'
         },
         {
             icon: '&#9993;',
             title: 'Send via Gmail Drafts',
-            body: 'Approved emails go to the <strong>Send</strong> queue. The default mode creates <strong>Gmail drafts</strong> so you can review in Gmail before sending.<br><br>Use dry run to preview without touching Gmail.'
+            body: 'Approved emails go to the <strong>Send</strong> queue. The default mode creates <strong>Gmail drafts</strong> so you can review in Gmail before sending.<br><br>Use <code>--dry-run</code> to preview without touching Gmail.'
         },
         {
             icon: '&#127881;',
             title: 'You\'re All Set!',
-            body: 'Here\'s the workflow:<br><br><strong>1.</strong> Find professors (Finder or CSV)<br><strong>2.</strong> Enrich with research data<br><strong>3.</strong> Generate personalized drafts<br><strong>4.</strong> Review & approve<br><strong>5.</strong> Create Gmail drafts & send<br><br>Click <strong style="color:var(--ao-primary-light);">?</strong> anytime to replay this tour.'
+            body: 'Here\'s the workflow:<br><br><strong>1.</strong> Find professors (Finder or CSV import)<br><strong>2.</strong> Enrich with research data<br><strong>3.</strong> Generate personalized drafts<br><strong>4.</strong> Review & approve<br><strong>5.</strong> Create Gmail drafts & send<br><br>Click the <strong style="color:var(--ao-primary);">?</strong> button anytime to replay this tour.'
         }
     ];
 
@@ -209,6 +210,215 @@
         ta.value = text; ta.style.cssText = 'position:fixed;left:-9999px;top:-9999px;opacity:0;';
         document.body.appendChild(ta); ta.focus(); ta.select();
         return new Promise((res, rej) => { document.execCommand('copy') ? res() : rej(new Error('fail')); ta.remove(); });
+    }
+    </script>
+
+    <!-- AI Chat Support Widget -->
+    <div class="chat-widget" id="chat-widget">
+        <button class="chat-fab" id="chat-fab" onclick="toggleChat()" title="Support Chat">
+            <span id="chat-fab-icon">&#128172;</span>
+        </button>
+        <div class="chat-panel" id="chat-panel">
+            <div class="chat-header">
+                <div style="display:flex; align-items:center; gap:0.5rem;">
+                    <span style="font-size:1.1rem;">&#128172;</span>
+                    <strong>Support</strong>
+                </div>
+                <button class="chat-close" onclick="toggleChat()" title="Close">&times;</button>
+            </div>
+            <div class="chat-body" id="chat-body">
+                <div class="chat-msg chat-msg-bot">
+                    <div class="chat-msg-content">Hey! I can help you get started with Academic Outreach. Pick a topic below or type a question.</div>
+                </div>
+                <div class="chat-prompts" id="chat-prompts">
+                    <button class="chat-prompt-btn" onclick="sendPrompt('how_to_start')">How do I get started?</button>
+                    <button class="chat-prompt-btn" onclick="sendPrompt('find_professors')">How do I find professors?</button>
+                    <button class="chat-prompt-btn" onclick="sendPrompt('generate_emails')">How do I generate emails?</button>
+                    <button class="chat-prompt-btn" onclick="sendPrompt('send_emails')">How does sending work?</button>
+                    <button class="chat-prompt-btn" onclick="sendPrompt('quality_scores')">What are quality scores?</button>
+                    <button class="chat-prompt-btn" onclick="sendPrompt('tutorial')">Show me the tutorial</button>
+                    <button class="chat-prompt-btn chat-prompt-bug" onclick="showBugForm()">Report a bug</button>
+                </div>
+            </div>
+            <div class="chat-bug-form" id="chat-bug-form" style="display:none;">
+                <div style="padding:0.75rem; font-weight:600; font-size:0.88rem; border-bottom:1px solid var(--ao-border);">Report a Bug</div>
+                <div style="padding:0.75rem; display:flex; flex-direction:column; gap:0.5rem;">
+                    <input type="text" id="bug-title" placeholder="Short description" style="font-size:0.85rem;">
+                    <textarea id="bug-details" placeholder="Steps to reproduce, what you expected, what happened instead..." rows="4" style="font-size:0.85rem; resize:vertical;"></textarea>
+                    <select id="bug-severity" style="font-size:0.85rem;">
+                        <option value="low">Low priority</option>
+                        <option value="medium" selected>Medium priority</option>
+                        <option value="high">High priority</option>
+                    </select>
+                    <div style="display:flex; gap:0.5rem;">
+                        <button class="btn btn-primary btn-sm" onclick="submitBug()" style="flex:1;">Submit Bug Report</button>
+                        <button class="btn btn-outline btn-sm" onclick="hideBugForm()">Cancel</button>
+                    </div>
+                </div>
+            </div>
+            <div class="chat-input-area" id="chat-input-area">
+                <input type="text" id="chat-input" placeholder="Ask a question..." onkeydown="if(event.key==='Enter')sendMessage()">
+                <button class="chat-send-btn" onclick="sendMessage()" title="Send">&#10148;</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // ---- Chat Support Widget ----
+    let chatOpen = false;
+    const CHAT_RESPONSES = {
+        how_to_start: {
+            q: 'How do I get started?',
+            a: 'Here\'s the quick start workflow:\n\n1. Go to Settings and configure your sender email and email provider\n2. Use the Finder tab to search for professors by research topic\n3. Save professors you\'re interested in\n4. Generate personalized email drafts via the CLI: python main.py generate\n5. Review and approve drafts in the Drafts tab\n6. Send approved emails from the Send tab\n\nNeed a visual walkthrough? Click "Show me the tutorial" to see the full guided tour.'
+        },
+        find_professors: {
+            q: 'How do I find professors?',
+            a: 'Go to the Finder tab in the navigation bar. You can:\n\n1. Search by research topic (e.g. "machine learning", "blockchain")\n2. Filter by university or university group (Ivy League, UC system, etc.)\n3. Results come from OpenAlex, Crossref, DBLP, arXiv, and Semantic Scholar\n4. Click "Save" on any professor to add them to your database\n\nYou can also import professors from a CSV file using: python main.py import yourfile.csv'
+        },
+        generate_emails: {
+            q: 'How do I generate emails?',
+            a: 'Email generation uses personalized templates with variation:\n\n1. Make sure you have professors saved in your database\n2. Run: python main.py generate --all\n3. Each draft gets a quality score from 1-10\n4. Drafts are checked for genericness and similarity to other emails\n5. Review them in the Drafts tab, approve the good ones, reject or edit the rest\n\nYou can also configure an LLM provider in Settings for AI-generated emails instead of template-based ones.'
+        },
+        send_emails: {
+            q: 'How does sending work?',
+            a: 'Sending is designed to be safe and reviewable:\n\n1. Only approved drafts appear in the Send queue\n2. The default mode creates Gmail drafts so you can review in Gmail before actually sending\n3. Use --dry-run to preview without touching Gmail\n4. Rate limiting (15/hour) and cooldowns (30-90s) are built in\n5. The suppression list prevents you from emailing the same person twice\n\nGo to the Send tab to see your send queue and options.'
+        },
+        quality_scores: {
+            q: 'What are quality scores?',
+            a: 'Every generated draft gets scored from 1-10 across five dimensions:\n\n- Specificity (30%): Does it reference the professor\'s actual research?\n- Authenticity (20%): How unique is the content vs boilerplate?\n- Relevance (20%): Does it connect your interests to their work?\n- Conciseness (15%): Is it the right length (150-350 words)?\n- Completeness (15%): Does it have all the right parts (greeting, research ref, clear ask, sign-off)?\n\nDrafts also get warnings like "too generic" or "no concrete research reference" to help you decide what to approve.'
+        },
+        tutorial: {
+            q: 'Show me the tutorial',
+            a: 'Starting the guided tutorial now! It will walk you through each section of the app.'
+        }
+    };
+
+    function toggleChat() {
+        chatOpen = !chatOpen;
+        document.getElementById('chat-panel').classList.toggle('chat-panel-open', chatOpen);
+        document.getElementById('chat-fab-icon').innerHTML = chatOpen ? '&times;' : '&#128172;';
+    }
+
+    function addMessage(text, isBot) {
+        const body = document.getElementById('chat-body');
+        const msg = document.createElement('div');
+        msg.className = 'chat-msg ' + (isBot ? 'chat-msg-bot' : 'chat-msg-user');
+        const content = document.createElement('div');
+        content.className = 'chat-msg-content';
+        content.textContent = text;
+        if (isBot) content.style.whiteSpace = 'pre-wrap';
+        msg.appendChild(content);
+        body.appendChild(msg);
+        body.scrollTop = body.scrollHeight;
+        return msg;
+    }
+
+    function logChat(userMessage, botResponse, promptKey) {
+        fetch('/api/chat/log', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                user_message: userMessage,
+                bot_response: botResponse,
+                prompt_key: promptKey || null
+            })
+        }).catch(() => {});
+    }
+
+    function sendPrompt(key) {
+        const resp = CHAT_RESPONSES[key];
+        if (!resp) return;
+        // Hide prompts after first use
+        document.getElementById('chat-prompts').style.display = 'none';
+        addMessage(resp.q, false);
+        setTimeout(() => {
+            addMessage(resp.a, true);
+            logChat(resp.q, resp.a, key);
+            // Special: trigger tutorial
+            if (key === 'tutorial' && typeof startTutorial === 'function') {
+                setTimeout(() => { toggleChat(); startTutorial(); }, 600);
+            }
+        }, 300);
+    }
+
+    function sendMessage() {
+        const input = document.getElementById('chat-input');
+        const text = input.value.trim();
+        if (!text) return;
+        input.value = '';
+        document.getElementById('chat-prompts').style.display = 'none';
+        addMessage(text, false);
+
+        // Simple keyword matching for common questions
+        const lower = text.toLowerCase();
+        let response = '';
+        if (lower.includes('start') || lower.includes('begin') || lower.includes('setup')) {
+            response = CHAT_RESPONSES.how_to_start.a;
+        } else if (lower.includes('find') || lower.includes('search') || lower.includes('professor')) {
+            response = CHAT_RESPONSES.find_professors.a;
+        } else if (lower.includes('generat') || lower.includes('email') || lower.includes('draft') || lower.includes('template')) {
+            response = CHAT_RESPONSES.generate_emails.a;
+        } else if (lower.includes('send') || lower.includes('gmail') || lower.includes('smtp')) {
+            response = CHAT_RESPONSES.send_emails.a;
+        } else if (lower.includes('score') || lower.includes('quality') || lower.includes('rating')) {
+            response = CHAT_RESPONSES.quality_scores.a;
+        } else if (lower.includes('tutorial') || lower.includes('tour') || lower.includes('guide') || lower.includes('help')) {
+            response = CHAT_RESPONSES.tutorial.a;
+            setTimeout(() => { if (typeof startTutorial === 'function') { toggleChat(); startTutorial(); } }, 1000);
+        } else if (lower.includes('bug') || lower.includes('issue') || lower.includes('broken') || lower.includes('error')) {
+            response = 'Sounds like you ran into a problem. You can use the "Report a bug" button to submit a detailed report, or describe the issue here and I\'ll do my best to help.';
+        } else if (lower.includes('suppression') || lower.includes('block') || lower.includes('unsubscribe')) {
+            response = 'The suppression list prevents emailing the same person twice. You can manage it via the CLI:\n\n- Add: python main.py suppress email@example.com\n- View: check the Settings page for the current suppression list\n\nOnce someone is on the suppression list, no drafts will be generated or sent to them.';
+        } else if (lower.includes('csv') || lower.includes('import') || lower.includes('export')) {
+            response = 'For CSV operations:\n\n- Import professors: python main.py import yourfile.csv\n- Export drafts: python main.py export --format csv\n\nThe CSV should have columns: name, email, university, department, field. Check the sample file in data/sample_professors.csv for the format.';
+        } else if (lower.includes('setting') || lower.includes('config') || lower.includes('api key')) {
+            response = 'Go to the Settings tab to configure:\n\n- LLM Provider and Model (for AI email generation)\n- API Key (set via environment variable on the server)\n- Sender Email (your email address)\n- Email Provider (Gmail, Outlook, etc.)\n- SMTP credentials (for direct sending)\n\nSender profiles (name, school, grade, interests) are managed via: python main.py profile add';
+        } else {
+            response = 'I\'m not sure about that specific question, but here are some things I can help with:\n\n- Getting started with the platform\n- Finding and importing professors\n- Generating and reviewing email drafts\n- Understanding quality scores\n- Sending emails via Gmail drafts\n- Settings and configuration\n\nTry clicking one of the quick-start buttons, or type a keyword like "find", "generate", "send", or "score".';
+        }
+
+        setTimeout(() => {
+            addMessage(response, true);
+            logChat(text, response, null);
+        }, 400);
+    }
+
+    function showBugForm() {
+        document.getElementById('chat-bug-form').style.display = 'block';
+        document.getElementById('chat-input-area').style.display = 'none';
+        document.getElementById('chat-prompts').style.display = 'none';
+        document.getElementById('bug-title').focus();
+    }
+
+    function hideBugForm() {
+        document.getElementById('chat-bug-form').style.display = 'none';
+        document.getElementById('chat-input-area').style.display = 'flex';
+    }
+
+    function submitBug() {
+        const title = document.getElementById('bug-title').value.trim();
+        const details = document.getElementById('bug-details').value.trim();
+        const severity = document.getElementById('bug-severity').value;
+        if (!title) { document.getElementById('bug-title').style.borderColor = 'var(--ao-danger)'; return; }
+
+        fetch('/api/bug-report', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ title, details, severity })
+        }).then(r => r.json()).then(data => {
+            hideBugForm();
+            document.getElementById('bug-title').value = '';
+            document.getElementById('bug-details').value = '';
+            if (data.success) {
+                addMessage('Bug report submitted: ' + title, false);
+                addMessage('Thanks for the report! It\'s been logged and the admin team will see it. Report ID: #' + (data.report_id || 'N/A'), true);
+            } else {
+                addMessage('Failed to submit bug report. Please try again.', true);
+            }
+        }).catch(() => {
+            hideBugForm();
+            addMessage('Could not submit the report right now. Please try again later.', true);
+        });
     }
     </script>
 

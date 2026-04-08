@@ -799,9 +799,19 @@ def create_app() -> Flask:
 
             set_settings_bulk(conn, new_settings)
 
+            # Sync safe settings to env (skip llm_provider if no API key
+            # is set, to avoid config validation errors)
+            safe_env_keys = {"sender_email", "email_provider", "smtp_user",
+                             "smtp_password", "llm_model"}
             for key, val in new_settings.items():
-                if val:
+                if val and key in safe_env_keys:
                     os.environ[key.upper()] = val
+            # Only set LLM_PROVIDER env if an API key exists
+            if new_settings.get("llm_provider"):
+                if os.environ.get("LLM_API_KEY"):
+                    os.environ["LLM_PROVIDER"] = new_settings["llm_provider"]
+            else:
+                os.environ.pop("LLM_PROVIDER", None)
 
             try:
                 app.config["APP_CFG"] = load_config()
@@ -887,14 +897,53 @@ def create_app() -> Flask:
 
         conn = _conn()
         saved = 0
+        skipped = 0
         errors = 0
         try:
             for pd in professors_data:
                 try:
+                    name = pd.get("name", "").strip()
+                    email = pd.get("email", "").strip()
+
+                    if not name:
+                        skipped += 1
+                        continue
+
+                    # Generate a unique placeholder email if none provided,
+                    # so each professor gets their own row (UNIQUE on email).
+                    if not email:
+                        slug = name.lower().replace(" ", ".").replace(",", "")
+                        uni_slug = (pd.get("university") or "unknown").lower().replace(" ", "-")[:30]
+                        email = f"{slug}@{uni_slug}.placeholder"
+
+                    # Check if this exact name+university already exists (avoid
+                    # saving duplicates from the same search)
+                    existing = conn.execute(
+                        "SELECT id FROM professors WHERE name = ? AND university = ?",
+                        (name, pd.get("university", "")),
+                    ).fetchone()
+                    if existing:
+                        # Update the existing row instead of creating a duplicate
+                        conn.execute(
+                            """UPDATE professors SET
+                                field = COALESCE(NULLIF(?, ''), field),
+                                profile_url = COALESCE(NULLIF(?, ''), profile_url),
+                                research_summary = COALESCE(NULLIF(?, ''), research_summary),
+                                notes = COALESCE(NULLIF(?, ''), notes),
+                                updated_at = datetime('now')
+                            WHERE id = ?""",
+                            (pd.get("field", ""), pd.get("profile_url", ""),
+                             pd.get("research_summary", ""), pd.get("notes", ""),
+                             existing["id"]),
+                        )
+                        conn.commit()
+                        saved += 1
+                        continue
+
                     prof = Professor(
-                        name=pd.get("name", ""),
+                        name=name,
                         title=pd.get("title"),
-                        email=pd.get("email", ""),
+                        email=email,
                         university=pd.get("university", ""),
                         department=pd.get("department", "Computer Science"),
                         field=pd.get("field", ""),
@@ -912,13 +961,125 @@ def create_app() -> Flask:
             conn.close()
 
         _log_activity("finder_save_professors", category="finder",
-                      details={"saved": saved, "errors": errors,
+                      details={"saved": saved, "skipped": skipped, "errors": errors,
                                "names": [p.get("name") for p in professors_data[:10]]})
         return jsonify({
             "success": True,
             "saved": saved,
+            "skipped": skipped,
             "errors": errors,
         })
+
+    # ------------------------------------------------------------------
+    # Chat Support & Bug Reports API
+    # ------------------------------------------------------------------
+    # Ensure chat and bug tables exist
+    if cfg:
+        try:
+            conn = get_connection(cfg.db_path)
+            conn.execute("""CREATE TABLE IF NOT EXISTS chat_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_key_id INTEGER,
+                user_label TEXT,
+                user_message TEXT NOT NULL,
+                bot_response TEXT NOT NULL,
+                prompt_key TEXT,
+                ip_address TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )""")
+            conn.execute("""CREATE TABLE IF NOT EXISTS bug_reports (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_key_id INTEGER,
+                user_label TEXT,
+                title TEXT NOT NULL,
+                details TEXT,
+                severity TEXT DEFAULT 'medium',
+                status TEXT DEFAULT 'open',
+                ip_address TEXT,
+                user_agent TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )""")
+            conn.commit()
+            conn.close()
+        except Exception:
+            pass
+
+    @app.route("/api/chat/log", methods=["POST"])
+    @login_required
+    def chat_log():
+        """Log a chat interaction."""
+        data = request.get_json(silent=True) or {}
+        user_message = data.get("user_message", "")
+        bot_response = data.get("bot_response", "")
+        prompt_key = data.get("prompt_key")
+
+        if not user_message:
+            return jsonify({"success": False, "error": "No message"})
+
+        conn = _conn()
+        try:
+            ip = request.headers.get("X-Forwarded-For", request.remote_addr)
+            if ip and "," in ip:
+                ip = ip.split(",")[0].strip()
+            conn.execute(
+                """INSERT INTO chat_logs
+                   (user_key_id, user_label, user_message, bot_response, prompt_key, ip_address, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (session.get("key_id"), session.get("key_label", ""),
+                 user_message[:2000], bot_response[:5000], prompt_key, ip,
+                 datetime.utcnow().isoformat()),
+            )
+            conn.commit()
+            # Also log to admin activity
+            _log_activity(
+                "chat_message", category="chat",
+                details={"user_message": user_message[:200], "prompt_key": prompt_key},
+            )
+        finally:
+            conn.close()
+
+        return jsonify({"success": True})
+
+    @app.route("/api/bug-report", methods=["POST"])
+    @login_required
+    def bug_report():
+        """Submit a bug report."""
+        data = request.get_json(silent=True) or {}
+        title = data.get("title", "").strip()
+        details = data.get("details", "").strip()
+        severity = data.get("severity", "medium")
+
+        if not title:
+            return jsonify({"success": False, "error": "Title is required"})
+        if severity not in ("low", "medium", "high"):
+            severity = "medium"
+
+        conn = _conn()
+        try:
+            ip = request.headers.get("X-Forwarded-For", request.remote_addr)
+            if ip and "," in ip:
+                ip = ip.split(",")[0].strip()
+            cursor = conn.execute(
+                """INSERT INTO bug_reports
+                   (user_key_id, user_label, title, details, severity, status, ip_address, user_agent, created_at)
+                   VALUES (?, ?, ?, ?, ?, 'open', ?, ?, ?)""",
+                (session.get("key_id"), session.get("key_label", ""),
+                 title[:500], details[:5000], severity, ip,
+                 request.headers.get("User-Agent", "")[:500],
+                 datetime.utcnow().isoformat()),
+            )
+            conn.commit()
+            report_id = cursor.lastrowid
+            # Log to admin activity
+            _log_activity(
+                "bug_report_submitted", category="support",
+                target_type="bug_report", target_id=str(report_id),
+                details={"title": title[:200], "severity": severity},
+            )
+        finally:
+            conn.close()
+
+        return jsonify({"success": True, "report_id": report_id})
 
     # ------------------------------------------------------------------
     # Admin Hub

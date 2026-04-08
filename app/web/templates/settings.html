@@ -4,7 +4,7 @@
 {% block content %}
 <div class="page-header">
     <h1>Settings</h1>
-    <p>All settings saved to database — nothing hardcoded</p>
+    <p>All settings saved to database, stored in your database</p>
 </div>
 
 <form method="POST" action="{{ url_for('settings_save') }}">
@@ -15,7 +15,7 @@
             <div class="form-group">
                 <label for="llm_provider">Provider</label>
                 <select id="llm_provider" name="llm_provider">
-                    <option value="" {% if not effective.llm_provider %}selected{% endif %}>(None — keyword mode)</option>
+                    <option value="" {% if not effective.llm_provider %}selected{% endif %}>(None, keyword mode)</option>
                     <option value="openrouter" {% if effective.llm_provider == 'openrouter' %}selected{% endif %}>OpenRouter</option>
                     <option value="openai" {% if effective.llm_provider == 'openai' %}selected{% endif %}>OpenAI</option>
                     <option value="anthropic" {% if effective.llm_provider == 'anthropic' %}selected{% endif %}>Anthropic</option>

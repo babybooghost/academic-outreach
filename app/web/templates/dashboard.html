@@ -3,15 +3,8 @@
 
 {% block content %}
 <div class="page-header animate-in">
-    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:1rem;">
-        <div>
-            <h1 style="font-size:1.6rem; margin-bottom:0.15rem;">Dashboard</h1>
-            <p style="margin:0;">Your academic outreach pipeline at a glance</p>
-        </div>
-        <a href="{{ url_for('finder_page') }}" class="btn btn-primary" style="border-radius:12px;">
-            &#128270; Find Professors
-        </a>
-    </div>
+    <h1>Dashboard</h1>
+    <p>Overview of your academic outreach pipeline</p>
 </div>
 
 <!-- Summary Cards -->
@@ -66,14 +59,14 @@
 
 <!-- Quick Actions -->
 <div class="quick-actions animate-in animate-in-2">
-    <a href="{{ url_for('finder_page') }}" class="btn btn-primary" style="border-radius:10px;">Find Professors</a>
-    <a href="{{ url_for('drafts_list', status='generated') }}" class="btn btn-outline" style="border-radius:10px;">Review Queue</a>
-    <a href="{{ url_for('send_page') }}" class="btn btn-outline" style="border-radius:10px;">Send Queue</a>
-    <a href="{{ url_for('export_page') }}" class="btn btn-outline" style="border-radius:10px;">Export Drafts</a>
+    <a href="{{ url_for('finder_page') }}" class="btn btn-primary">Find Professors</a>
+    <a href="{{ url_for('drafts_list', status='generated') }}" class="btn btn-outline">Review Queue</a>
+    <a href="{{ url_for('send_page') }}" class="btn btn-outline">Send Queue</a>
+    <a href="{{ url_for('export_page') }}" class="btn btn-outline">Export Drafts</a>
 </div>
 
 <!-- Recent Sends -->
-<div class="section animate-in animate-in-3">
+<div class="section">
     <div class="section-title">Recent Sends</div>
     {% if recent_sends %}
     <div class="table-wrap">
@@ -89,10 +82,10 @@
             <tbody>
                 {% for send in recent_sends %}
                 <tr>
-                    <td><strong>{{ send.professor_name }}</strong></td>
+                    <td>{{ send.professor_name }}</td>
                     <td><code>{{ send.method }}</code></td>
                     <td><span class="badge badge-{{ send.status }}">{{ send.status }}</span></td>
-                    <td style="color:var(--ao-text-dim); font-size:0.84rem;">{{ send.sent_at }}</td>
+                    <td style="color:var(--ao-text-dim); font-size:0.85rem;">{{ send.sent_at }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -101,13 +94,13 @@
     {% else %}
     <div class="empty-state">
         <div class="empty-icon">&#9993;</div>
-        <p>No sends recorded yet. Approve drafts and send them from the Send tab.</p>
+        <p>No sends recorded yet.</p>
     </div>
     {% endif %}
 </div>
 
 <!-- Recent Activity -->
-<div class="section animate-in animate-in-4">
+<div class="section">
     <div class="section-title">Recent Activity</div>
     {% if recent_activity %}
     <div class="table-wrap">
@@ -123,7 +116,7 @@
             <tbody>
                 {% for entry in recent_activity %}
                 <tr>
-                    <td style="color:var(--ao-text-dim); font-size:0.84rem; white-space:nowrap;">{{ entry.timestamp }}</td>
+                    <td style="color:var(--ao-text-dim); font-size:0.85rem;">{{ entry.timestamp }}</td>
                     <td>{{ entry.action }}</td>
                     <td>{{ entry.entity_type }} #{{ entry.entity_id }}</td>
                     <td class="details-cell">{{ entry.details[:80] }}{% if entry.details|length > 80 %}...{% endif %}</td>
@@ -135,7 +128,7 @@
     {% else %}
     <div class="empty-state">
         <div class="empty-icon">&#128196;</div>
-        <p>No activity recorded yet. Start by finding professors in the Finder.</p>
+        <p>No activity recorded yet.</p>
     </div>
     {% endif %}
 </div>

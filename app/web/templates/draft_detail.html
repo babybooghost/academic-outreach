@@ -4,7 +4,7 @@
 {% block content %}
 <div class="page-header">
     <h1>Draft #{{ draft.id }}</h1>
-    <p>{{ professor.name if professor else 'Unknown' }} &mdash; {{ professor.university if professor else '' }}</p>
+    <p>{{ professor.name if professor else 'Unknown' }}, {{ professor.university if professor else '' }}</p>
 </div>
 
 <div class="detail-layout">

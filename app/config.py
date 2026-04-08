@@ -379,8 +379,11 @@ def _validate_env_vars(
             f"LLM_PROVIDER must be 'openai', 'anthropic', 'openrouter', or unset. Got: {llm_provider!r}"
         )
     if llm_provider and not llm_api_key:
-        raise ConfigError(
-            f"LLM_PROVIDER is set to {llm_provider!r} but LLM_API_KEY is missing."
+        import logging as _logging
+        _logging.getLogger(__name__).warning(
+            "LLM_PROVIDER is set to %r but LLM_API_KEY is missing. "
+            "LLM features will be disabled until an API key is configured.",
+            llm_provider,
         )
     if not (0 < smtp_port < 65536):
         raise ConfigError(f"SMTP_PORT must be 1-65535. Got: {smtp_port}")

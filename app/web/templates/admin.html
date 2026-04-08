@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Hub — Academic Outreach</title>
+    <title>Admin Hub | Academic Outreach</title>
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon-admin.svg') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -267,7 +267,7 @@
     </div>
 
     <footer class="footer-bar" style="text-align:center; padding:1.5rem; color:var(--ao-text-dim); font-size:0.8rem; border-top:1px solid var(--ao-border);">
-        Admin Hub — Academic Outreach v{{ app_version }}
+        Admin Hub | Academic Outreach v{{ app_version }}
     </footer>
 
     <script>
@@ -297,21 +297,21 @@
             document.getElementById('copy-feedback').innerHTML = '<span style="color:var(--ao-success);">Key copied to clipboard</span>';
             setTimeout(() => { btn.textContent = 'Copy Key'; btn.style.background = ''; }, 3000);
         }).catch(() => {
-            document.getElementById('copy-feedback').innerHTML = '<span style="color:var(--ao-warning);">Copy failed — please select and copy manually</span>';
+            document.getElementById('copy-feedback').innerHTML = '<span style="color:var(--ao-warning);">Copy failed. Please select and copy manually</span>';
         });
     }
 
     function copyInstructions() {
         const key = document.getElementById('new-key-value').textContent.trim();
         const host = '{{ request.host_url }}'.replace(/\/$/, '');
-        const text = `Your Academic Outreach access key:\n\n${key}\n\nHow to log in:\n1. Go to ${host}/login\n2. Paste the key above\n3. Click "Sign In"\n\nKeep this key safe — don't share it publicly.`;
+        const text = `Your Academic Outreach access key:\n\n${key}\n\nHow to log in:\n1. Go to ${host}/login\n2. Paste the key above\n3. Click "Sign In"\n\nKeep this key safe. Don't share it publicly.`;
         _copyText(text).then(() => {
             const btn = document.getElementById('copy-instructions-btn');
             btn.textContent = 'Copied!';
-            document.getElementById('copy-feedback').innerHTML = '<span style="color:var(--ao-success);">Key + instructions copied — ready to send</span>';
+            document.getElementById('copy-feedback').innerHTML = '<span style="color:var(--ao-success);">Key + instructions copied, ready to send</span>';
             setTimeout(() => { btn.textContent = 'Copy with Instructions'; }, 3000);
         }).catch(() => {
-            document.getElementById('copy-feedback').innerHTML = '<span style="color:var(--ao-warning);">Copy failed — please select and copy manually</span>';
+            document.getElementById('copy-feedback').innerHTML = '<span style="color:var(--ao-warning);">Copy failed. Please select and copy manually</span>';
         });
     }
 

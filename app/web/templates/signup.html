@@ -3,26 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sign Up — Academic Outreach</title>
+    <title>Sign Up | Academic Outreach</title>
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <script>
-    (function(){
-        var t = localStorage.getItem('ao_theme') || 'system';
-        var p = t === 'system' ? (matchMedia('(prefers-color-scheme:light)').matches ? 'light' : 'dark') : t;
-        document.documentElement.setAttribute('data-theme', p);
-    })();
-    </script>
 </head>
 <body>
     <div class="login-page">
         <div class="login-card" style="max-width:480px; animation: slideUp 0.6s cubic-bezier(0.16,1,0.3,1) both;">
             <div class="login-logo">
                 <div class="logo-icon">AO</div>
-                <h1>Create your account</h1>
-                <p>Get your access key in seconds</p>
+                <h1>Create Account</h1>
+                <p>Get your access key to start outreach</p>
             </div>
 
             {% if error %}
@@ -30,76 +23,76 @@
             {% endif %}
 
             {% if access_key %}
-            <!-- Success: Key Display -->
-            <div style="background: var(--ao-success-bg); border: 1px solid rgba(0,217,160,0.2); border-radius: var(--ao-radius); padding: 1.5rem; margin-bottom: 1.5rem; animation: slideUp 0.4s ease both;">
-                <div style="font-weight:700; color:var(--ao-success); margin-bottom:0.85rem; font-size:0.95rem; display:flex; align-items:center; gap:0.5rem;">
-                    <span style="font-size:1.2rem;">&#10003;</span> Account created successfully
+            <!-- Key display (after successful signup) -->
+            <div style="background: var(--ao-success-bg); border: 1px solid var(--ao-success); border-radius: var(--ao-radius); padding: 1.25rem; margin-bottom: 1.25rem; animation: slideUp 0.4s ease both;">
+                <div style="font-weight:700; color:var(--ao-success); margin-bottom:0.75rem; font-size:0.95rem;">
+                    Account created! Here's your access key:
                 </div>
-                <div style="background: var(--ao-surface-3); padding: 1.1rem; border-radius: var(--ao-radius-sm); text-align: center; margin-bottom:1.25rem; border: 1px solid var(--ao-border);">
-                    <code id="signup-key" style="font-size: 0.95rem; user-select: all; word-break: break-all; line-height:1.9; color:var(--ao-accent); font-family:'JetBrains Mono','Fira Code',monospace;">{{ access_key }}</code>
+                <div style="background: var(--ao-surface-3); padding: 1rem; border-radius: var(--ao-radius-sm); text-align: center; margin-bottom:1rem;">
+                    <code id="signup-key" style="font-size: 1rem; user-select: all; word-break: break-all; line-height:1.8; color:var(--ao-accent);">{{ access_key }}</code>
                 </div>
                 <div style="display:flex; gap:0.75rem; justify-content:center; flex-wrap:wrap;">
-                    <button class="btn btn-primary btn-sm" onclick="copyKey()" id="copy-btn" style="min-width:130px; border-radius:8px;">Copy Key</button>
-                    <button class="btn btn-outline btn-sm" onclick="copyWithInstructions()" id="copy-inst-btn" style="border-radius:8px;">Copy with Instructions</button>
+                    <button class="btn btn-primary btn-sm" onclick="copyKey()" id="copy-btn" style="min-width:140px;">Copy Key</button>
+                    <button class="btn btn-outline btn-sm" onclick="copyWithInstructions()" id="copy-inst-btn">Copy with Instructions</button>
                 </div>
-                <div id="copy-feedback" style="text-align:center; margin-top:0.6rem; font-size:0.82rem;"></div>
+                <div id="copy-feedback" style="text-align:center; margin-top:0.5rem; font-size:0.82rem;"></div>
             </div>
 
-            <div style="background: var(--ao-surface-2); border: 1px solid var(--ao-border); border-radius: var(--ao-radius); padding: 1.15rem; margin-bottom:1.5rem; font-size:0.88rem;">
-                <div style="font-weight:700; color:var(--ao-warning); margin-bottom:0.5rem; display:flex; align-items:center; gap:0.4rem;">
-                    <span>&#9888;</span> Save this key now
-                </div>
-                <ul style="margin:0; padding-left:1.2rem; color:var(--ao-text-muted); line-height:1.8;">
-                    <li>This key is shown <strong style="color:var(--ao-text);">only once</strong></li>
-                    <li>Store it in a password manager or notes app</li>
-                    <li>Use it to <a href="{{ url_for('login') }}" style="color:var(--ao-primary-light);">log in</a></li>
+            <div style="background: var(--ao-surface-2); border: 1px solid var(--ao-border); border-radius: var(--ao-radius-sm); padding: 1rem; margin-bottom:1.25rem; font-size:0.88rem;">
+                <div style="font-weight:700; color:var(--ao-warning); margin-bottom:0.5rem;">&#9888; Save this key now!</div>
+                <ul style="margin:0; padding-left:1.2rem; color:var(--ao-text-muted); line-height:1.7;">
+                    <li>This key is shown <strong>only once</strong></li>
+                    <li>Store it somewhere safe (password manager, notes app)</li>
+                    <li>Use it to log in at the <a href="{{ url_for('login') }}" style="color:var(--ao-primary-light);">login page</a></li>
+                    <li>If lost, ask your admin for a new key</li>
                 </ul>
             </div>
 
-            <a href="{{ url_for('login') }}" class="btn btn-primary" style="width:100%; padding:0.8rem; text-align:center; border-radius:12px; font-size:0.95rem;">
-                Continue to Login &rarr;
+            <a href="{{ url_for('login') }}" class="btn btn-primary" style="width:100%; padding:0.75rem; text-align:center;">
+                Go to Login
             </a>
 
             {% else %}
-            <!-- Signup Form -->
+            <!-- Signup form -->
             <form method="POST" action="{{ url_for('signup') }}" id="signup-form">
                 <div class="form-group">
-                    <label for="email">Email</label>
+                    <label for="email">Email Address</label>
                     <input type="email" id="email" name="email" placeholder="you@school.edu" required autofocus
                            value="{{ request.form.get('email', '') }}">
+                    <div class="form-hint">We'll never spam you</div>
                 </div>
                 <div class="form-group">
-                    <label for="display_name">Full Name</label>
+                    <label for="display_name">Display Name</label>
                     <input type="text" id="display_name" name="display_name" placeholder="Your name" required
                            value="{{ request.form.get('display_name', '') }}">
                 </div>
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
-                    <div class="form-group" style="margin-bottom:1rem;">
-                        <label for="password">Password</label>
-                        <input type="password" id="password" name="password" placeholder="6+ characters" required minlength="6">
-                    </div>
-                    <div class="form-group" style="margin-bottom:1rem;">
-                        <label for="password_confirm">Confirm</label>
-                        <input type="password" id="password_confirm" name="password_confirm" placeholder="Re-enter" required minlength="6">
-                    </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" placeholder="At least 6 characters" required minlength="6">
+                    <div class="form-hint">Used to verify your identity if you request a key reset</div>
                 </div>
-                <button type="submit" class="btn btn-primary" style="width:100%; padding:0.8rem; border-radius:12px; font-size:0.95rem;" id="signup-btn">
-                    Create Account &rarr;
+                <div class="form-group">
+                    <label for="password_confirm">Confirm Password</label>
+                    <input type="password" id="password_confirm" name="password_confirm" placeholder="Re-enter password" required minlength="6">
+                </div>
+                <button type="submit" class="btn btn-primary" style="width:100%; padding:0.75rem;" id="signup-btn">
+                    Create Account
                 </button>
             </form>
             {% endif %}
 
             <div class="login-footer">
                 {% if not access_key %}
-                Already have a key? <a href="{{ url_for('login') }}" style="color:var(--ao-primary-light); font-weight:600;">Sign in</a>
+                Already have a key? <a href="{{ url_for('login') }}" style="color:var(--ao-primary-light); font-weight:600;">Log in</a>
                 {% endif %}
                 <br>
-                <a href="{{ url_for('homepage') }}" style="color:var(--ao-text-dim); font-size:0.8rem; margin-top:0.35rem; display:inline-block;">&larr; Back to home</a>
+                <a href="{{ url_for('homepage') }}" style="color:var(--ao-text-dim); font-size:0.82rem; margin-top:0.25rem; display:inline-block;">&larr; Back to home</a>
             </div>
         </div>
     </div>
 
     <script>
+    // Clipboard helper
     function _copy(text) {
         if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text);
         const ta = document.createElement('textarea');
@@ -129,11 +122,11 @@
             document.getElementById('copy-feedback').innerHTML = '<span style="color:var(--ao-success);">Key + instructions copied</span>';
             setTimeout(() => { document.getElementById('copy-inst-btn').textContent = 'Copy with Instructions'; }, 3000);
         }).catch(() => {
-            document.getElementById('copy-feedback').innerHTML = '<span style="color:var(--ao-warning);">Copy failed — select manually</span>';
+            document.getElementById('copy-feedback').innerHTML = '<span style="color:var(--ao-warning);">Copy failed</span>';
         });
     }
 
-    // Password match validation
+    // Client-side password match
     const form = document.getElementById('signup-form');
     if (form) {
         form.addEventListener('submit', (e) => {
@@ -150,6 +143,17 @@
             }
         });
     }
+
+    // Theme
+    function applyTheme(t) {
+        const pref = t === 'system' ? (matchMedia('(prefers-color-scheme:light)').matches ? 'light' : 'dark') : t;
+        document.documentElement.setAttribute('data-theme', pref);
+    }
+    applyTheme(localStorage.getItem('ao_theme') || 'system');
     </script>
+
+    <style>
+    @keyframes slideUp { from { opacity:0; transform:translateY(30px) scale(0.96); } to { opacity:1; transform:translateY(0) scale(1); } }
+    </style>
 </body>
 </html>
