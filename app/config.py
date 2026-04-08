@@ -309,18 +309,25 @@ def _default_followup_pools() -> FollowUpPools:
 def _ensure_config_yaml(path: Path) -> Dict[str, Any]:
     """Return parsed config.yaml, creating it with defaults if missing."""
     if not path.exists():
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "w", encoding="utf-8") as fh:
-            yaml.dump(
-                DEFAULT_CONFIG_YAML,
-                fh,
-                default_flow_style=False,
-                sort_keys=False,
-                allow_unicode=True,
-            )
-    with open(path, "r", encoding="utf-8") as fh:
-        data: Dict[str, Any] = yaml.safe_load(fh) or {}
-    return data
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with open(path, "w", encoding="utf-8") as fh:
+                yaml.dump(
+                    DEFAULT_CONFIG_YAML,
+                    fh,
+                    default_flow_style=False,
+                    sort_keys=False,
+                    allow_unicode=True,
+                )
+        except OSError:
+            # Read-only filesystem (e.g. Vercel) — use defaults only
+            return dict(DEFAULT_CONFIG_YAML)
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            data: Dict[str, Any] = yaml.safe_load(fh) or {}
+        return data
+    except OSError:
+        return dict(DEFAULT_CONFIG_YAML)
 
 
 def _deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
