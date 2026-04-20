@@ -3,10 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Dashboard{% endblock %} | AO</title>
+    <title>{% block title %}Outreach Desk{% endblock %} | AO</title>
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Source+Serif+4:wght@600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <script>
     // Apply theme BEFORE render to avoid flash
@@ -25,13 +26,13 @@
                 <div class="logo-text">Academic <span>Outreach</span></div>
             </a>
             <ul class="nav-links">
-                <li><a href="{{ url_for('dashboard') }}" {% if request.endpoint == 'dashboard' %}class="active"{% endif %}><span class="nav-icon">&#9632;</span> Dashboard</a></li>
-                <li><a href="{{ url_for('professors_list') }}" {% if request.endpoint and 'professor' in request.endpoint %}class="active"{% endif %}><span class="nav-icon">&#9733;</span> Professors</a></li>
-                <li><a href="{{ url_for('drafts_list') }}" {% if request.endpoint and 'draft' in request.endpoint %}class="active"{% endif %}><span class="nav-icon">&#9998;</span> Drafts</a></li>
-                <li><a href="{{ url_for('finder_page') }}" {% if request.endpoint and 'finder' in request.endpoint %}class="active"{% endif %}><span class="nav-icon">&#128270;</span> Finder</a></li>
-                <li><a href="{{ url_for('send_page') }}" {% if request.endpoint and 'send' in request.endpoint %}class="active"{% endif %}><span class="nav-icon">&#9993;</span> Send</a></li>
+                <li><a href="{{ url_for('dashboard') }}" {% if request.endpoint == 'dashboard' %}class="active"{% endif %}><span class="nav-icon">&#9632;</span> Desk</a></li>
+                <li><a href="{{ url_for('professors_list') }}" {% if request.endpoint and 'professor' in request.endpoint %}class="active"{% endif %}><span class="nav-icon">&#9733;</span> Faculty</a></li>
+                <li><a href="{{ url_for('drafts_list') }}" {% if request.endpoint and 'draft' in request.endpoint %}class="active"{% endif %}><span class="nav-icon">&#9998;</span> Draft Review</a></li>
+                <li><a href="{{ url_for('finder_page') }}" {% if request.endpoint and 'finder' in request.endpoint %}class="active"{% endif %}><span class="nav-icon">&#128270;</span> Search</a></li>
+                <li><a href="{{ url_for('send_page') }}" {% if request.endpoint and 'send' in request.endpoint %}class="active"{% endif %}><span class="nav-icon">&#9993;</span> Delivery</a></li>
                 <li><a href="{{ url_for('export_page') }}" {% if request.endpoint and 'export' in request.endpoint %}class="active"{% endif %}><span class="nav-icon">&#8681;</span> Export</a></li>
-                <li><a href="{{ url_for('settings_page') }}" {% if request.endpoint == 'settings_page' %}class="active"{% endif %}><span class="nav-icon">&#9881;</span> Settings</a></li>
+                <li><a href="{{ url_for('settings_page') }}" {% if request.endpoint == 'settings_page' %}class="active"{% endif %}><span class="nav-icon">&#9881;</span> Setup</a></li>
             </ul>
             <div class="nav-user">
                 <button class="theme-toggle" onclick="cycleTheme()" title="Toggle theme" aria-label="Toggle theme">
@@ -59,7 +60,7 @@
     </div>
 
     <footer class="footer-bar" style="text-align:center; padding:1.5rem; color:var(--ao-text-dim); font-size:0.8rem; border-top:1px solid var(--ao-border);">
-        Academic Outreach v{{ app_version }}
+        Academic Outreach v{{ app_version }} · Private workspace for careful faculty outreach
     </footer>
 
     <!-- Help / Tutorial FAB -->
@@ -107,37 +108,37 @@
         {
             icon: '&#128075;',
             title: 'Welcome to Academic Outreach',
-            body: 'This tool helps you discover professors, generate personalized outreach emails, review them, and send via Gmail drafts. Let\'s take a quick tour!<br><br><strong>Everything is designed for quality over volume.</strong>'
+            body: 'This workspace is built for careful student-to-faculty outreach: find relevant professors, keep factual notes, review each draft, and only send once the queue looks credible.<br><br><strong>Everything is tuned for smaller, better researched batches.</strong>'
         },
         {
             icon: '&#128270;',
-            title: 'Professor Finder',
-            body: 'Go to <strong>Finder</strong> in the nav bar to search the OpenAlex database of 250M+ academic papers.<br><br>Search by topic (e.g. <code>blockchain fintech</code>), filter by university, and save professors to your database.'
+            title: 'Search for real faculty fits',
+            body: 'Use <strong>Search</strong> to look across academic sources by topic, field, and institution.<br><br>The goal is to build a short list of plausible contacts, not a giant spreadsheet of weak leads.'
         },
         {
             icon: '&#9733;',
-            title: 'Professor Database',
-            body: 'The <strong>Professors</strong> tab shows everyone you\'ve imported or found. Each professor gets enriched with research summaries and keywords for better email personalization.'
+            title: 'Build faculty files',
+            body: 'Saved professors appear under <strong>Faculty</strong> with contact details, research context, keywords, and notes that support more specific outreach later.'
         },
         {
             icon: '&#9881;',
-            title: 'Configure Settings First',
-            body: 'Head to <strong>Settings</strong> to configure:<br><br>&#8226; <strong>Sender Email</strong>: your email address<br>&#8226; <strong>LLM Model</strong>: pick a model for email generation (or use keyword mode)<br>&#8226; <strong>Email Provider</strong>: Gmail, Outlook, etc.<br><br>You\'ll also need a <strong>sender profile</strong> (name, school, grade, interests) via the CLI.'
+            title: 'Set up writing and delivery',
+            body: 'Open <strong>Setup</strong> to configure the sender address, provider, model choice, and any SMTP credentials.<br><br>That keeps the drafting side and the delivery side aligned before anything reaches the queue.'
         },
         {
             icon: '&#9998;',
-            title: 'Generate & Review Drafts',
-            body: 'Use <code>python main.py generate</code> to create personalized emails. Each draft gets a <strong>1-10 quality score</strong> and warnings like "too generic" or "no research reference".<br><br>Review, approve, edit, or reject drafts in the <strong>Drafts</strong> tab.'
+            title: 'Review drafts like an editor',
+            body: 'Every draft is meant to be checked for specificity, relevance, tone, and overlap before approval.<br><br>Use <strong>Draft Review</strong> to spot weak language early and keep only the messages you would actually send.'
         },
         {
             icon: '&#9993;',
-            title: 'Send via Gmail Drafts',
-            body: 'Approved emails go to the <strong>Send</strong> queue. The default mode creates <strong>Gmail drafts</strong> so you can review in Gmail before sending.<br><br>Use <code>--dry-run</code> to preview without touching Gmail.'
+            title: 'Control the delivery queue',
+            body: 'Approved drafts move into <strong>Delivery</strong>, where you can preview a run, cap the batch size, and choose the sending method.<br><br>SMTP is the default hosted path; Gmail modes need Gmail API setup.'
         },
         {
             icon: '&#127881;',
             title: 'You\'re All Set!',
-            body: 'Here\'s the workflow:<br><br><strong>1.</strong> Find professors (Finder or CSV import)<br><strong>2.</strong> Enrich with research data<br><strong>3.</strong> Generate personalized drafts<br><strong>4.</strong> Review & approve<br><strong>5.</strong> Create Gmail drafts & send<br><br>Click the <strong style="color:var(--ao-primary);">?</strong> button anytime to replay this tour.'
+            body: 'The core rhythm is simple:<br><br><strong>1.</strong> Search and save plausible faculty contacts<br><strong>2.</strong> Keep context on each professor file<br><strong>3.</strong> Review drafts and scores carefully<br><strong>4.</strong> Send only from an approved queue<br><br>Click the <strong style="color:var(--ao-primary);">?</strong> button anytime to replay this tour.'
         }
     ];
 
@@ -269,19 +270,19 @@
     const CHAT_RESPONSES = {
         how_to_start: {
             q: 'How do I get started?',
-            a: 'Here\'s the quick start workflow:\n\n1. Go to Settings and configure your sender email and email provider\n2. Use the Finder tab to search for professors by research topic\n3. Save professors you\'re interested in\n4. Generate personalized email drafts via the CLI: python main.py generate\n5. Review and approve drafts in the Drafts tab\n6. Send approved emails from the Send tab\n\nNeed a visual walkthrough? Click "Show me the tutorial" to see the full guided tour.'
+            a: 'A solid starting sequence looks like this:\n\n1. Open Setup and confirm sender and delivery settings\n2. Use Search to build a small list of real faculty matches\n3. Save the professors you want to track\n4. Review drafts once they are generated in your workflow\n5. Approve only the drafts that feel specific and credible\n6. Use Delivery to preview or run a controlled send\n\nNeed the visual version? Click "Show me the tutorial."'
         },
         find_professors: {
             q: 'How do I find professors?',
-            a: 'Go to the Finder tab in the navigation bar. You can:\n\n1. Search by research topic (e.g. "machine learning", "blockchain")\n2. Filter by university or university group (Ivy League, UC system, etc.)\n3. Results come from OpenAlex, Crossref, DBLP, arXiv, and Semantic Scholar\n4. Click "Save" on any professor to add them to your database\n\nYou can also import professors from a CSV file using: python main.py import yourfile.csv'
+            a: 'Open Search in the navigation bar. From there you can:\n\n1. Search by research topic or method\n2. Narrow by field and institution\n3. Review normalized results from multiple academic data sources\n4. Save the strongest matches into your faculty list\n\nThe best results usually come from narrower topics plus a realistic institution filter.'
         },
         generate_emails: {
             q: 'How do I generate emails?',
-            a: 'Email generation uses personalized templates with variation:\n\n1. Make sure you have professors saved in your database\n2. Run: python main.py generate --all\n3. Each draft gets a quality score from 1-10\n4. Drafts are checked for genericness and similarity to other emails\n5. Review them in the Drafts tab, approve the good ones, reject or edit the rest\n\nYou can also configure an LLM provider in Settings for AI-generated emails instead of template-based ones.'
+            a: 'Draft generation works best after your faculty list and sender setup are ready.\n\n1. Save professors with enough context to personalize against\n2. Generate drafts through your configured workflow\n3. Review the score, warnings, and subject line choices\n4. Approve only the drafts that sound specific and believable\n\nIn local setups, draft creation may also be triggered from the command line.'
         },
         send_emails: {
             q: 'How does sending work?',
-            a: 'Sending is designed to be safe and reviewable:\n\n1. Only approved drafts appear in the Send queue\n2. The default mode creates Gmail drafts so you can review in Gmail before actually sending\n3. Use --dry-run to preview without touching Gmail\n4. Rate limiting (15/hour) and cooldowns (30-90s) are built in\n5. The suppression list prevents you from emailing the same person twice\n\nGo to the Send tab to see your send queue and options.'
+            a: 'Sending is intentionally conservative:\n\n1. Only approved drafts appear in Delivery\n2. You can preview a run before sending anything live\n3. SMTP is the most reliable hosted option\n4. Gmail draft/send modes need Gmail API credentials and OAuth setup\n5. Suppression checks and delivery logging help prevent repeated outreach\n\nUse smaller batches when you are validating a new sender configuration.'
         },
         quality_scores: {
             q: 'What are quality scores?',
@@ -368,13 +369,13 @@
         } else if (lower.includes('bug') || lower.includes('issue') || lower.includes('broken') || lower.includes('error')) {
             response = 'Sounds like you ran into a problem. You can use the "Report a bug" button to submit a detailed report, or describe the issue here and I\'ll do my best to help.';
         } else if (lower.includes('suppression') || lower.includes('block') || lower.includes('unsubscribe')) {
-            response = 'The suppression list prevents emailing the same person twice. You can manage it via the CLI:\n\n- Add: python main.py suppress email@example.com\n- View: check the Settings page for the current suppression list\n\nOnce someone is on the suppression list, no drafts will be generated or sent to them.';
+            response = 'The suppression list prevents repeated outreach to the same address.\n\nUse Setup to review who is blocked, and keep the list current whenever a contact should no longer receive messages.\n\nOnce someone is suppressed, the workspace should keep drafts and sends from going out to that address.';
         } else if (lower.includes('csv') || lower.includes('import') || lower.includes('export')) {
-            response = 'For CSV operations:\n\n- Import professors: python main.py import yourfile.csv\n- Export drafts: python main.py export --format csv\n\nThe CSV should have columns: name, email, university, department, field. Check the sample file in data/sample_professors.csv for the format.';
+            response = 'Exports are available from the Export page for draft records and handoff files.\n\nIf you are working in a local setup, faculty imports and bulk data movement can also be handled with CSV-based workflows. Keep the import columns clean: name, email, university, department, and field are the main anchors.';
         } else if (lower.includes('setting') || lower.includes('config') || lower.includes('api key')) {
-            response = 'Go to the Settings tab to configure:\n\n- LLM Provider and Model (for AI email generation)\n- API Key (set via environment variable on the server)\n- Sender Email (your email address)\n- Email Provider (Gmail, Outlook, etc.)\n- SMTP credentials (for direct sending)\n\nSender profiles (name, school, grade, interests) are managed via: python main.py profile add';
+            response = 'Open Setup to configure:\n\n- Writing model and provider\n- Sender email and provider\n- SMTP credentials for direct delivery\n- Server-side API key availability\n\nThat page is the control desk for how drafts are written and how approved messages leave the queue.';
         } else {
-            response = 'I\'m not sure about that specific question, but here are some things I can help with:\n\n- Getting started with the platform\n- Finding and importing professors\n- Generating and reviewing email drafts\n- Understanding quality scores\n- Sending emails via Gmail drafts\n- Settings and configuration\n\nTry clicking one of the quick-start buttons, or type a keyword like "find", "generate", "send", or "score".';
+            response = 'I\'m not sure about that specific question, but I can help with the main workflow:\n\n- Getting the workspace set up\n- Searching for faculty\n- Reviewing draft quality\n- Understanding delivery options\n- Exporting records and handoff files\n\nTry a keyword like "search", "draft", "send", "score", or "settings".';
         }
 
         setTimeout(() => {

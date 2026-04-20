@@ -1,10 +1,19 @@
 {% extends "base.html" %}
-{% block title %}Professors{% endblock %}
+{% block title %}Faculty Files{% endblock %}
 
 {% block content %}
 <div class="page-header animate-in">
-    <h1>Professors</h1>
-    <p>Manage your professor database</p>
+    <div>
+        <div class="page-kicker">Faculty Files</div>
+        <h1>Keep the working faculty list clean and reviewable.</h1>
+        <p>These records are the backbone of the workspace: who you may contact, where they work, and what stage each file is in.</p>
+    </div>
+    <div class="page-header-meta">
+        <div class="page-meta-chip">
+            <span>Visible files</span>
+            <strong>{{ professors|length }}</strong>
+        </div>
+    </div>
 </div>
 
 <div class="filter-bar">
@@ -21,7 +30,7 @@
             <option value="{{ f }}" {% if current_field == f %}selected{% endif %}>{{ f }}</option>
             {% endfor %}
         </select>
-        <button type="submit" class="btn btn-outline btn-sm">Filter</button>
+        <button type="submit" class="btn btn-outline btn-sm">Apply Filters</button>
         {% if current_status or current_field %}
         <a href="{{ url_for('professors_list') }}" class="btn btn-ghost btn-sm">Clear</a>
         {% endif %}
@@ -58,7 +67,7 @@
 {% else %}
 <div class="empty-state">
     <div class="empty-icon">&#9733;</div>
-    <p>No professors found. Import a CSV via CLI: <code>python main.py import data/sample_professors.csv</code></p>
+    <p>No faculty files match this view yet. Save results from Search to start building the list.</p>
 </div>
 {% endif %}
 {% endblock %}

@@ -1,13 +1,37 @@
 {% extends "base.html" %}
-{% block title %}Send Queue{% endblock %}
+{% block title %}Delivery Desk{% endblock %}
 
 {% block content %}
 <div class="page-header">
-    <h1>Send Queue</h1>
-    <p>Approved drafts ready to deliver through one stable sending flow</p>
+    <div>
+        <div class="page-kicker">Delivery Desk</div>
+        <h1>Run the approved queue with restraint.</h1>
+        <p>Only reviewed drafts should make it here. Use previews, cap the batch size, and confirm the sending method before a live run.</p>
+    </div>
+    <div class="page-header-meta">
+        <div class="page-meta-chip">
+            <span>Ready now</span>
+            <strong>{{ send_queue|length }}</strong>
+        </div>
+    </div>
 </div>
 
 {% if send_queue %}
+<div class="info-band">
+    <div class="info-band-item">
+        <strong>Final review</strong>
+        <span>Confirm subject line, score, and recipient before running a live batch.</span>
+    </div>
+    <div class="info-band-item">
+        <strong>Hosted default</strong>
+        <span>SMTP is the safest default for hosted delivery. Gmail modes depend on separate OAuth setup.</span>
+    </div>
+    <div class="info-band-item">
+        <strong>Use previews first</strong>
+        <span>Dry runs are the fastest way to validate a new sender configuration without touching inboxes.</span>
+    </div>
+</div>
+
 <div class="table-wrap">
     <table>
         <thead>
@@ -38,7 +62,7 @@
 
 <div class="card" style="margin-top:1.5rem;">
     <div class="card-header">
-        <h3>Delivery Controls</h3>
+        <h3>Dispatch controls</h3>
     </div>
     <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:1rem;">
         <div class="form-group" style="margin:0;">
@@ -58,15 +82,15 @@
         SMTP is the most reliable hosted path. Gmail modes require Gmail API credentials and local OAuth setup.
     </div>
     <div style="margin-top:1rem; display:flex; gap:0.75rem; flex-wrap:wrap;">
-        <button class="btn btn-primary" onclick="triggerSend(false)">Execute Queue</button>
-        <button class="btn btn-outline" onclick="triggerSend(true)">Dry Run</button>
+        <button class="btn btn-primary" onclick="triggerSend(false)">Run Delivery</button>
+        <button class="btn btn-outline" onclick="triggerSend(true)">Preview Run</button>
     </div>
 </div>
 <div id="send-results" style="margin-top:1rem;"></div>
 {% else %}
 <div class="empty-state">
     <div class="empty-icon">&#9993;</div>
-    <p>No approved drafts in the send queue. Approve drafts first.</p>
+    <p>No approved drafts are waiting in delivery. Approve drafts first.</p>
 </div>
 {% endif %}
 
@@ -83,7 +107,7 @@ async function triggerSend(dryRun) {
     const el = document.getElementById('send-results');
     if (data.success) {
         const title = dryRun
-            ? 'Dry Run: ' + data.count + ' drafts'
+            ? 'Preview run: ' + data.count + ' drafts'
             : 'Processed ' + data.count + ' drafts (' + data.sent + ' sent, ' + data.failed + ' failed)';
         el.innerHTML = '<div class="card" style="border-color:var(--ao-success);"><div class="card-header"><h3>' +
             title + '</h3></div>' +

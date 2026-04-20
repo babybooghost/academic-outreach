@@ -1,26 +1,29 @@
 {% extends "base.html" %}
-{% block title %}Export{% endblock %}
+{% block title %}Exports And Handoff{% endblock %}
 
 {% block content %}
 <div class="page-header">
-    <h1>Export</h1>
-    <p>Download your drafts and tracking data</p>
+    <div>
+        <div class="page-kicker">Exports And Handoff</div>
+        <h1>Package the records you need outside the workspace.</h1>
+        <p>Use exports when you want to review draft history offline, share a handoff file, or preserve the current state of the outreach log.</p>
+    </div>
 </div>
 
 <div class="grid-3">
     <div class="card" style="text-align:center;">
-        <div class="card-header"><h3>Drafts CSV</h3></div>
-        <p>Export all drafts with scores, statuses, and metadata.</p>
+        <div class="card-header"><h3>Draft register</h3></div>
+        <p>Export draft rows with scores, statuses, and supporting metadata.</p>
         <button class="btn btn-primary" onclick="triggerExport()">Export CSV</button>
     </div>
     <div class="card" style="text-align:center;">
-        <div class="card-header"><h3>Audit Log</h3></div>
-        <p>Full audit trail of all actions taken in the system.</p>
+        <div class="card-header"><h3>Activity log</h3></div>
+        <p>A shareable record of what changed in the workspace and when.</p>
         <button class="btn btn-outline" disabled>Coming Soon</button>
     </div>
     <div class="card" style="text-align:center;">
-        <div class="card-header"><h3>Tracking Sheet</h3></div>
-        <p>16-column tracking spreadsheet with all outreach data.</p>
+        <div class="card-header"><h3>Tracking sheet</h3></div>
+        <p>A cleaner handoff sheet for outreach tracking outside the app.</p>
         <button class="btn btn-outline" disabled>Coming Soon</button>
     </div>
 </div>

@@ -1,10 +1,19 @@
 {% extends "base.html" %}
-{% block title %}Drafts{% endblock %}
+{% block title %}Draft Review{% endblock %}
 
 {% block content %}
 <div class="page-header">
-    <h1>Drafts</h1>
-    <p>Review and manage generated email drafts</p>
+    <div>
+        <div class="page-kicker">Draft Review</div>
+        <h1>Read the queue before anything gets approved.</h1>
+        <p>This is the editorial pass: check specificity, warnings, and subject lines until each draft sounds like it came from a prepared student.</p>
+    </div>
+    <div class="page-header-meta">
+        <div class="page-meta-chip">
+            <span>Visible drafts</span>
+            <strong>{{ drafts|length }}</strong>
+        </div>
+    </div>
 </div>
 
 <div class="filter-bar">
@@ -21,7 +30,7 @@
             <option value="{{ sid }}" {% if current_session == sid %}selected{% endif %}>Session #{{ sid }}</option>
             {% endfor %}
         </select>
-        <button type="submit" class="btn btn-outline btn-sm">Filter</button>
+        <button type="submit" class="btn btn-outline btn-sm">Apply Filters</button>
         {% if current_status or current_session %}
         <a href="{{ url_for('drafts_list') }}" class="btn btn-ghost btn-sm">Clear</a>
         {% endif %}
@@ -62,6 +71,6 @@
     </table>
 </div>
 {% else %}
-<div class="empty-state"><div class="empty-icon">&#9998;</div><p>No drafts found. Generate via CLI: <code>python main.py generate</code></p></div>
+<div class="empty-state"><div class="empty-icon">&#9998;</div><p>No drafts are in this view yet. Once drafts are generated for saved faculty, they will appear here for review and approval.</p></div>
 {% endif %}
 {% endblock %}

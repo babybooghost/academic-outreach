@@ -1,10 +1,27 @@
 {% extends "base.html" %}
-{% block title %}Dashboard{% endblock %}
+{% block title %}Outreach Desk{% endblock %}
 
 {% block content %}
 <div class="page-header animate-in">
-    <h1>Dashboard</h1>
-    <p>Overview of your academic outreach pipeline</p>
+    <div>
+        <div class="page-kicker">Outreach Desk</div>
+        <h1>Research, draft review, and delivery in one place.</h1>
+        <p>Use this desk to keep the faculty list tight, the review queue honest, and the sending queue controlled.</p>
+    </div>
+    <div class="page-header-meta">
+        <div class="page-meta-chip">
+            <span>Faculty files</span>
+            <strong>{{ total_professors }}</strong>
+        </div>
+        <div class="page-meta-chip">
+            <span>Draft queue</span>
+            <strong>{{ total_drafts }}</strong>
+        </div>
+        <div class="page-meta-chip">
+            <span>Approved</span>
+            <strong>{{ draft_counts.get('approved', 0) }}</strong>
+        </div>
+    </div>
 </div>
 
 <!-- Summary Cards -->
@@ -59,15 +76,30 @@
 
 <!-- Quick Actions -->
 <div class="quick-actions animate-in animate-in-2">
-    <a href="{{ url_for('finder_page') }}" class="btn btn-primary">Find Professors</a>
-    <a href="{{ url_for('drafts_list', status='generated') }}" class="btn btn-outline">Review Queue</a>
-    <a href="{{ url_for('send_page') }}" class="btn btn-outline">Send Queue</a>
-    <a href="{{ url_for('export_page') }}" class="btn btn-outline">Export Drafts</a>
+    <a href="{{ url_for('finder_page') }}" class="btn btn-primary">Build Faculty List</a>
+    <a href="{{ url_for('drafts_list', status='generated') }}" class="btn btn-outline">Review New Drafts</a>
+    <a href="{{ url_for('send_page') }}" class="btn btn-outline">Open Delivery Desk</a>
+    <a href="{{ url_for('export_page') }}" class="btn btn-outline">Prepare Handoff Export</a>
+</div>
+
+<div class="info-band animate-in animate-in-2">
+    <div class="info-band-item">
+        <strong>Research first</strong>
+        <span>Use Search to keep new leads grounded in real faculty work and institution fit.</span>
+    </div>
+    <div class="info-band-item">
+        <strong>Review before send</strong>
+        <span>Draft scores and warnings help you catch generic language before it reaches an inbox.</span>
+    </div>
+    <div class="info-band-item">
+        <strong>Deliver conservatively</strong>
+        <span>Smaller batches, dry runs, and suppression checks make the queue safer to trust.</span>
+    </div>
 </div>
 
 <!-- Recent Sends -->
 <div class="section">
-    <div class="section-title">Recent Sends</div>
+    <div class="section-title">Recent delivery log</div>
     {% if recent_sends %}
     <div class="table-wrap">
         <table>
@@ -101,7 +133,7 @@
 
 <!-- Recent Activity -->
 <div class="section">
-    <div class="section-title">Recent Activity</div>
+    <div class="section-title">Recent workspace activity</div>
     {% if recent_activity %}
     <div class="table-wrap">
         <table>

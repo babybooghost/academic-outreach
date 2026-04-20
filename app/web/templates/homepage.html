@@ -3,177 +3,192 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Academic Outreach</title>
+    <title>Academic Outreach | AO</title>
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Source+Serif+4:wght@600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <!-- Top Nav -->
     <nav class="hp-nav">
         <div class="hp-nav-inner">
             <a href="{{ url_for('homepage') }}" class="logo">
                 <div class="logo-icon">AO</div>
                 <div class="logo-text">Academic <span>Outreach</span></div>
             </a>
-            <div style="display:flex; align-items:center; gap:0.75rem;">
+            <div class="hp-nav-meta">
+                <span class="hp-nav-note">Student research outreach workspace</span>
                 <button class="theme-toggle" onclick="cycleTheme()" title="Toggle theme" aria-label="Toggle theme">
                     <span id="theme-icon-hp">&#9790;</span>
                 </button>
                 <a href="{{ url_for('login') }}" class="btn btn-ghost btn-sm">Log In</a>
-                <a href="{{ url_for('signup') }}" class="btn btn-primary btn-sm">Sign Up</a>
+                <a href="{{ url_for('signup') }}" class="btn btn-primary btn-sm">Open Workspace</a>
             </div>
         </div>
     </nav>
 
-    <!-- Hero -->
     <section class="hp-hero">
         <div class="hp-hero-bg"></div>
-        <div class="container" style="position:relative; z-index:1;">
-            <div class="hp-hero-content">
-                <div class="hp-badge animate-in">5 academic databases, one search</div>
+        <div class="container hp-hero-shell">
+            <div class="hp-hero-copy">
+                <div class="hp-badge animate-in">Faculty search, notes, drafts, and reviewed sending</div>
                 <h1 class="hp-hero-title animate-in animate-in-1">
-                    Find professors.<br>
-                    <span class="hp-gradient-text">Write better emails.</span>
+                    Outreach that looks like
+                    <span class="hp-gradient-text">you actually did the reading.</span>
                 </h1>
                 <p class="hp-hero-sub animate-in animate-in-2">
-                    Search across OpenAlex, Crossref, DBLP, arXiv, and Semantic Scholar.
-                    Generate personalized outreach emails with quality scoring. Send as Gmail drafts.
+                    Academic Outreach is a private workspace for students building research outreach lists, keeping factual notes on each professor, and reviewing every message before it leaves the queue.
                 </p>
                 <div class="hp-hero-actions animate-in animate-in-3">
-                    <a href="{{ url_for('signup') }}" class="btn btn-primary" style="padding:0.85rem 2rem; font-size:1rem;">
-                        Get Started Free
+                    <a href="{{ url_for('signup') }}" class="btn btn-primary hp-cta">
+                        Start A Private Workspace
                     </a>
-                    <a href="#how-it-works" class="btn btn-outline" style="padding:0.85rem 2rem; font-size:1rem;">
-                        See How It Works
+                    <a href="#workflow" class="btn btn-outline hp-cta">
+                        See The Workflow
                     </a>
                 </div>
                 <div class="hp-hero-stats animate-in animate-in-4">
-                    <div class="hp-stat"><strong>250M+</strong><span>Academic Papers</span></div>
+                    <div class="hp-stat"><strong>5</strong><span>research sources checked in one search</span></div>
                     <div class="hp-stat-divider"></div>
-                    <div class="hp-stat"><strong>100+</strong><span>Universities</span></div>
+                    <div class="hp-stat"><strong>1-10</strong><span>draft scoring before approval</span></div>
                     <div class="hp-stat-divider"></div>
-                    <div class="hp-stat"><strong>1-10</strong><span>Quality Score</span></div>
+                    <div class="hp-stat"><strong>Human</strong><span>review required before delivery</span></div>
+                </div>
+            </div>
+            <div class="hp-dossier animate-in animate-in-4">
+                <div class="hp-dossier-tab">Active Research Lead</div>
+                <div class="hp-dossier-head">
+                    <div>
+                        <div class="hp-dossier-kicker">Professor file</div>
+                        <h2>Prof. Elena Park</h2>
+                        <p>Computational biology - University of Chicago</p>
+                    </div>
+                    <div class="hp-dossier-status">Ready for review</div>
+                </div>
+                <div class="hp-dossier-grid">
+                    <div>
+                        <span class="hp-label">Research notes</span>
+                        <p>Recent work focuses on interpretable protein models and student mentoring through lab rotations.</p>
+                    </div>
+                    <div>
+                        <span class="hp-label">Why this contact makes sense</span>
+                        <p>Strong match for students with Python, data cleaning, and literature-review capacity.</p>
+                    </div>
+                    <div>
+                        <span class="hp-label">Draft quality</span>
+                        <p>8.4 overall - specific hook present - no duplicate phrasing detected.</p>
+                    </div>
+                    <div>
+                        <span class="hp-label">Delivery plan</span>
+                        <p>SMTP or Gmail draft after manual approval. Suppression guard enabled.</p>
+                    </div>
+                </div>
+                <div class="hp-dossier-footer">
+                    <span>Source mix: OpenAlex - Crossref - Semantic Scholar</span>
+                    <span>Updated after faculty search</span>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Features -->
-    <section class="hp-section" id="features">
+    <section class="hp-section hp-section-band" id="features">
         <div class="container">
-            <div class="hp-section-header animate-in">
-                <div class="hp-section-label">Features</div>
-                <h2 class="hp-section-title">Everything you need for<br>academic outreach</h2>
+            <div class="hp-section-header hp-left animate-in">
+                <div class="hp-section-label">Why It Feels Grounded</div>
+                <h2 class="hp-section-title">Built for careful batches, not mass outreach.</h2>
+                <p class="hp-section-intro">The product works more like a research notebook and sending desk than a generic growth dashboard.</p>
             </div>
-            <div class="hp-features-grid">
-                <div class="hp-feature-card animate-in animate-in-1">
-                    <div class="hp-feature-icon">&#128270;</div>
-                    <h3>Professor Finder</h3>
-                    <p>Search 250M+ papers across five databases. Filter by university, field, and topic. Save professors in one click.</p>
+            <div class="hp-realism-grid">
+                <div class="hp-realism-item animate-in animate-in-1">
+                    <span class="hp-label">Research context first</span>
+                    <h3>Every lead starts with a real faculty trail.</h3>
+                    <p>Search across academic sources, store what you found, and keep notes on recent work before a draft is ever generated.</p>
                 </div>
-                <div class="hp-feature-card animate-in animate-in-2">
-                    <div class="hp-feature-icon">&#9998;</div>
-                    <h3>Smart Email Generation</h3>
-                    <p>Jinja2 templates with variation pools create unique emails. Optional LLM mode for even more personalization.</p>
+                <div class="hp-realism-item animate-in animate-in-2">
+                    <span class="hp-label">Reviewable writing</span>
+                    <h3>The message queue is designed for editing, scoring, and judgment.</h3>
+                    <p>Drafts are checked for specificity, authenticity, overlap, and completeness so the final outreach feels like a real person wrote it.</p>
                 </div>
-                <div class="hp-feature-card animate-in animate-in-3">
-                    <div class="hp-feature-icon">&#127919;</div>
-                    <h3>Quality Scoring</h3>
-                    <p>Every draft gets a 1-10 score across specificity, authenticity, relevance, conciseness, and completeness.</p>
-                </div>
-                <div class="hp-feature-card animate-in animate-in-4">
-                    <div class="hp-feature-icon">&#128101;</div>
-                    <h3>Similarity Detection</h3>
-                    <p>Flags emails that look too similar. Genericness detector warns when a draft "could apply to almost anyone."</p>
-                </div>
-                <div class="hp-feature-card animate-in animate-in-5">
-                    <div class="hp-feature-icon">&#9993;</div>
-                    <h3>Gmail Draft Mode</h3>
-                    <p>Creates drafts in your Gmail so you can review before sending. Rate limiting, cooldowns, and suppression lists built in.</p>
-                </div>
-                <div class="hp-feature-card animate-in">
-                    <div class="hp-feature-icon">&#128274;</div>
-                    <h3>Secure Access</h3>
-                    <p>Key-based authentication keeps your account safe. Sign up, get your access key, and start using the platform.</p>
+                <div class="hp-realism-item animate-in animate-in-3">
+                    <span class="hp-label">Controlled delivery</span>
+                    <h3>Sending is intentionally conservative.</h3>
+                    <p>Rate limits, suppression checks, draft mode, and delivery logging keep the workflow credible when the stakes are real.</p>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- How It Works -->
-    <section class="hp-section hp-section-alt" id="how-it-works">
+    <section class="hp-section hp-section-alt" id="workflow">
         <div class="container">
-            <div class="hp-section-header animate-in">
-                <div class="hp-section-label">How It Works</div>
-                <h2 class="hp-section-title">Five steps to your first outreach</h2>
+            <div class="hp-section-header hp-left animate-in">
+                <div class="hp-section-label">Workflow</div>
+                <h2 class="hp-section-title">A realistic outreach cycle, from shortlist to sent folder.</h2>
             </div>
-            <div class="hp-steps">
+            <div class="hp-steps hp-steps-wide">
                 <div class="hp-step animate-in animate-in-1">
                     <div class="hp-step-number">1</div>
                     <div class="hp-step-content">
-                        <h3>Find Professors</h3>
-                        <p>Use the Finder to search by research topic. Filter by Ivy League, Top CS, Texas schools, UC system, or any of 100+ universities.</p>
+                        <h3>Search faculty by topic, field, and institution.</h3>
+                        <p>Use the finder to build a small list of plausible contacts rather than a giant unvetted spreadsheet.</p>
                     </div>
                 </div>
                 <div class="hp-step animate-in animate-in-2">
                     <div class="hp-step-number">2</div>
                     <div class="hp-step-content">
-                        <h3>Enrich & Summarize</h3>
-                        <p>The system fetches research papers, extracts keywords, and builds a profile of each professor's work so your emails reference real research.</p>
+                        <h3>Attach research context and notes.</h3>
+                        <p>Keep factual summaries, recent work, and your own angle so each future draft has substance behind it.</p>
                     </div>
                 </div>
                 <div class="hp-step animate-in animate-in-3">
                     <div class="hp-step-number">3</div>
                     <div class="hp-step-content">
-                        <h3>Generate Drafts</h3>
-                        <p>Personalized emails generated from templates with built-in variation. Each gets quality scored and checked for genericness.</p>
+                        <h3>Generate a draft, then score it like an editor would.</h3>
+                        <p>Specificity, relevance, completeness, and similarity checks make weak outreach obvious before it reaches an inbox.</p>
                     </div>
                 </div>
                 <div class="hp-step animate-in animate-in-4">
                     <div class="hp-step-number">4</div>
                     <div class="hp-step-content">
-                        <h3>Review & Approve</h3>
-                        <p>Read every email, edit if needed, approve the good ones, reject the rest. You're always in control.</p>
+                        <h3>Approve only what you would actually send.</h3>
+                        <p>Edit, reject, or hold drafts until the tone, ask, and research references feel believable.</p>
                     </div>
                 </div>
                 <div class="hp-step animate-in animate-in-5">
                     <div class="hp-step-number">5</div>
                     <div class="hp-step-content">
-                        <h3>Send as Gmail Drafts</h3>
-                        <p>Approved emails become Gmail drafts. Review one final time in Gmail, then hit send when ready.</p>
+                        <h3>Deliver through a controlled queue.</h3>
+                        <p>Use SMTP or draft-based sending with suppression checks and session-level oversight so delivery stays measured.</p>
                     </div>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- CTA -->
     <section class="hp-section">
-        <div class="container" style="text-align:center;">
-            <div class="hp-section-header animate-in">
-                <h2 class="hp-section-title">Ready to start your outreach?</h2>
-                <p style="color:var(--ao-text-muted); font-size:1.1rem; margin-top:0.75rem;">
-                    Sign up in 10 seconds. No credit card, no strings attached.
-                </p>
-            </div>
-            <div class="animate-in animate-in-1" style="display:flex; gap:1rem; justify-content:center; margin-top:1.5rem;">
-                <a href="{{ url_for('signup') }}" class="btn btn-primary" style="padding:0.85rem 2.5rem; font-size:1rem;">Create Account</a>
-                <a href="{{ url_for('login') }}" class="btn btn-outline" style="padding:0.85rem 2.5rem; font-size:1rem;">Log In</a>
+        <div class="container">
+            <div class="hp-closing animate-in">
+                <div>
+                    <div class="hp-section-label">Private Access</div>
+                    <h2 class="hp-section-title">Set up a workspace before you send the first email.</h2>
+                    <p class="hp-section-intro">Create an account, keep your access key, and start building a smaller, better researched contact list.</p>
+                </div>
+                <div class="hp-closing-actions">
+                    <a href="{{ url_for('signup') }}" class="btn btn-primary hp-cta">Create Account</a>
+                    <a href="{{ url_for('login') }}" class="btn btn-outline hp-cta">Use Existing Key</a>
+                </div>
             </div>
         </div>
     </section>
 
-    <!-- Footer -->
     <footer class="hp-footer">
-        <div class="container" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
-            <div style="display:flex; align-items:center; gap:0.5rem;">
+        <div class="container hp-footer-inner">
+            <div class="hp-footer-mark">
                 <div class="logo-icon" style="width:24px; height:24px; font-size:11px; border-radius:6px;">AO</div>
-                <span style="font-weight:600; color:var(--ao-text-muted); font-size:0.85rem;">Academic Outreach v{{ app_version }}</span>
+                <span>Academic Outreach v{{ app_version }}</span>
             </div>
-            <div style="font-size:0.8rem; color:var(--ao-text-dim);">
-                Built for legitimate academic outreach. Quality over volume.
+            <div class="hp-footer-copy">
+                Built for legitimate student-to-faculty outreach. Research first, review always.
             </div>
         </div>
     </footer>

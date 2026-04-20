@@ -1,20 +1,33 @@
 {% extends "base.html" %}
-{% block title %}Professor Finder{% endblock %}
+{% block title %}Faculty Search{% endblock %}
 
 {% block content %}
 <div class="page-header animate-in">
-    <h1>Professor Finder</h1>
-    <p>Search across OpenAlex, Crossref, DBLP, arXiv & Semantic Scholar to discover professors</p>
+    <div>
+        <div class="page-kicker">Faculty Search</div>
+        <h1>Build a tighter list of plausible faculty contacts.</h1>
+        <p>Search across research sources, narrow by institution, and save only the professors who actually fit the outreach story you want to tell.</p>
+    </div>
+    <div class="page-header-meta">
+        <div class="page-meta-chip">
+            <span>Sources</span>
+            <strong>5</strong>
+        </div>
+        <div class="page-meta-chip">
+            <span>Default batch</span>
+            <strong>25</strong>
+        </div>
+    </div>
 </div>
 
 <!-- Search Form -->
 <div class="card animate-in animate-in-1" style="margin-bottom:1.5rem;">
-    <div class="card-header"><h3>Search Parameters</h3></div>
+    <div class="card-header"><h3>Research intake</h3></div>
 
     <div class="form-group">
         <label for="scholar_query">Research Topic</label>
         <input type="text" id="scholar_query" placeholder="blockchain fintech, machine learning, cryptography, AI..." style="font-size:1rem; padding:0.75rem;">
-        <div class="form-hint">Searches 5 databases: OpenAlex (250M+), Crossref (150M+), DBLP (CS), arXiv (preprints), Semantic Scholar</div>
+        <div class="form-hint">Searches across five academic sources and normalizes the strongest faculty matches into one review list.</div>
     </div>
 
     <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:1rem;">
@@ -38,7 +51,7 @@
 
     <!-- Quick presets -->
     <div style="margin-top:0.75rem; display:flex; gap:0.5rem; flex-wrap:wrap;">
-        <span style="font-size:0.82rem; color:var(--ao-text-dim); padding-top:0.3rem;">Quick:</span>
+        <span style="font-size:0.82rem; color:var(--ao-text-dim); padding-top:0.3rem;">Institution sets:</span>
         <button class="btn btn-ghost btn-sm" onclick="addPreset('ivy')">Ivy League</button>
         <button class="btn btn-ghost btn-sm" onclick="addPreset('top10')">Top 10 CS</button>
         <button class="btn btn-ghost btn-sm" onclick="addPreset('texas')">Texas</button>
@@ -49,7 +62,7 @@
 
     <div style="margin-top:1.25rem; display:flex; gap:0.75rem; align-items:center;">
         <button class="btn btn-primary" id="search-btn" onclick="runSearch()" style="min-width:180px; padding:0.7rem 1.5rem; font-size:0.95rem;">
-            Search Professors
+            Build Faculty List
         </button>
         <span id="search-status" style="color:var(--ao-text-dim); font-size:0.9rem;"></span>
     </div>
@@ -59,11 +72,11 @@
 <div id="results-section" style="display:none;">
     <div class="section animate-in">
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
-            <div class="section-title" id="results-title" style="margin:0;">Results</div>
+            <div class="section-title" id="results-title" style="margin:0;">Candidate faculty</div>
             <div style="display:flex; gap:0.5rem;">
                 <button class="btn btn-outline btn-sm" onclick="selectAll()">Select All</button>
                 <button class="btn btn-outline btn-sm" onclick="selectNone()">Deselect</button>
-                <button class="btn btn-primary btn-sm" id="save-btn" onclick="saveSelected()">Save to Database</button>
+                <button class="btn btn-primary btn-sm" id="save-btn" onclick="saveSelected()">Save Selected</button>
             </div>
         </div>
 
@@ -104,7 +117,7 @@ const PRESETS = {
     top10: ['Massachusetts Institute of Technology','Stanford University','Carnegie Mellon University','University of California, Berkeley','University of Illinois Urbana-Champaign','Cornell University','University of Washington','Georgia Institute of Technology','Princeton University','University of Michigan'],
     texas: ['University of Texas at Austin','Texas A&M University','University of Houston','University of Texas at Dallas','Rice University','University of Texas at San Antonio','Texas Tech University','University of North Texas','Southern Methodist University','Baylor University'],
     uc: ['University of California, Berkeley','University of California, Los Angeles','University of California, San Diego','University of California, Santa Barbara','University of California, Irvine','University of California, Davis','University of California, Santa Cruz','University of California, Riverside'],
-    intl: ['University of Oxford','University of Cambridge','Imperial College London','ETH Zurich','École Polytechnique Fédérale de Lausanne','University of Toronto','University of Waterloo','National University of Singapore','Tsinghua University','Peking University','University of Tokyo','Seoul National University','Korea Advanced Institute of Science and Technology','Technical University of Munich','University of Melbourne']
+    intl: ['University of Oxford','University of Cambridge','Imperial College London','ETH Zurich','Ecole Polytechnique Federale de Lausanne','University of Toronto','University of Waterloo','National University of Singapore','Tsinghua University','Peking University','University of Tokyo','Seoul National University','Korea Advanced Institute of Science and Technology','Technical University of Munich','University of Melbourne']
 };
 
 // --- University tag input ---
@@ -181,7 +194,7 @@ async function runSearch() {
 
     btn.disabled = true;
     btn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:0.4rem;">Searching<span class="dot-pulse"></span></span>';
-    status.textContent = 'Querying academic database...';
+        status.textContent = 'Querying academic sources...';
     status.style.color = 'var(--ao-text-dim)';
 
     const field = document.getElementById('field').value.trim();
@@ -220,7 +233,7 @@ async function runSearch() {
     }
 
     btn.disabled = false;
-    btn.textContent = 'Search Professors';
+    btn.textContent = 'Build Faculty List';
 }
 
 function renderResults(professors, warnings) {

@@ -1,17 +1,30 @@
 {% extends "base.html" %}
-{% block title %}Settings{% endblock %}
+{% block title %}Workspace Setup{% endblock %}
 
 {% block content %}
 <div class="page-header">
-    <h1>Settings</h1>
-    <p>All settings saved to database, stored in your database</p>
+    <div>
+        <div class="page-kicker">Workspace Setup</div>
+        <h1>Control how drafts are written and how approved emails leave the queue.</h1>
+        <p>These settings define the sender identity, model behavior, and delivery path behind the workspace.</p>
+    </div>
+    <div class="page-header-meta">
+        <div class="page-meta-chip">
+            <span>Sender email</span>
+            <strong>{{ effective.sender_email or 'Unset' }}</strong>
+        </div>
+        <div class="page-meta-chip">
+            <span>Delivery mode</span>
+            <strong>{{ effective.email_provider or 'Unset' }}</strong>
+        </div>
+    </div>
 </div>
 
 <form method="POST" action="{{ url_for('settings_save') }}">
     <div class="grid-2">
         <!-- LLM Config -->
         <div class="card">
-            <div class="card-header"><h3>LLM Configuration</h3></div>
+            <div class="card-header"><h3>Writing model</h3></div>
             <div class="form-group">
                 <label for="llm_provider">Provider</label>
                 <select id="llm_provider" name="llm_provider">
@@ -28,7 +41,7 @@
                     <option value="{{ model_id }}" {% if effective.llm_model == model_id %}selected{% endif %}>{{ model_name }}</option>
                     {% endfor %}
                 </select>
-                <div class="form-hint">Faster/cheaper models at the top</div>
+                <div class="form-hint">Choose the writing engine that best matches how much variation and cost you want in draft generation.</div>
             </div>
             <div style="padding:0.5rem 0.75rem; background:var(--ao-surface-3); border-radius:var(--ao-radius-sm); font-size:0.82rem;">
                 API Key: {% if effective.llm_api_key_set %}<span style="color:var(--ao-success);">Set (server-side)</span>{% else %}<span style="color:var(--ao-danger);">Not configured</span>{% endif %}
@@ -37,7 +50,7 @@
 
         <!-- Email Config -->
         <div class="card">
-            <div class="card-header"><h3>Email Configuration</h3></div>
+            <div class="card-header"><h3>Sender and delivery</h3></div>
             <div class="form-group">
                 <label for="sender_email">Sender Email</label>
                 <input type="email" id="sender_email" name="sender_email" value="{{ effective.sender_email }}" placeholder="you@gmail.com">
@@ -57,7 +70,7 @@
             <div class="form-group">
                 <label for="smtp_password">SMTP Password</label>
                 <input type="password" id="smtp_password" name="smtp_password" value="{{ effective.smtp_password }}" placeholder="App password">
-                <div class="form-hint">Only for direct SMTP sending</div>
+                <div class="form-hint">Used for direct SMTP delivery. Leave blank if another sending path is handling the queue.</div>
             </div>
         </div>
     </div>
@@ -67,7 +80,7 @@
 
 <!-- Sender Profiles -->
 <div class="section" style="margin-top:2rem;">
-    <div class="section-title">Sender Profiles</div>
+    <div class="section-title">Sender profiles</div>
     {% if profiles %}
     <div class="table-wrap">
         <table>
@@ -84,13 +97,13 @@
         </table>
     </div>
     {% else %}
-    <div class="empty-state"><p>No profiles. Run <code>python main.py profile add</code></p></div>
+    <div class="empty-state"><p>No sender profiles are stored yet.</p></div>
     {% endif %}
 </div>
 
 <!-- Suppression List -->
 <div class="section">
-    <div class="section-title">Suppression List</div>
+    <div class="section-title">Do-not-contact list</div>
     {% if suppression %}
     <div class="table-wrap">
         <table>
