@@ -6,7 +6,7 @@
     <div>
         <div class="page-kicker">Workspace Setup</div>
         <h1>Control how drafts are written and how approved emails leave the queue.</h1>
-        <p>These settings define the sender identity, model behavior, and delivery path behind the workspace.</p>
+        <p>These settings define the sender identity, model behavior, and delivery path behind the workspace, including how machine learning research interests show up in personalization.</p>
     </div>
     <div class="page-header-meta">
         <div class="page-meta-chip">
@@ -41,7 +41,7 @@
                     <option value="{{ model_id }}" {% if effective.llm_model == model_id %}selected{% endif %}>{{ model_name }}</option>
                     {% endfor %}
                 </select>
-                <div class="form-hint">Choose the writing engine that best matches how much variation and cost you want in draft generation.</div>
+                <div class="form-hint">Choose the writing engine that best matches how much variation and cost you want in draft generation, especially if you want stronger ML-specific summaries and hooks.</div>
             </div>
             <div style="padding:0.5rem 0.75rem; background:var(--ao-surface-3); border-radius:var(--ao-radius-sm); font-size:0.82rem;">
                 API Key: {% if effective.llm_api_key_set %}<span style="color:var(--ao-success);">Set (server-side)</span>{% else %}<span style="color:var(--ao-danger);">Not configured</span>{% endif %}
@@ -106,13 +106,13 @@
             </div>
             <div class="form-group">
                 <label for="profile-interests">Interests</label>
-                <input id="profile-interests" name="interests" type="text" placeholder="AI, cryptography, systems">
+                <input id="profile-interests" name="interests" type="text" placeholder="Machine learning, NLP, computer vision, systems">
             </div>
         </div>
         <div class="form-group">
             <label for="profile-background">Background</label>
-            <textarea id="profile-background" name="background" rows="4" placeholder="Classes, projects, clubs, coding background, competitions, or relevant experience."></textarea>
-            <div class="form-hint">This is the student context used during personalization, so concrete details help the drafts sound real.</div>
+            <textarea id="profile-background" name="background" rows="4" placeholder="Classes, projects, clubs, coding background, competitions, Kaggle work, papers read, or relevant ML experience."></textarea>
+            <div class="form-hint">This is the student context used during personalization, so concrete details like PyTorch work, model evaluation, or projects in ML make the drafts sound more believable.</div>
         </div>
         <button type="submit" class="btn btn-primary">Save Sender Profile</button>
     </form>

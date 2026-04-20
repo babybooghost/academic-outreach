@@ -6,7 +6,7 @@
     <div>
         <div class="page-kicker">Faculty Search</div>
         <h1>Build a tighter list of plausible faculty contacts.</h1>
-        <p>Search across research sources, narrow by institution, and save only the professors who actually fit the outreach story you want to tell.</p>
+        <p>Search across research sources, narrow by institution, and save only the professors who actually fit the outreach story you want to tell, especially for machine learning and AI-adjacent labs.</p>
     </div>
     <div class="page-header-meta">
         <div class="page-meta-chip">
@@ -26,14 +26,23 @@
 
     <div class="form-group">
         <label for="scholar_query">Research Topic</label>
-        <input type="text" id="scholar_query" placeholder="blockchain fintech, machine learning, cryptography, AI..." style="font-size:1rem; padding:0.75rem;">
-        <div class="form-hint">Searches across five academic sources and normalizes the strongest faculty matches into one review list.</div>
+        <input type="text" id="scholar_query" placeholder="machine learning systems, interpretability, computer vision, RL, NLP..." style="font-size:1rem; padding:0.75rem;">
+        <div class="form-hint">Searches across five academic sources and normalizes the strongest faculty matches into one review list. Narrower ML topics usually produce much better leads than a broad term like just "AI".</div>
+    </div>
+
+    <div style="display:flex; gap:0.5rem; flex-wrap:wrap; margin:0.35rem 0 1rem;">
+        <span style="font-size:0.82rem; color:var(--ao-text-dim); padding-top:0.3rem;">ML topic starters:</span>
+        <button class="btn btn-ghost btn-sm" onclick="useTopic('machine learning systems', 'Machine Learning')">ML Systems</button>
+        <button class="btn btn-ghost btn-sm" onclick="useTopic('interpretability and evaluation', 'Machine Learning')">Interpretability</button>
+        <button class="btn btn-ghost btn-sm" onclick="useTopic('computer vision representation learning', 'Machine Learning')">Computer Vision</button>
+        <button class="btn btn-ghost btn-sm" onclick="useTopic('natural language processing and language models', 'Machine Learning')">NLP</button>
+        <button class="btn btn-ghost btn-sm" onclick="useTopic('reinforcement learning and decision making', 'Machine Learning')">Reinforcement Learning</button>
     </div>
 
     <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:1rem;">
         <div class="form-group" style="margin:0;">
             <label for="field">Field Tag <span style="color:var(--ao-text-dim);">(optional)</span></label>
-            <input type="text" id="field" placeholder="e.g. Computer Science">
+            <input type="text" id="field" placeholder="e.g. Machine Learning">
         </div>
         <div class="form-group" style="margin:0; position:relative;">
             <label for="uni-input">Filter by University <span style="color:var(--ao-text-dim);">(optional)</span></label>
@@ -173,6 +182,11 @@ function renderUniTags() {
 function addPreset(key) {
     (PRESETS[key] || []).forEach(u => selectedUnis.add(u));
     renderUniTags();
+}
+
+function useTopic(query, field) {
+    document.getElementById('scholar_query').value = query;
+    if (field) document.getElementById('field').value = field;
 }
 
 function clearUnis() {

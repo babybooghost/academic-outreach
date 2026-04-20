@@ -120,7 +120,7 @@
         {
             icon: '&#128270;',
             title: 'Search for real faculty fits',
-            body: 'Use <strong>Search</strong> to look across academic sources by topic, field, and institution.<br><br>The goal is to build a short list of plausible contacts, not a giant spreadsheet of weak leads.'
+            body: 'Use <strong>Search</strong> to look across academic sources by topic, field, and institution.<br><br>If you are doing machine learning outreach, start with narrower phrases like interpretability, ML systems, vision, RL, or language models instead of a vague term like just AI.'
         },
         {
             icon: '&#9733;',
@@ -241,6 +241,7 @@
                 <div class="chat-prompts" id="chat-prompts">
                     <button class="chat-prompt-btn" onclick="sendPrompt('how_to_start')">How do I get started?</button>
                     <button class="chat-prompt-btn" onclick="sendPrompt('find_professors')">How do I find professors?</button>
+                    <button class="chat-prompt-btn" onclick="sendPrompt('find_ml_professors')">How do I find ML labs?</button>
                     <button class="chat-prompt-btn" onclick="sendPrompt('generate_emails')">How do I generate emails?</button>
                     <button class="chat-prompt-btn" onclick="sendPrompt('send_emails')">How does sending work?</button>
                     <button class="chat-prompt-btn" onclick="sendPrompt('quality_scores')">What are quality scores?</button>
@@ -283,9 +284,13 @@
             q: 'How do I find professors?',
             a: 'Open Search in the navigation bar. From there you can:\n\n1. Search by research topic or method\n2. Narrow by field and institution\n3. Review normalized results from multiple academic data sources\n4. Save the strongest matches into your faculty list\n\nThe best results usually come from narrower topics plus a realistic institution filter.'
         },
+        find_ml_professors: {
+            q: 'How do I find ML labs?',
+            a: 'For machine learning outreach, start narrower than just "AI". Strong search patterns include:\n\n- machine learning systems\n- interpretability and evaluation\n- computer vision representation learning\n- reinforcement learning and decision making\n- natural language processing and language models\n\nThen add one institution filter and save only the labs whose recent work you can actually reference in a draft.'
+        },
         generate_emails: {
             q: 'How do I generate emails?',
-            a: 'Draft generation works best after your faculty list and sender setup are ready.\n\n1. Save professors with enough context to personalize against\n2. Generate drafts through your configured workflow\n3. Review the score, warnings, and subject line choices\n4. Approve only the drafts that sound specific and believable\n\nIn local setups, draft creation may also be triggered from the command line.'
+            a: 'Draft generation works best after your faculty list and sender setup are ready.\n\n1. Save professors with enough context to personalize against\n2. Include your own interests and background, especially for machine learning if that is your focus\n3. Generate drafts through your configured workflow\n4. Review the score, warnings, and subject line choices\n5. Approve only the drafts that sound specific and believable\n\nIn local setups, draft creation may also be triggered from the command line.'
         },
         send_emails: {
             q: 'How does sending work?',
@@ -363,7 +368,9 @@
         if (lower.includes('start') || lower.includes('begin') || lower.includes('setup')) {
             response = CHAT_RESPONSES.how_to_start.a;
         } else if (lower.includes('find') || lower.includes('search') || lower.includes('professor')) {
-            response = CHAT_RESPONSES.find_professors.a;
+            response = (lower.includes('machine learning') || lower.includes('ml') || lower.includes('ai lab'))
+                ? CHAT_RESPONSES.find_ml_professors.a
+                : CHAT_RESPONSES.find_professors.a;
         } else if (lower.includes('generat') || lower.includes('email') || lower.includes('draft') || lower.includes('template')) {
             response = CHAT_RESPONSES.generate_emails.a;
         } else if (lower.includes('send') || lower.includes('gmail') || lower.includes('smtp')) {
