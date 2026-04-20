@@ -2,97 +2,131 @@
 {% block title %}Delivery Desk{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <div>
-        <div class="page-kicker">Delivery Desk</div>
-        <h1>Run the approved queue with restraint.</h1>
-        <p>Only reviewed drafts should make it here. Use previews, cap the batch size, and confirm the sending method before a live run.</p>
-    </div>
-    <div class="page-header-meta">
-        <div class="page-meta-chip">
-            <span>Ready now</span>
-            <strong>{{ send_queue|length }}</strong>
+<div class="editorial-page">
+    <section class="editorial-hero animate-in">
+        <div class="hero-copy">
+            <div class="eyebrow">Delivery desk</div>
+            <h1 class="page-title">Run the approved queue with restraint.</h1>
+            <p class="lead">Only reviewed drafts should make it here. Preview the run, cap the batch size, and confirm the sending path before anything leaves the workspace.</p>
+            <div class="hero-metrics">
+                <div class="metric-card">
+                    <span>Ready now</span>
+                    <strong>{{ send_queue|length }}</strong>
+                </div>
+                <div class="metric-card">
+                    <span>Hosted default</span>
+                    <strong>SMTP</strong>
+                </div>
+                <div class="metric-card">
+                    <span>Best practice</span>
+                    <strong>Preview first</strong>
+                </div>
+            </div>
         </div>
-    </div>
-</div>
-
-{% if send_queue %}
-<div class="info-band">
-    <div class="info-band-item">
-        <strong>Final review</strong>
-        <span>Confirm subject line, score, and recipient before running a live batch.</span>
-    </div>
-    <div class="info-band-item">
-        <strong>Hosted default</strong>
-        <span>SMTP is the safest default for hosted delivery. Gmail modes depend on separate OAuth setup.</span>
-    </div>
-    <div class="info-band-item">
-        <strong>Use previews first</strong>
-        <span>Dry runs are the fastest way to validate a new sender configuration without touching inboxes.</span>
-    </div>
-</div>
-
-<div class="table-wrap">
-    <table>
-        <thead>
-            <tr>
-                <th>Draft</th><th>Professor</th><th>Email</th><th>Subject</th><th>Score</th><th>Status</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for d in send_queue %}
-            {% set prof = prof_map.get(d.professor_id) %}
-            <tr>
-                <td><a href="{{ url_for('draft_detail', draft_id=d.id) }}">#{{ d.id }}</a></td>
-                <td>{{ prof.name if prof else 'Unknown' }}</td>
-                <td style="font-size:0.85rem; color:var(--ao-text-dim);">{{ prof.email if prof else '' }}</td>
-                <td style="max-width:250px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
-                    {{ d.subject_lines_list[0] if d.subject_lines_list else '(no subject)' }}
-                </td>
-                <td>
-                    {% set sc = d.overall_score %}
-                    <span class="score-badge {% if sc >= 7.5 %}score-high{% elif sc >= 4.0 %}score-mid{% else %}score-low{% endif %}">{{ "%.1f"|format(sc) }}</span>
-                </td>
-                <td><span class="badge badge-{{ d.status }}">{{ d.status }}</span></td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</div>
-
-<div class="card" style="margin-top:1.5rem;">
-    <div class="card-header">
-        <h3>Dispatch controls</h3>
-    </div>
-    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:1rem;">
-        <div class="form-group" style="margin:0;">
-            <label for="send-method">Method</label>
-            <select id="send-method">
-                <option value="smtp" selected>SMTP (recommended for hosted app)</option>
-                <option value="gmail_draft">Gmail Draft</option>
-                <option value="gmail_send">Gmail Send</option>
-            </select>
+        <div class="image-card image-card--tall">
+            <img src="https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&amp;fit=crop&amp;w=1600&amp;q=80" alt="Desk with laptop and documents">
+            <div class="image-caption">
+                <span>Final checkpoint</span>
+                <strong>The send surface should make you slow down for one last pass instead of turning approval into an afterthought.</strong>
+            </div>
         </div>
-        <div class="form-group" style="margin:0;">
-            <label for="send-limit">How many drafts</label>
-            <input id="send-limit" type="number" min="1" max="{{ send_queue|length }}" value="{{ send_queue|length }}">
-        </div>
+    </section>
+
+    {% if send_queue %}
+    <section class="surface-band">
+        <article class="surface-note animate-in animate-in-1">
+            <strong>Final review</strong>
+            <p>Confirm the recipient, subject line, and score before running a live batch.</p>
+        </article>
+        <article class="surface-note animate-in animate-in-2">
+            <strong>Hosted default</strong>
+            <p>SMTP is the safest default for hosted delivery. Gmail modes need separate OAuth setup.</p>
+        </article>
+        <article class="surface-note animate-in animate-in-3">
+            <strong>Use dry runs</strong>
+            <p>Previewing is still the fastest way to validate a new sender configuration without touching inboxes.</p>
+        </article>
+    </section>
+
+    <section class="review-grid">
+        <article class="surface-panel animate-in animate-in-2">
+            <div class="surface-panel-header">
+                <div>
+                    <div class="panel-kicker">Approved queue</div>
+                    <div class="panel-title">What is ready to send</div>
+                </div>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Draft</th>
+                            <th>Professor</th>
+                            <th>Email</th>
+                            <th>Subject</th>
+                            <th>Score</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for d in send_queue %}
+                        {% set prof = prof_map.get(d.professor_id) %}
+                        <tr>
+                            <td><a href="{{ url_for('draft_detail', draft_id=d.id) }}">#{{ d.id }}</a></td>
+                            <td>{{ prof.name if prof else 'Unknown' }}</td>
+                            <td>{{ prof.email if prof else '' }}</td>
+                            <td>{{ d.subject_lines_list[0] if d.subject_lines_list else '(no subject)' }}</td>
+                            <td>
+                                {% set sc = d.overall_score %}
+                                <span class="score-badge {% if sc >= 7.5 %}score-high{% elif sc >= 4.0 %}score-mid{% else %}score-low{% endif %}">{{ "%.1f"|format(sc) }}</span>
+                            </td>
+                            <td><span class="badge badge-{{ d.status }}">{{ d.status }}</span></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </article>
+
+        <aside class="workspace-side">
+            <article class="surface-panel animate-in animate-in-3">
+                <div class="surface-panel-header">
+                    <div>
+                        <div class="panel-kicker">Dispatch controls</div>
+                        <div class="panel-title">Choose the run</div>
+                    </div>
+                </div>
+                <div class="page-block">
+                    <div class="form-group">
+                        <label for="send-method">Method</label>
+                        <select id="send-method">
+                            <option value="smtp" selected>SMTP (recommended for hosted app)</option>
+                            <option value="gmail_draft">Gmail Draft</option>
+                            <option value="gmail_send">Gmail Send</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="send-limit">How many drafts</label>
+                        <input id="send-limit" type="number" min="1" max="{{ send_queue|length }}" value="{{ send_queue|length }}">
+                    </div>
+                    <div class="auth-note">
+                        <p>SMTP is the most reliable hosted path. Gmail modes require Gmail API credentials and local OAuth setup.</p>
+                    </div>
+                    <div class="hero-actions">
+                        <button class="btn btn-primary" onclick="triggerSend(false)">Run delivery</button>
+                        <button class="btn btn-outline" onclick="triggerSend(true)">Preview run</button>
+                    </div>
+                </div>
+            </article>
+        </aside>
+    </section>
+    <div id="send-results"></div>
+    {% else %}
+    <div class="empty-state animate-in animate-in-1">
+        <div class="empty-icon">&#9993;</div>
+        <p>No approved drafts are waiting in delivery. Approve drafts first.</p>
     </div>
-    <div class="form-hint" style="margin-top:0.75rem;">
-        SMTP is the most reliable hosted path. Gmail modes require Gmail API credentials and local OAuth setup.
-    </div>
-    <div style="margin-top:1rem; display:flex; gap:0.75rem; flex-wrap:wrap;">
-        <button class="btn btn-primary" onclick="triggerSend(false)">Run Delivery</button>
-        <button class="btn btn-outline" onclick="triggerSend(true)">Preview Run</button>
-    </div>
-</div>
-<div id="send-results" style="margin-top:1rem;"></div>
-{% else %}
-<div class="empty-state">
-    <div class="empty-icon">&#9993;</div>
-    <p>No approved drafts are waiting in delivery. Approve drafts first.</p>
-</div>
-{% endif %}
+    {% endif %}
 
 {% block scripts %}
 <script>
@@ -109,11 +143,11 @@ async function triggerSend(dryRun) {
         const title = dryRun
             ? 'Preview run: ' + data.count + ' drafts'
             : 'Processed ' + data.count + ' drafts (' + data.sent + ' sent, ' + data.failed + ' failed)';
-        el.innerHTML = '<div class="card" style="border-color:var(--ao-success);"><div class="card-header"><h3>' +
-            title + '</h3></div>' +
-            '<pre style="font-size:0.85rem;color:var(--ao-text-muted);">' + JSON.stringify(data.results, null, 2) + '</pre></div>';
+        el.innerHTML = '<div class="surface-panel" style="margin-top:1rem;"><div class="surface-panel-header"><div><div class="panel-kicker">Run summary</div><div class="panel-title">' +
+            title + '</div></div></div>' +
+            '<pre style="margin:0; white-space:pre-wrap; color:var(--ao-text-muted); font-size:0.82rem;">' + JSON.stringify(data.results, null, 2) + '</pre></div>';
     } else {
-        el.innerHTML = '<div class="flash-msg flash-error">' + (data.error || 'Send failed') + '</div>';
+        el.innerHTML = '<div class="flash-msg flash-error" style="margin-top:1rem;">' + (data.error || 'Send failed') + '</div>';
     }
 }
 </script>

@@ -3,33 +3,32 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Outreach Desk{% endblock %} | AO</title>
+    <title>{% block title %}Workspace{% endblock %} | Academic Outreach</title>
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Source+Serif+4:wght@600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='revamp.css') }}">
     <script>
-    // Apply theme BEFORE render to avoid flash
-    (function(){
+    (function() {
         var t = localStorage.getItem('ao_theme') || 'system';
         var p = t === 'system' ? (matchMedia('(prefers-color-scheme:light)').matches ? 'light' : 'dark') : t;
         document.documentElement.setAttribute('data-theme', p);
     })();
     </script>
 </head>
-<body>
+<body class="{% block body_class %}app-shell{% endblock %}">
     <nav class="navbar">
         <div class="navbar-inner">
             <a href="{{ url_for('dashboard') }}" class="logo">
                 <div class="logo-icon">AO</div>
-                <div class="logo-text">Academic <span>Outreach</span></div>
+                <div class="logo-text">Academic<span>Outreach</span></div>
             </a>
             <ul class="nav-links">
                 <li><a href="{{ url_for('dashboard') }}" {% if request.endpoint == 'dashboard' %}class="active"{% endif %}><span class="nav-icon">&#9632;</span> Desk</a></li>
-                <li><a href="{{ url_for('professors_list') }}" {% if request.endpoint and 'professor' in request.endpoint %}class="active"{% endif %}><span class="nav-icon">&#9733;</span> Faculty</a></li>
+                <li><a href="{{ url_for('professors_list') }}" {% if request.endpoint and 'professor' in request.endpoint %}class="active"{% endif %}><span class="nav-icon">&#10022;</span> Faculty</a></li>
                 <li><a href="{{ url_for('drafts_list') }}" {% if request.endpoint and 'draft' in request.endpoint %}class="active"{% endif %}><span class="nav-icon">&#9998;</span> Draft Review</a></li>
-                <li><a href="{{ url_for('finder_page') }}" {% if request.endpoint and 'finder' in request.endpoint %}class="active"{% endif %}><span class="nav-icon">&#128270;</span> Search</a></li>
+                <li><a href="{{ url_for('finder_page') }}" {% if request.endpoint and 'finder' in request.endpoint %}class="active"{% endif %}><span class="nav-icon">&#128269;</span> Search</a></li>
                 <li><a href="{{ url_for('send_page') }}" {% if request.endpoint and 'send' in request.endpoint %}class="active"{% endif %}><span class="nav-icon">&#9993;</span> Delivery</a></li>
                 <li><a href="{{ url_for('export_page') }}" {% if request.endpoint and 'export' in request.endpoint %}class="active"{% endif %}><span class="nav-icon">&#8681;</span> Export</a></li>
                 <li><a href="{{ url_for('settings_page') }}" {% if request.endpoint == 'settings_page' %}class="active"{% endif %}><span class="nav-icon">&#9881;</span> Setup</a></li>
@@ -39,41 +38,47 @@
                     <span id="theme-icon">&#9790;</span>
                 </button>
                 <span class="nav-user-dot"></span>
-                <span>{{ session.get('key_label', 'User') }}</span>
-                <a href="{{ url_for('logout') }}" class="btn-ghost btn-sm" style="margin-left:0.25rem;">Logout</a>
+                <span>{{ session.get('key_label', 'Workspace') }}</span>
+                <a href="{{ url_for('logout') }}" class="btn btn-ghost btn-sm">Logout</a>
             </div>
         </div>
     </nav>
 
-    <div class="container page-content">
-        {% if storage_status and storage_status.severity == 'warning' %}
-        <div class="storage-banner storage-banner-warning">
-            <strong>{{ storage_status.label }}</strong>
-            <span>{{ storage_status.detail }}</span>
+    <main class="app-main">
+        <div class="container page-content">
+            {% if storage_status and storage_status.severity == 'warning' %}
+            <div class="storage-banner storage-banner-warning">
+                <strong>{{ storage_status.label }}</strong>
+                <span>{{ storage_status.detail }}</span>
+            </div>
+            {% endif %}
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            <div class="flash-messages">
+                {% for category, message in messages %}
+                <div class="flash-msg flash-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% endwith %}
+
+            {% block content %}{% endblock %}
         </div>
-        {% endif %}
+    </main>
 
-        {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-        <div class="flash-messages">
-            {% for category, message in messages %}
-            <div class="flash-msg flash-{{ category }}">{{ message }}</div>
-            {% endfor %}
+    <footer class="app-footer">
+        <div class="app-footer-inner">
+            <div class="app-footer-mark">
+                <div class="logo-icon" style="width:32px; height:32px; font-size:1rem; border-radius:12px;">AO</div>
+                <span>Academic Outreach v{{ app_version }}</span>
+            </div>
+            <div>Private workspace for research-led faculty outreach.</div>
         </div>
-        {% endif %}
-        {% endwith %}
-
-        {% block content %}{% endblock %}
-    </div>
-
-    <footer class="footer-bar" style="text-align:center; padding:1.5rem; color:var(--ao-text-dim); font-size:0.8rem; border-top:1px solid var(--ao-border);">
-        Academic Outreach v{{ app_version }} · Private workspace for careful faculty outreach
     </footer>
 
-    <!-- Help / Tutorial FAB -->
-    <button class="help-fab" onclick="startTutorial()" title="Quick Tour">?</button>
+    <button class="help-fab" onclick="startTutorial()" title="Quick tour">?</button>
 
-    <!-- Tutorial Overlay -->
     <div class="tutorial-overlay" id="tutorial-overlay">
         <div class="tutorial-card" id="tutorial-card">
             <div class="tutorial-step-counter" id="tutorial-dots"></div>
@@ -84,14 +89,63 @@
                 <button class="tutorial-skip" onclick="closeTutorial()">Skip Tour</button>
                 <div style="display:flex; gap:0.5rem;">
                     <button class="btn btn-outline btn-sm" id="tutorial-prev" onclick="tutorialPrev()">Back</button>
-                    <button class="btn btn-primary btn-sm" id="tutorial-next" onclick="tutorialNext()" style="min-width:100px;">Next</button>
+                    <button class="btn btn-primary btn-sm" id="tutorial-next" onclick="tutorialNext()" style="min-width:110px;">Next</button>
                 </div>
             </div>
         </div>
     </div>
 
+    <div class="chat-widget" id="chat-widget">
+        <button class="chat-fab" id="chat-fab" onclick="toggleChat()" title="Support chat">
+            <span id="chat-fab-icon">&#128172;</span>
+        </button>
+        <div class="chat-panel" id="chat-panel">
+            <div class="chat-header">
+                <div style="display:flex; align-items:center; gap:0.55rem;">
+                    <span style="font-size:1.05rem;">&#128172;</span>
+                    <strong>Support</strong>
+                </div>
+                <button class="chat-close" onclick="toggleChat()" title="Close">&times;</button>
+            </div>
+            <div class="chat-body" id="chat-body">
+                <div class="chat-msg chat-msg-bot">
+                    <div class="chat-msg-content">Need a quick hand? I can walk through search, drafts, delivery, or setup.</div>
+                </div>
+                <div class="chat-prompts" id="chat-prompts">
+                    <button class="chat-prompt-btn" onclick="sendPrompt('how_to_start')">How do I get started?</button>
+                    <button class="chat-prompt-btn" onclick="sendPrompt('find_professors')">How do I find professors?</button>
+                    <button class="chat-prompt-btn" onclick="sendPrompt('find_ml_professors')">How do I find ML labs?</button>
+                    <button class="chat-prompt-btn" onclick="sendPrompt('generate_emails')">How do I generate emails?</button>
+                    <button class="chat-prompt-btn" onclick="sendPrompt('send_emails')">How does sending work?</button>
+                    <button class="chat-prompt-btn" onclick="sendPrompt('quality_scores')">What are quality scores?</button>
+                    <button class="chat-prompt-btn" onclick="sendPrompt('tutorial')">Show me the tutorial</button>
+                    <button class="chat-prompt-btn chat-prompt-bug" onclick="showBugForm()">Report a bug</button>
+                </div>
+            </div>
+            <div class="chat-bug-form" id="chat-bug-form" style="display:none;">
+                <div style="padding:0.9rem 1rem; font-weight:700; font-size:0.86rem; border-bottom:1px solid var(--ao-border);">Report a bug</div>
+                <div style="padding:0.9rem; display:flex; flex-direction:column; gap:0.55rem;">
+                    <input type="text" id="bug-title" placeholder="Short description">
+                    <textarea id="bug-details" placeholder="Steps to reproduce, what you expected, what happened instead..." rows="4" style="resize:vertical;"></textarea>
+                    <select id="bug-severity">
+                        <option value="low">Low priority</option>
+                        <option value="medium" selected>Medium priority</option>
+                        <option value="high">High priority</option>
+                    </select>
+                    <div style="display:flex; gap:0.5rem;">
+                        <button class="btn btn-primary btn-sm" onclick="submitBug()" style="flex:1;">Submit report</button>
+                        <button class="btn btn-outline btn-sm" onclick="hideBugForm()">Cancel</button>
+                    </div>
+                </div>
+            </div>
+            <div class="chat-input-area" id="chat-input-area">
+                <input type="text" id="chat-input" placeholder="Ask about the workflow..." onkeydown="if(event.key==='Enter')sendMessage()">
+                <button class="chat-send-btn" onclick="sendMessage()" title="Send">&#10148;</button>
+            </div>
+        </div>
+    </div>
+
     <script>
-    // ---- Theme System ----
     function getTheme() { return localStorage.getItem('ao_theme') || 'system'; }
     function applyTheme(t) {
         const pref = t === 'system' ? (matchMedia('(prefers-color-scheme:light)').matches ? 'light' : 'dark') : t;
@@ -101,29 +155,42 @@
         if (el) el.innerHTML = icons[t] || icons.dark;
     }
     function cycleTheme() {
-        const order = ['dark','light','system'];
+        const order = ['dark', 'light', 'system'];
         const cur = getTheme();
-        const next = order[(order.indexOf(cur)+1) % order.length];
+        const next = order[(order.indexOf(cur) + 1) % order.length];
         localStorage.setItem('ao_theme', next);
         applyTheme(next);
     }
     applyTheme(getTheme());
-    matchMedia('(prefers-color-scheme:light)').addEventListener('change', () => { if(getTheme()==='system') applyTheme('system'); });
+    matchMedia('(prefers-color-scheme:light)').addEventListener('change', () => {
+        if (getTheme() === 'system') applyTheme('system');
+    });
 
-    // ---- Tutorial System ----
+    document.addEventListener('DOMContentLoaded', () => {
+        const obs = new IntersectionObserver((entries) => {
+            entries.forEach((entry) => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('animate-visible');
+                    obs.unobserve(entry.target);
+                }
+            });
+        }, { threshold: 0.12 });
+        document.querySelectorAll('.animate-in').forEach((el) => obs.observe(el));
+    });
+
     const TUTORIAL_STEPS = [
         {
             icon: '&#128075;',
             title: 'Welcome to Academic Outreach',
-            body: 'This workspace is built for careful student-to-faculty outreach: find relevant professors, keep factual notes, review each draft, and only send once the queue looks credible.<br><br><strong>Everything is tuned for smaller, better researched batches.</strong>'
+            body: 'This workspace is built for careful student-to-faculty outreach: search for labs, keep factual notes, review each draft, and only send once the queue feels credible.<br><br><strong>Everything is tuned for smaller, better researched batches.</strong>'
         },
         {
-            icon: '&#128270;',
+            icon: '&#128269;',
             title: 'Search for real faculty fits',
             body: 'Use <strong>Search</strong> to look across academic sources by topic, field, and institution.<br><br>If you are doing machine learning outreach, start with narrower phrases like interpretability, ML systems, vision, RL, or language models instead of a vague term like just AI.'
         },
         {
-            icon: '&#9733;',
+            icon: '&#10022;',
             title: 'Build faculty files',
             body: 'Saved professors appear under <strong>Faculty</strong> with contact details, research context, keywords, and notes that support more specific outreach later.'
         },
@@ -144,8 +211,8 @@
         },
         {
             icon: '&#127881;',
-            title: 'You\'re All Set!',
-            body: 'The core rhythm is simple:<br><br><strong>1.</strong> Search and save plausible faculty contacts<br><strong>2.</strong> Keep context on each professor file<br><strong>3.</strong> Review drafts and scores carefully<br><strong>4.</strong> Send only from an approved queue<br><br>Click the <strong style="color:var(--ao-primary);">?</strong> button anytime to replay this tour.'
+            title: 'You are set',
+            body: 'The core rhythm is simple:<br><br><strong>1.</strong> Search and save plausible faculty contacts<br><strong>2.</strong> Keep context on each professor file<br><strong>3.</strong> Review drafts and scores carefully<br><strong>4.</strong> Send only from an approved queue<br><br>Use the <strong>?</strong> button anytime to replay this tour.'
         }
     ];
 
@@ -166,25 +233,30 @@
     }
 
     function tutorialNext() {
-        if (tutorialStep < TUTORIAL_STEPS.length - 1) { tutorialStep++; renderTutorialStep(); }
-        else closeTutorial();
+        if (tutorialStep < TUTORIAL_STEPS.length - 1) {
+            tutorialStep++;
+            renderTutorialStep();
+        } else {
+            closeTutorial();
+        }
     }
 
     function tutorialPrev() {
-        if (tutorialStep > 0) { tutorialStep--; renderTutorialStep(); }
+        if (tutorialStep > 0) {
+            tutorialStep--;
+            renderTutorialStep();
+        }
     }
 
     function renderTutorialStep() {
         const step = TUTORIAL_STEPS[tutorialStep];
-        const card = document.getElementById('tutorial-card');
-        card.style.animation = 'none'; card.offsetHeight;
-        card.style.animation = 'tutorialSlideIn 0.4s cubic-bezier(0.16,1,0.3,1) both';
         document.getElementById('tutorial-icon').innerHTML = step.icon;
         document.getElementById('tutorial-title').textContent = step.title;
         document.getElementById('tutorial-body').innerHTML = step.body;
         document.getElementById('tutorial-dots').innerHTML = TUTORIAL_STEPS.map((_, i) => {
             let cls = 'tutorial-dot';
-            if (i < tutorialStep) cls += ' done'; else if (i === tutorialStep) cls += ' active';
+            if (i < tutorialStep) cls += ' done';
+            else if (i === tutorialStep) cls += ' active';
             return `<div class="${cls}"></div>`;
         }).join('');
         document.getElementById('tutorial-prev').style.display = tutorialStep === 0 ? 'none' : '';
@@ -198,9 +270,10 @@
         if (e.key === 'ArrowRight' && tutorialActive) tutorialNext();
         if (e.key === 'ArrowLeft' && tutorialActive) tutorialPrev();
     });
-    document.getElementById('tutorial-overlay').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeTutorial(); });
+    document.getElementById('tutorial-overlay').addEventListener('click', (e) => {
+        if (e.target === e.currentTarget) closeTutorial();
+    });
 
-    // ---- Toast helper ----
     function showToast(message, type = 'success', duration = 3000) {
         const existing = document.querySelector('.toast');
         if (existing) existing.remove();
@@ -208,101 +281,55 @@
         toast.className = `toast toast-${type}`;
         toast.textContent = message;
         document.body.appendChild(toast);
-        setTimeout(() => { toast.classList.add('toast-hide'); setTimeout(() => toast.remove(), 400); }, duration);
+        setTimeout(() => {
+            toast.classList.add('toast-hide');
+            setTimeout(() => toast.remove(), 360);
+        }, duration);
     }
 
-    // ---- Clipboard helper with fallback ----
     function copyToClipboard(text) {
         if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text);
         const ta = document.createElement('textarea');
-        ta.value = text; ta.style.cssText = 'position:fixed;left:-9999px;top:-9999px;opacity:0;';
-        document.body.appendChild(ta); ta.focus(); ta.select();
-        return new Promise((res, rej) => { document.execCommand('copy') ? res() : rej(new Error('fail')); ta.remove(); });
+        ta.value = text;
+        ta.style.cssText = 'position:fixed;left:-9999px;top:-9999px;opacity:0;';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        return new Promise((res, rej) => {
+            document.execCommand('copy') ? res() : rej(new Error('fail'));
+            ta.remove();
+        });
     }
-    </script>
 
-    <!-- AI Chat Support Widget -->
-    <div class="chat-widget" id="chat-widget">
-        <button class="chat-fab" id="chat-fab" onclick="toggleChat()" title="Support Chat">
-            <span id="chat-fab-icon">&#128172;</span>
-        </button>
-        <div class="chat-panel" id="chat-panel">
-            <div class="chat-header">
-                <div style="display:flex; align-items:center; gap:0.5rem;">
-                    <span style="font-size:1.1rem;">&#128172;</span>
-                    <strong>Support</strong>
-                </div>
-                <button class="chat-close" onclick="toggleChat()" title="Close">&times;</button>
-            </div>
-            <div class="chat-body" id="chat-body">
-                <div class="chat-msg chat-msg-bot">
-                    <div class="chat-msg-content">Hey! I can help you get started with Academic Outreach. Pick a topic below or type a question.</div>
-                </div>
-                <div class="chat-prompts" id="chat-prompts">
-                    <button class="chat-prompt-btn" onclick="sendPrompt('how_to_start')">How do I get started?</button>
-                    <button class="chat-prompt-btn" onclick="sendPrompt('find_professors')">How do I find professors?</button>
-                    <button class="chat-prompt-btn" onclick="sendPrompt('find_ml_professors')">How do I find ML labs?</button>
-                    <button class="chat-prompt-btn" onclick="sendPrompt('generate_emails')">How do I generate emails?</button>
-                    <button class="chat-prompt-btn" onclick="sendPrompt('send_emails')">How does sending work?</button>
-                    <button class="chat-prompt-btn" onclick="sendPrompt('quality_scores')">What are quality scores?</button>
-                    <button class="chat-prompt-btn" onclick="sendPrompt('tutorial')">Show me the tutorial</button>
-                    <button class="chat-prompt-btn chat-prompt-bug" onclick="showBugForm()">Report a bug</button>
-                </div>
-            </div>
-            <div class="chat-bug-form" id="chat-bug-form" style="display:none;">
-                <div style="padding:0.75rem; font-weight:600; font-size:0.88rem; border-bottom:1px solid var(--ao-border);">Report a Bug</div>
-                <div style="padding:0.75rem; display:flex; flex-direction:column; gap:0.5rem;">
-                    <input type="text" id="bug-title" placeholder="Short description" style="font-size:0.85rem;">
-                    <textarea id="bug-details" placeholder="Steps to reproduce, what you expected, what happened instead..." rows="4" style="font-size:0.85rem; resize:vertical;"></textarea>
-                    <select id="bug-severity" style="font-size:0.85rem;">
-                        <option value="low">Low priority</option>
-                        <option value="medium" selected>Medium priority</option>
-                        <option value="high">High priority</option>
-                    </select>
-                    <div style="display:flex; gap:0.5rem;">
-                        <button class="btn btn-primary btn-sm" onclick="submitBug()" style="flex:1;">Submit Bug Report</button>
-                        <button class="btn btn-outline btn-sm" onclick="hideBugForm()">Cancel</button>
-                    </div>
-                </div>
-            </div>
-            <div class="chat-input-area" id="chat-input-area">
-                <input type="text" id="chat-input" placeholder="Ask a question..." onkeydown="if(event.key==='Enter')sendMessage()">
-                <button class="chat-send-btn" onclick="sendMessage()" title="Send">&#10148;</button>
-            </div>
-        </div>
-    </div>
-
-    <script>
-    // ---- Chat Support Widget ----
     let chatOpen = false;
     const CHAT_RESPONSES = {
         how_to_start: {
             q: 'How do I get started?',
-            a: 'A solid starting sequence looks like this:\n\n1. Open Setup and confirm sender and delivery settings\n2. Use Search to build a small list of real faculty matches\n3. Save the professors you want to track\n4. Review drafts once they are generated in your workflow\n5. Approve only the drafts that feel specific and credible\n6. Use Delivery to preview or run a controlled send\n\nNeed the visual version? Click "Show me the tutorial."'
+            a: 'A solid starting sequence looks like this:\n\n1. Open Setup and confirm sender and delivery settings\n2. Use Search to build a small list of real faculty matches\n3. Save the professors you want to track\n4. Review drafts once they are generated in your workflow\n5. Approve only the drafts that feel specific and credible\n6. Use Delivery to preview or run a controlled send'
         },
         find_professors: {
             q: 'How do I find professors?',
-            a: 'Open Search in the navigation bar. From there you can:\n\n1. Search by research topic or method\n2. Narrow by field and institution\n3. Review normalized results from multiple academic data sources\n4. Save the strongest matches into your faculty list\n\nThe best results usually come from narrower topics plus a realistic institution filter.'
+            a: 'Open Search in the navigation bar. From there you can:\n\n1. Search by research topic or method\n2. Narrow by field and institution\n3. Review normalized results from multiple academic sources\n4. Save the strongest matches into your faculty list'
         },
         find_ml_professors: {
             q: 'How do I find ML labs?',
-            a: 'For machine learning outreach, start narrower than just "AI". Strong search patterns include:\n\n- machine learning systems\n- interpretability and evaluation\n- computer vision representation learning\n- reinforcement learning and decision making\n- natural language processing and language models\n\nThen add one institution filter and save only the labs whose recent work you can actually reference in a draft.'
+            a: 'For machine learning outreach, start narrower than just AI. Strong search patterns include:\n\n- machine learning systems\n- interpretability and evaluation\n- computer vision representation learning\n- reinforcement learning and decision making\n- natural language processing and language models'
         },
         generate_emails: {
             q: 'How do I generate emails?',
-            a: 'Draft generation works best after your faculty list and sender setup are ready.\n\n1. Save professors with enough context to personalize against\n2. Include your own interests and background, especially for machine learning if that is your focus\n3. Generate drafts through your configured workflow\n4. Review the score, warnings, and subject line choices\n5. Approve only the drafts that sound specific and believable\n\nIn local setups, draft creation may also be triggered from the command line.'
+            a: 'Draft generation works best after your faculty list and sender setup are ready.\n\n1. Save professors with enough context to personalize against\n2. Include your own interests and background\n3. Generate drafts through your configured workflow\n4. Review the score, warnings, and subject line choices\n5. Approve only the drafts that sound specific and believable'
         },
         send_emails: {
             q: 'How does sending work?',
-            a: 'Sending is intentionally conservative:\n\n1. Only approved drafts appear in Delivery\n2. You can preview a run before sending anything live\n3. SMTP is the most reliable hosted option\n4. Gmail draft/send modes need Gmail API credentials and OAuth setup\n5. Suppression checks and delivery logging help prevent repeated outreach\n\nUse smaller batches when you are validating a new sender configuration.'
+            a: 'Sending is intentionally conservative:\n\n1. Only approved drafts appear in Delivery\n2. You can preview a run before sending anything live\n3. SMTP is the most reliable hosted option\n4. Gmail draft/send modes need Gmail API credentials and OAuth setup\n5. Suppression checks and delivery logging help prevent repeated outreach'
         },
         quality_scores: {
             q: 'What are quality scores?',
-            a: 'Every generated draft gets scored from 1-10 across five dimensions:\n\n- Specificity (30%): Does it reference the professor\'s actual research?\n- Authenticity (20%): How unique is the content vs boilerplate?\n- Relevance (20%): Does it connect your interests to their work?\n- Conciseness (15%): Is it the right length (150-350 words)?\n- Completeness (15%): Does it have all the right parts (greeting, research ref, clear ask, sign-off)?\n\nDrafts also get warnings like "too generic" or "no concrete research reference" to help you decide what to approve.'
+            a: 'Every generated draft gets scored from 1 to 10 across five dimensions:\n\n- Specificity\n- Authenticity\n- Relevance\n- Conciseness\n- Completeness\n\nDrafts also get warnings like "too generic" or "no concrete research reference" so weak outreach is easier to catch.'
         },
         tutorial: {
             q: 'Show me the tutorial',
-            a: 'Starting the guided tutorial now! It will walk you through each section of the app.'
+            a: 'Starting the guided tutorial now.'
         }
     };
 
@@ -341,17 +368,15 @@
     function sendPrompt(key) {
         const resp = CHAT_RESPONSES[key];
         if (!resp) return;
-        // Hide prompts after first use
         document.getElementById('chat-prompts').style.display = 'none';
         addMessage(resp.q, false);
         setTimeout(() => {
             addMessage(resp.a, true);
             logChat(resp.q, resp.a, key);
-            // Special: trigger tutorial
             if (key === 'tutorial' && typeof startTutorial === 'function') {
                 setTimeout(() => { toggleChat(); startTutorial(); }, 600);
             }
-        }, 300);
+        }, 280);
     }
 
     function sendMessage() {
@@ -362,7 +387,6 @@
         document.getElementById('chat-prompts').style.display = 'none';
         addMessage(text, false);
 
-        // Simple keyword matching for common questions
         const lower = text.toLowerCase();
         let response = '';
         if (lower.includes('start') || lower.includes('begin') || lower.includes('setup')) {
@@ -381,21 +405,21 @@
             response = CHAT_RESPONSES.tutorial.a;
             setTimeout(() => { if (typeof startTutorial === 'function') { toggleChat(); startTutorial(); } }, 1000);
         } else if (lower.includes('bug') || lower.includes('issue') || lower.includes('broken') || lower.includes('error')) {
-            response = 'Sounds like you ran into a problem. You can use the "Report a bug" button to submit a detailed report, or describe the issue here and I\'ll do my best to help.';
+            response = 'Sounds like you ran into a problem. You can use the "Report a bug" button to submit a detailed report, or describe the issue here and I will do my best to help.';
         } else if (lower.includes('suppression') || lower.includes('block') || lower.includes('unsubscribe')) {
-            response = 'The suppression list prevents repeated outreach to the same address.\n\nUse Setup to review who is blocked, and keep the list current whenever a contact should no longer receive messages.\n\nOnce someone is suppressed, the workspace should keep drafts and sends from going out to that address.';
+            response = 'The suppression list prevents repeated outreach to the same address.\n\nUse Setup to review who is blocked, and keep the list current whenever a contact should no longer receive messages.';
         } else if (lower.includes('csv') || lower.includes('import') || lower.includes('export')) {
-            response = 'Exports are available from the Export page for draft records and handoff files.\n\nIf you are working in a local setup, faculty imports and bulk data movement can also be handled with CSV-based workflows. Keep the import columns clean: name, email, university, department, and field are the main anchors.';
+            response = 'Exports are available from the Export page for draft records and handoff files.\n\nKeep the export columns clean if you are reviewing outside the app.';
         } else if (lower.includes('setting') || lower.includes('config') || lower.includes('api key')) {
-            response = 'Open Setup to configure:\n\n- Writing model and provider\n- Sender email and provider\n- SMTP credentials for direct delivery\n- Server-side API key availability\n\nThat page is the control desk for how drafts are written and how approved messages leave the queue.';
+            response = 'Open Setup to configure writing model, sender address, SMTP credentials, and delivery behavior. That page is the control desk for how drafts are written and how approved messages leave the queue.';
         } else {
-            response = 'I\'m not sure about that specific question, but I can help with the main workflow:\n\n- Getting the workspace set up\n- Searching for faculty\n- Reviewing draft quality\n- Understanding delivery options\n- Exporting records and handoff files\n\nTry a keyword like "search", "draft", "send", "score", or "settings".';
+            response = 'I can help with search, faculty review, draft generation, sending, and setup. Try a keyword like "search", "draft", "send", "score", or "settings".';
         }
 
         setTimeout(() => {
             addMessage(response, true);
             logChat(text, response, null);
-        }, 400);
+        }, 360);
     }
 
     function showBugForm() {
@@ -414,7 +438,10 @@
         const title = document.getElementById('bug-title').value.trim();
         const details = document.getElementById('bug-details').value.trim();
         const severity = document.getElementById('bug-severity').value;
-        if (!title) { document.getElementById('bug-title').style.borderColor = 'var(--ao-danger)'; return; }
+        if (!title) {
+            document.getElementById('bug-title').style.borderColor = 'var(--ao-danger)';
+            return;
+        }
 
         fetch('/api/bug-report', {
             method: 'POST',
@@ -426,7 +453,7 @@
             document.getElementById('bug-details').value = '';
             if (data.success) {
                 addMessage('Bug report submitted: ' + title, false);
-                addMessage('Thanks for the report! It\'s been logged and the admin team will see it. Report ID: #' + (data.report_id || 'N/A'), true);
+                addMessage('Thanks for the report. It has been logged and the admin team will see it. Report ID: #' + (data.report_id || 'N/A'), true);
             } else {
                 addMessage('Failed to submit bug report. Please try again.', true);
             }

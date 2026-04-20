@@ -3,204 +3,191 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Academic Outreach | AO</title>
+    <title>Academic Outreach</title>
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Source+Serif+4:wght@600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='revamp.css') }}">
 </head>
-<body>
+<body class="landing-body">
     <nav class="hp-nav">
         <div class="hp-nav-inner">
             <a href="{{ url_for('homepage') }}" class="logo">
                 <div class="logo-icon">AO</div>
-                <div class="logo-text">Academic <span>Outreach</span></div>
+                <div class="logo-text">Academic<span>Outreach</span></div>
             </a>
             <div class="hp-nav-meta">
-                <span class="hp-nav-note">Student research outreach workspace</span>
+                <span class="hp-nav-note">Research-first outreach workspace</span>
                 <button class="theme-toggle" onclick="cycleTheme()" title="Toggle theme" aria-label="Toggle theme">
                     <span id="theme-icon-hp">&#9790;</span>
                 </button>
-                <a href="{{ url_for('login') }}" class="btn btn-ghost btn-sm">Log In</a>
-                <a href="{{ url_for('signup') }}" class="btn btn-primary btn-sm">Open Workspace</a>
+                <a href="{{ url_for('login') }}" class="btn btn-ghost btn-sm">Log in</a>
+                <a href="{{ url_for('signup') }}" class="btn btn-primary btn-sm">Open workspace</a>
             </div>
         </div>
     </nav>
 
-    <section class="hp-hero">
-        <div class="hp-hero-bg"></div>
-        <div class="container hp-hero-shell">
-            <div class="hp-hero-copy">
-                {% if storage_status and storage_status.severity == 'warning' %}
-                <div class="flash-msg flash-warning" style="margin-bottom:1rem;">
-                    <strong>{{ storage_status.label }}</strong>
-                    {{ storage_status.detail }}
-                </div>
-                {% endif %}
-                <div class="hp-badge animate-in">Faculty search, notes, drafts, and reviewed sending for ML, AI, and adjacent labs</div>
-                <h1 class="hp-hero-title animate-in animate-in-1">
-                    Outreach that looks like
-                    <span class="hp-gradient-text">you actually did the reading.</span>
-                </h1>
-                <p class="hp-hero-sub animate-in animate-in-2">
-                    Academic Outreach is a private workspace for students building research outreach lists in areas like machine learning, AI systems, robotics, NLP, and computer vision, then reviewing every message before it leaves the queue.
+    <main class="container landing-main">
+        {% if storage_status and storage_status.severity == 'warning' %}
+        <div class="storage-banner storage-banner-warning animate-in">
+            <strong>{{ storage_status.label }}</strong>
+            <span>{{ storage_status.detail }}</span>
+        </div>
+        {% endif %}
+
+        <section class="landing-hero animate-in">
+            <div class="landing-copy">
+                <div class="eyebrow">For students writing to real labs</div>
+                <h1 class="landing-title">Outreach that feels researched, restrained, and believable.</h1>
+                <p class="landing-lead">
+                    Academic Outreach is a private workspace for building faculty lists, keeping research notes, reviewing personalized drafts,
+                    and sending only after the queue actually reads like it came from a prepared student.
                 </p>
-                <div class="hp-hero-actions animate-in animate-in-3">
-                    <a href="{{ url_for('signup') }}" class="btn btn-primary hp-cta">
-                        Start A Private Workspace
-                    </a>
-                    <a href="#workflow" class="btn btn-outline hp-cta">
-                        See The Workflow
-                    </a>
-                </div>
-                <div class="hp-hero-stats animate-in animate-in-4">
-                    <div class="hp-stat"><strong>5</strong><span>research sources checked in one search</span></div>
-                    <div class="hp-stat-divider"></div>
-                    <div class="hp-stat"><strong>1-10</strong><span>draft scoring before approval</span></div>
-                    <div class="hp-stat-divider"></div>
-                    <div class="hp-stat"><strong>Human</strong><span>review required before delivery</span></div>
-                </div>
-            </div>
-            <div class="hp-dossier animate-in animate-in-4">
-                <div class="hp-dossier-tab">Active Research Lead</div>
-                <div class="hp-dossier-head">
-                    <div>
-                        <div class="hp-dossier-kicker">Professor file</div>
-                        <h2>Prof. Maya Chen</h2>
-                        <p>Machine learning systems - Carnegie Mellon University</p>
+                <div class="hero-metrics">
+                    <div class="metric-card">
+                        <span>Search inputs</span>
+                        <strong>5 sources</strong>
                     </div>
-                    <div class="hp-dossier-status">Ready for review</div>
-                </div>
-                <div class="hp-dossier-grid">
-                    <div>
-                        <span class="hp-label">Research notes</span>
-                        <p>Recent work focuses on efficient training systems, evaluation for foundation models, and practical mentoring paths for student researchers.</p>
+                    <div class="metric-card">
+                        <span>Review standard</span>
+                        <strong>Human approval</strong>
                     </div>
-                    <div>
-                        <span class="hp-label">Why this contact makes sense</span>
-                        <p>Strong match for students with Python, PyTorch, model evaluation, and reading stamina for ML papers.</p>
-                    </div>
-                    <div>
-                        <span class="hp-label">Draft quality</span>
-                        <p>8.4 overall - specific hook present - no duplicate phrasing detected.</p>
-                    </div>
-                    <div>
-                        <span class="hp-label">Delivery plan</span>
-                        <p>SMTP or Gmail draft after manual approval. Suppression guard enabled.</p>
+                    <div class="metric-card">
+                        <span>Draft scoring</span>
+                        <strong>1 to 10</strong>
                     </div>
                 </div>
-                <div class="hp-dossier-footer">
-                    <span>Source mix: OpenAlex - Semantic Scholar - arXiv signals</span>
-                    <span>Updated after faculty search</span>
+                <div class="hero-actions">
+                    <a href="{{ url_for('signup') }}" class="btn btn-primary">Create a private workspace</a>
+                    <a href="{{ url_for('login') }}" class="btn btn-outline">Use an existing key</a>
                 </div>
             </div>
-        </div>
-    </section>
+            <div class="image-stack">
+                <div class="image-card image-card--tall">
+                    <img src="https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&amp;fit=crop&amp;w=1600&amp;q=80" alt="Students studying in a university library">
+                    <div class="image-caption">
+                        <span>Research desk</span>
+                        <strong>Built for the slow part of outreach: reading, comparing, annotating, and choosing carefully.</strong>
+                    </div>
+                </div>
+                <div class="image-stack-col">
+                    <div class="image-stack-card image-card--short">
+                        <img src="https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&amp;fit=crop&amp;w=1200&amp;q=80" alt="Students collaborating at a table">
+                        <div class="image-caption">
+                            <span>Shortlists</span>
+                            <strong>Keep the list small enough to know who you are contacting.</strong>
+                        </div>
+                    </div>
+                    <div class="image-stack-card image-card--short">
+                        <img src="https://images.unsplash.com/photo-1455390582262-044cdead277a?auto=format&amp;fit=crop&amp;w=1200&amp;q=80" alt="Notebook and coffee on a writing desk">
+                        <div class="image-caption">
+                            <span>Draft review</span>
+                            <strong>Every message is edited before it gets anywhere near a send queue.</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
 
-    <section class="hp-section hp-section-band" id="features">
-        <div class="container">
-            <div class="hp-section-header hp-left animate-in">
-                <div class="hp-section-label">Why It Feels Grounded</div>
-                <h2 class="hp-section-title">Built for careful batches, not mass outreach.</h2>
-                <p class="hp-section-intro">The product works more like a research notebook and sending desk than a generic growth dashboard.</p>
-            </div>
-            <div class="hp-realism-grid">
-                <div class="hp-realism-item animate-in animate-in-1">
-                    <span class="hp-label">Research context first</span>
-                    <h3>Every lead starts with a real faculty trail.</h3>
-                    <p>Search across academic sources, store what you found, and keep notes on recent ML papers, benchmarks, or systems work before a draft is ever generated.</p>
-                </div>
-                <div class="hp-realism-item animate-in animate-in-2">
-                    <span class="hp-label">Reviewable writing</span>
-                    <h3>The message queue is designed for editing, scoring, and judgment.</h3>
-                    <p>Drafts are checked for specificity, authenticity, overlap, and completeness so an ML outreach note can reference the right lab context instead of sounding generic.</p>
-                </div>
-                <div class="hp-realism-item animate-in animate-in-3">
-                    <span class="hp-label">Controlled delivery</span>
-                    <h3>Sending is intentionally conservative.</h3>
-                    <p>Rate limits, suppression checks, draft mode, and delivery logging keep the workflow credible when the stakes are real.</p>
-                </div>
-            </div>
-        </div>
-    </section>
+        <section class="landing-feature-grid">
+            <article class="landing-panel animate-in animate-in-1">
+                <div class="panel-kicker">Faculty search</div>
+                <h3>Search across academic sources, then save only the plausible fits.</h3>
+                <p>Find professors by topic, institution, and field, then keep the list grounded in real research context instead of a giant scraped spreadsheet.</p>
+            </article>
+            <article class="landing-panel animate-in animate-in-2">
+                <div class="panel-kicker">Working files</div>
+                <h3>Keep notes, keywords, summaries, and talking points beside each contact.</h3>
+                <p>The app behaves more like a research notebook than a mass-email tool, which makes the later draft work feel more defensible.</p>
+            </article>
+            <article class="landing-panel animate-in animate-in-3">
+                <div class="panel-kicker">Controlled delivery</div>
+                <h3>Approve, preview, and send in smaller batches.</h3>
+                <p>Draft scoring, suppression checks, and delivery controls are there so the final step feels cautious rather than automatic.</p>
+            </article>
+        </section>
 
-    <section class="hp-section hp-section-alt" id="workflow">
-        <div class="container">
-            <div class="hp-section-header hp-left animate-in">
-                <div class="hp-section-label">Workflow</div>
-                <h2 class="hp-section-title">A realistic outreach cycle, from shortlist to sent folder.</h2>
+        <section class="landing-story">
+            <article class="surface-panel animate-in">
+                <div class="section-head">
+                    <div>
+                        <div class="panel-kicker">What the workflow actually looks like</div>
+                        <div class="panel-title">A calmer cycle from search to sent folder.</div>
+                    </div>
+                </div>
+                <div class="page-block">
+                    <p>Start by searching for labs and faculty whose work you can genuinely reference. Save the strongest matches, keep notes on what they study, then generate drafts only when your own background and the professor record are both ready.</p>
+                    <p>After that, review the copy like an editor would: check whether the hook is specific, whether the ask is realistic, and whether the message sounds like a student who actually read the lab page or recent paper list.</p>
+                    <div class="chip-row">
+                        <div class="chip"><strong>Search</strong> real faculty leads</div>
+                        <div class="chip"><strong>Annotate</strong> papers and interests</div>
+                        <div class="chip"><strong>Review</strong> score and warnings</div>
+                        <div class="chip"><strong>Send</strong> in measured batches</div>
+                    </div>
+                </div>
+            </article>
+            <div class="quote-block animate-in animate-in-1">
+                <blockquote>“The best outreach usually looks quieter than people expect. It reads like someone paid attention.”</blockquote>
+                <figcaption>Design principle for the workspace</figcaption>
             </div>
-            <div class="hp-steps hp-steps-wide">
-                <div class="hp-step animate-in animate-in-1">
-                    <div class="hp-step-number">1</div>
-                    <div class="hp-step-content">
-                        <h3>Search faculty by topic, field, and institution.</h3>
-                        <p>Use the finder to build a small list of plausible contacts for areas like interpretability, RL, multimodal models, or ML systems rather than a giant unvetted spreadsheet.</p>
-                    </div>
-                </div>
-                <div class="hp-step animate-in animate-in-2">
-                    <div class="hp-step-number">2</div>
-                    <div class="hp-step-content">
-                        <h3>Attach research context and notes.</h3>
-                        <p>Keep factual summaries, recent work, and your own angle so each future draft has substance behind it, whether the lab works on vision, NLP, safety, or theory.</p>
-                    </div>
-                </div>
-                <div class="hp-step animate-in animate-in-3">
-                    <div class="hp-step-number">3</div>
-                    <div class="hp-step-content">
-                        <h3>Generate a draft, then score it like an editor would.</h3>
-                        <p>Specificity, relevance, completeness, and similarity checks make weak outreach obvious before it reaches an inbox.</p>
-                    </div>
-                </div>
-                <div class="hp-step animate-in animate-in-4">
-                    <div class="hp-step-number">4</div>
-                    <div class="hp-step-content">
-                        <h3>Approve only what you would actually send.</h3>
-                        <p>Edit, reject, or hold drafts until the tone, ask, and research references feel believable.</p>
-                    </div>
-                </div>
-                <div class="hp-step animate-in animate-in-5">
-                    <div class="hp-step-number">5</div>
-                    <div class="hp-step-content">
-                        <h3>Deliver through a controlled queue.</h3>
-                        <p>Use SMTP or draft-based sending with suppression checks and session-level oversight so delivery stays measured.</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
+        </section>
 
-    <section class="hp-section">
-        <div class="container">
-            <div class="hp-closing animate-in">
-                <div>
-                    <div class="hp-section-label">Private Access</div>
-                    <h2 class="hp-section-title">Set up a workspace before you send the first email.</h2>
-                    <p class="hp-section-intro">Create an account, keep your access key, and start building a smaller, better researched contact list.</p>
-                </div>
-                <div class="hp-closing-actions">
-                    <a href="{{ url_for('signup') }}" class="btn btn-primary hp-cta">Create Account</a>
-                    <a href="{{ url_for('login') }}" class="btn btn-outline hp-cta">Use Existing Key</a>
+        <section class="landing-gallery">
+            <div class="landing-shot animate-in">
+                <img src="https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&amp;fit=crop&amp;w=1400&amp;q=80" alt="Students working on laptops together">
+                <div class="image-caption">
+                    <span>Search sessions</span>
+                    <strong>Better inputs lead to better faculty files.</strong>
                 </div>
             </div>
-        </div>
-    </section>
+            <div class="landing-shot animate-in animate-in-1">
+                <img src="https://images.unsplash.com/photo-1503676260728-1c00da094a0b?auto=format&amp;fit=crop&amp;w=1400&amp;q=80" alt="Student on a university campus with books">
+                <div class="image-caption">
+                    <span>Student context</span>
+                    <strong>Your background and interests shape how convincing the draft feels.</strong>
+                </div>
+            </div>
+            <div class="landing-shot animate-in animate-in-2">
+                <img src="https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&amp;fit=crop&amp;w=1400&amp;q=80" alt="Professional office desk with laptop and notes">
+                <div class="image-caption">
+                    <span>Delivery desk</span>
+                    <strong>Approval, preview, and sending stay visible instead of hidden behind a single button.</strong>
+                </div>
+            </div>
+        </section>
+
+        <section class="landing-quote-band">
+            <article class="surface-panel animate-in">
+                <div class="panel-kicker">Private access</div>
+                <div class="panel-title">Create a workspace, keep the access key, and start with a smaller better list.</div>
+                <p class="panel-copy">The app is meant for focused outreach, not anonymous volume. Sign up, store the issued key, and build a queue you would actually stand behind.</p>
+                <div class="hero-actions">
+                    <a href="{{ url_for('signup') }}" class="btn btn-primary">Create account</a>
+                    <a href="{{ url_for('login') }}" class="btn btn-outline">Go to login</a>
+                </div>
+            </article>
+            <div class="landing-shot animate-in animate-in-1">
+                <img src="https://images.unsplash.com/photo-1501504905252-473c47e087f8?auto=format&amp;fit=crop&amp;w=1400&amp;q=80" alt="University lecture hall with students">
+                <div class="image-caption">
+                    <span>Academic context</span>
+                    <strong>The product should feel native to research culture, not borrowed from generic sales software.</strong>
+                </div>
+            </div>
+        </section>
+    </main>
 
     <footer class="hp-footer">
-        <div class="container hp-footer-inner">
-            <div class="hp-footer-mark">
-                <div class="logo-icon" style="width:24px; height:24px; font-size:11px; border-radius:6px;">AO</div>
+        <div class="app-footer-inner">
+            <div class="app-footer-mark">
+                <div class="logo-icon" style="width:32px; height:32px; font-size:1rem; border-radius:12px;">AO</div>
                 <span>Academic Outreach v{{ app_version }}</span>
             </div>
-            <div class="hp-footer-copy">
-                Built for legitimate student-to-faculty outreach. Research first, review always.
-            </div>
+            <div>Built for legitimate student-to-faculty outreach. Research first, review always.</div>
         </div>
     </footer>
 
     <script>
-    // Theme
     function getTheme() { return localStorage.getItem('ao_theme') || 'system'; }
     function applyTheme(t) {
         const pref = t === 'system' ? (matchMedia('(prefers-color-scheme:light)').matches ? 'light' : 'dark') : t;
@@ -210,20 +197,26 @@
         if (el) el.innerHTML = icons[t] || icons.dark;
     }
     function cycleTheme() {
-        const order = ['dark','light','system'];
+        const order = ['dark', 'light', 'system'];
         const cur = getTheme();
-        const next = order[(order.indexOf(cur)+1) % order.length];
+        const next = order[(order.indexOf(cur) + 1) % order.length];
         localStorage.setItem('ao_theme', next);
         applyTheme(next);
     }
     applyTheme(getTheme());
-    matchMedia('(prefers-color-scheme:light)').addEventListener('change', () => { if(getTheme()==='system') applyTheme('system'); });
+    matchMedia('(prefers-color-scheme:light)').addEventListener('change', () => {
+        if (getTheme() === 'system') applyTheme('system');
+    });
 
-    // Intersection Observer for scroll animations
     const obs = new IntersectionObserver((entries) => {
-        entries.forEach(e => { if(e.isIntersecting) { e.target.classList.add('animate-visible'); obs.unobserve(e.target); } });
-    }, {threshold: 0.1});
-    document.querySelectorAll('.animate-in').forEach(el => obs.observe(el));
+        entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('animate-visible');
+                obs.unobserve(entry.target);
+            }
+        });
+    }, { threshold: 0.14 });
+    document.querySelectorAll('.animate-in').forEach((el) => obs.observe(el));
     </script>
 </body>
 </html>

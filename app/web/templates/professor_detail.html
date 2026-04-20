@@ -2,83 +2,147 @@
 {% block title %}{{ professor.name }}{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1>{{ professor.name }}</h1>
-    <p>{{ professor.title or '' }}, {{ professor.university }}, {{ professor.department }}</p>
-</div>
-
-<div class="detail-layout">
-    <div class="professor-context">
-        <div class="card">
-            <div class="card-header"><h3>Profile</h3></div>
-            <div style="display:flex; flex-direction:column; gap:0.6rem;">
-                <div><label>Email</label><div>{{ professor.email }}</div></div>
-                <div><label>Field</label><div>{{ professor.field }}</div></div>
-                {% if professor.lab_name %}<div><label>Lab</label><div>{{ professor.lab_name }}</div></div>{% endif %}
-                <div><label>Status</label><div><span class="badge badge-{{ professor.status }} badge-lg">{{ professor.status }}</span></div></div>
-                {% if professor.profile_url %}
-                <div><label>Profile</label><div><a href="{{ professor.profile_url }}" target="_blank">View Profile</a></div></div>
+<div class="editorial-page">
+    <section class="editorial-hero animate-in">
+        <div class="hero-copy">
+            <div class="eyebrow">Faculty file</div>
+            <h1 class="page-title">{{ professor.name }}</h1>
+            <p class="lead">{{ professor.title or 'Professor' }}, {{ professor.university }}, {{ professor.department }}</p>
+            <div class="hero-metrics">
+                <div class="metric-card">
+                    <span>Status</span>
+                    <strong>{{ professor.status }}</strong>
+                </div>
+                <div class="metric-card">
+                    <span>Field</span>
+                    <strong>{{ professor.field }}</strong>
+                </div>
+                {% if professor.lab_name %}
+                <div class="metric-card">
+                    <span>Lab</span>
+                    <strong>{{ professor.lab_name }}</strong>
+                </div>
                 {% endif %}
             </div>
         </div>
-
-        {% if professor.keywords_list %}
-        <div class="card" style="margin-top:1rem;">
-            <div class="card-header"><h3>Keywords</h3></div>
-            <div class="keyword-tags">
-                {% for kw in professor.keywords_list %}
-                <span class="badge badge-keyword">{{ kw }}</span>
-                {% endfor %}
+        <div class="image-card image-card--tall">
+            <img src="https://images.unsplash.com/photo-1501504905252-473c47e087f8?auto=format&amp;fit=crop&amp;w=1600&amp;q=80" alt="University classroom setting">
+            <div class="image-caption">
+                <span>Faculty context</span>
+                <strong>This file keeps the context behind a future draft: research areas, notes, talking points, and linked history.</strong>
             </div>
         </div>
-        {% endif %}
+    </section>
 
-        {% if professor.summary %}
-        <div class="card" style="margin-top:1rem;">
-            <div class="card-header"><h3>Research Summary</h3></div>
-            <p style="font-size:0.9rem;">{{ professor.summary }}</p>
-        </div>
-        {% endif %}
+    <div class="detail-layout">
+        <aside class="professor-context">
+            <article class="surface-panel animate-in animate-in-1">
+                <div class="surface-panel-header">
+                    <div>
+                        <div class="panel-kicker">Profile</div>
+                        <div class="panel-title">Core details</div>
+                    </div>
+                </div>
+                <div class="page-block">
+                    <div class="chip"><strong>Email</strong> {{ professor.email }}</div>
+                    <div class="chip"><strong>Field</strong> {{ professor.field }}</div>
+                    {% if professor.lab_name %}<div class="chip"><strong>Lab</strong> {{ professor.lab_name }}</div>{% endif %}
+                    <div class="chip"><strong>Status</strong> <span class="badge badge-{{ professor.status }}">{{ professor.status }}</span></div>
+                    {% if professor.profile_url %}
+                    <div class="chip"><strong>Profile</strong> <a href="{{ professor.profile_url }}" target="_blank" rel="noopener">Open external page</a></div>
+                    {% endif %}
+                </div>
+            </article>
 
-        {% if professor.talking_points_list %}
-        <div class="card" style="margin-top:1rem;">
-            <div class="card-header"><h3>Talking Points</h3></div>
-            <ul class="talking-points">
-                {% for tp in professor.talking_points_list %}
-                <li>{{ tp }}</li>
-                {% endfor %}
-            </ul>
-        </div>
-        {% endif %}
-    </div>
-
-    <div>
-        <div class="section-title">Drafts for {{ professor.name }} ({{ drafts|length }})</div>
-        {% if drafts %}
-        <div class="table-wrap">
-            <table>
-                <thead>
-                    <tr><th>ID</th><th>Subject</th><th>Score</th><th>Status</th><th>Created</th></tr>
-                </thead>
-                <tbody>
-                    {% for d in drafts %}
-                    <tr class="clickable-row" onclick="window.location='{{ url_for('draft_detail', draft_id=d.id) }}'">
-                        <td>#{{ d.id }}</td>
-                        <td>{{ d.subject_lines_list[0] if d.subject_lines_list else '(no subject)' }}</td>
-                        <td>
-                            {% set sc = d.overall_score %}
-                            <span class="score-badge {% if sc >= 7.5 %}score-high{% elif sc >= 4.0 %}score-mid{% else %}score-low{% endif %}">{{ "%.1f"|format(sc) }}</span>
-                        </td>
-                        <td><span class="badge badge-{{ d.status }}">{{ d.status }}</span></td>
-                        <td style="font-size:0.82rem; color:var(--ao-text-dim);">{{ d.created_at[:16] }}</td>
-                    </tr>
+            {% if professor.keywords_list %}
+            <article class="surface-panel animate-in animate-in-2">
+                <div class="surface-panel-header">
+                    <div>
+                        <div class="panel-kicker">Keywords</div>
+                        <div class="panel-title">Research tags</div>
+                    </div>
+                </div>
+                <div class="keyword-tags">
+                    {% for kw in professor.keywords_list %}
+                    <span class="badge badge-keyword">{{ kw }}</span>
                     {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        {% else %}
-        <div class="empty-state"><div class="empty-icon">&#9998;</div><p>No drafts generated yet.</p></div>
-        {% endif %}
+                </div>
+            </article>
+            {% endif %}
+
+            {% if professor.summary %}
+            <article class="surface-panel animate-in animate-in-3">
+                <div class="surface-panel-header">
+                    <div>
+                        <div class="panel-kicker">Summary</div>
+                        <div class="panel-title">Research note</div>
+                    </div>
+                </div>
+                <p>{{ professor.summary }}</p>
+            </article>
+            {% endif %}
+
+            {% if professor.talking_points_list %}
+            <article class="surface-panel animate-in animate-in-4">
+                <div class="surface-panel-header">
+                    <div>
+                        <div class="panel-kicker">Talking points</div>
+                        <div class="panel-title">Useful anchors</div>
+                    </div>
+                </div>
+                <ul class="talking-points">
+                    {% for tp in professor.talking_points_list %}
+                    <li>{{ tp }}</li>
+                    {% endfor %}
+                </ul>
+            </article>
+            {% endif %}
+        </aside>
+
+        <section class="draft-content-panel">
+            <article class="surface-panel animate-in animate-in-1">
+                <div class="surface-panel-header">
+                    <div>
+                        <div class="panel-kicker">Draft history</div>
+                        <div class="panel-title">Drafts for {{ professor.name }} ({{ drafts|length }})</div>
+                    </div>
+                </div>
+                {% if drafts %}
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Subject</th>
+                                <th>Score</th>
+                                <th>Status</th>
+                                <th>Created</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for d in drafts %}
+                            <tr class="clickable-row" onclick="window.location='{{ url_for('draft_detail', draft_id=d.id) }}'">
+                                <td>#{{ d.id }}</td>
+                                <td>{{ d.subject_lines_list[0] if d.subject_lines_list else '(no subject)' }}</td>
+                                <td>
+                                    {% set sc = d.overall_score %}
+                                    <span class="score-badge {% if sc >= 7.5 %}score-high{% elif sc >= 4.0 %}score-mid{% else %}score-low{% endif %}">{{ "%.1f"|format(sc) }}</span>
+                                </td>
+                                <td><span class="badge badge-{{ d.status }}">{{ d.status }}</span></td>
+                                <td>{{ d.created_at[:16] }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="empty-state">
+                    <div class="empty-icon">&#9998;</div>
+                    <p>No drafts generated yet.</p>
+                </div>
+                {% endif %}
+            </article>
+        </section>
     </div>
 </div>
 {% endblock %}

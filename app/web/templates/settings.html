@@ -2,157 +2,226 @@
 {% block title %}Workspace Setup{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <div>
-        <div class="page-kicker">Workspace Setup</div>
-        <h1>Control how drafts are written and how approved emails leave the queue.</h1>
-        <p>These settings define the sender identity, model behavior, and delivery path behind the workspace, including how machine learning research interests show up in personalization.</p>
-    </div>
-    <div class="page-header-meta">
-        <div class="page-meta-chip">
-            <span>Sender email</span>
-            <strong>{{ effective.sender_email or 'Unset' }}</strong>
+<div class="editorial-page">
+    <section class="editorial-hero animate-in">
+        <div class="hero-copy">
+            <div class="eyebrow">Workspace setup</div>
+            <h1 class="page-title">Control how drafts are written and how approved email leaves the queue.</h1>
+            <p class="lead">These settings define the sender identity, model behavior, and delivery path behind the workspace.</p>
+            <div class="hero-metrics">
+                <div class="metric-card">
+                    <span>Sender email</span>
+                    <strong>{{ effective.sender_email or 'Unset' }}</strong>
+                </div>
+                <div class="metric-card">
+                    <span>Delivery mode</span>
+                    <strong>{{ effective.email_provider or 'Unset' }}</strong>
+                </div>
+                <div class="metric-card">
+                    <span>Profiles saved</span>
+                    <strong>{{ profiles|length }}</strong>
+                </div>
+            </div>
         </div>
-        <div class="page-meta-chip">
-            <span>Delivery mode</span>
-            <strong>{{ effective.email_provider or 'Unset' }}</strong>
+        <div class="image-card image-card--tall">
+            <img src="https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&amp;fit=crop&amp;w=1600&amp;q=80" alt="Collaborative workspace with students">
+            <div class="image-caption">
+                <span>Control desk</span>
+                <strong>This is where the identity behind the message gets defined before drafting and delivery ever begin.</strong>
+            </div>
         </div>
-    </div>
-</div>
+    </section>
 
-<form method="POST" action="{{ url_for('settings_save') }}">
-    <div class="grid-2">
-        <!-- LLM Config -->
-        <div class="card">
-            <div class="card-header"><h3>Writing model</h3></div>
-            <div class="form-group">
-                <label for="llm_provider">Provider</label>
-                <select id="llm_provider" name="llm_provider">
-                    <option value="" {% if not effective.llm_provider %}selected{% endif %}>(None, keyword mode)</option>
-                    <option value="openrouter" {% if effective.llm_provider == 'openrouter' %}selected{% endif %}>OpenRouter</option>
-                    <option value="openai" {% if effective.llm_provider == 'openai' %}selected{% endif %}>OpenAI</option>
-                    <option value="anthropic" {% if effective.llm_provider == 'anthropic' %}selected{% endif %}>Anthropic</option>
-                </select>
+    <form method="POST" action="{{ url_for('settings_save') }}" class="grid-2">
+        <article class="surface-panel animate-in animate-in-1">
+            <div class="surface-panel-header">
+                <div>
+                    <div class="panel-kicker">Writing model</div>
+                    <div class="panel-title">Generation settings</div>
+                </div>
             </div>
-            <div class="form-group">
-                <label for="llm_model">Model</label>
-                <select id="llm_model" name="llm_model">
-                    {% for model_id, model_name in llm_models.items() %}
-                    <option value="{{ model_id }}" {% if effective.llm_model == model_id %}selected{% endif %}>{{ model_name }}</option>
-                    {% endfor %}
-                </select>
-                <div class="form-hint">Choose the writing engine that best matches how much variation and cost you want in draft generation, especially if you want stronger ML-specific summaries and hooks.</div>
+            <div class="page-block">
+                <div class="form-group">
+                    <label for="llm_provider">Provider</label>
+                    <select id="llm_provider" name="llm_provider">
+                        <option value="" {% if not effective.llm_provider %}selected{% endif %}>(None, keyword mode)</option>
+                        <option value="openrouter" {% if effective.llm_provider == 'openrouter' %}selected{% endif %}>OpenRouter</option>
+                        <option value="openai" {% if effective.llm_provider == 'openai' %}selected{% endif %}>OpenAI</option>
+                        <option value="anthropic" {% if effective.llm_provider == 'anthropic' %}selected{% endif %}>Anthropic</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="llm_model">Model</label>
+                    <select id="llm_model" name="llm_model">
+                        {% for model_id, model_name in llm_models.items() %}
+                        <option value="{{ model_id }}" {% if effective.llm_model == model_id %}selected{% endif %}>{{ model_name }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="form-hint">Choose the writing engine that best matches the level of variation and cost you want in draft generation.</div>
+                </div>
+                <div class="auth-note">
+                    <p>API Key:
+                    {% if effective.llm_api_key_set %}
+                        <span style="color:var(--ao-success); font-weight:700;">Set server-side</span>
+                    {% else %}
+                        <span style="color:var(--ao-danger); font-weight:700;">Not configured</span>
+                    {% endif %}
+                    </p>
+                </div>
             </div>
-            <div style="padding:0.5rem 0.75rem; background:var(--ao-surface-3); border-radius:var(--ao-radius-sm); font-size:0.82rem;">
-                API Key: {% if effective.llm_api_key_set %}<span style="color:var(--ao-success);">Set (server-side)</span>{% else %}<span style="color:var(--ao-danger);">Not configured</span>{% endif %}
-            </div>
-        </div>
+        </article>
 
-        <!-- Email Config -->
-        <div class="card">
-            <div class="card-header"><h3>Sender and delivery</h3></div>
-            <div class="form-group">
-                <label for="sender_email">Sender Email</label>
-                <input type="email" id="sender_email" name="sender_email" value="{{ effective.sender_email }}" placeholder="you@gmail.com">
+        <article class="surface-panel animate-in animate-in-2">
+            <div class="surface-panel-header">
+                <div>
+                    <div class="panel-kicker">Sender and delivery</div>
+                    <div class="panel-title">Mail configuration</div>
+                </div>
             </div>
-            <div class="form-group">
-                <label for="email_provider">Provider</label>
-                <select id="email_provider" name="email_provider">
-                    {% for pid, pname in email_providers.items() %}
-                    <option value="{{ pid }}" {% if effective.email_provider == pid %}selected{% endif %}>{{ pname }}</option>
-                    {% endfor %}
-                </select>
+            <div class="page-block">
+                <div class="form-group">
+                    <label for="sender_email">Sender Email</label>
+                    <input type="email" id="sender_email" name="sender_email" value="{{ effective.sender_email }}" placeholder="you@gmail.com">
+                </div>
+                <div class="form-group">
+                    <label for="email_provider">Provider</label>
+                    <select id="email_provider" name="email_provider">
+                        {% for pid, pname in email_providers.items() %}
+                        <option value="{{ pid }}" {% if effective.email_provider == pid %}selected{% endif %}>{{ pname }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="smtp_user">SMTP Username</label>
+                    <input type="text" id="smtp_user" name="smtp_user" value="{{ effective.smtp_user }}" placeholder="Optional">
+                </div>
+                <div class="form-group">
+                    <label for="smtp_password">SMTP Password</label>
+                    <input type="password" id="smtp_password" name="smtp_password" value="{{ effective.smtp_password }}" placeholder="App password">
+                    <div class="form-hint">Used for direct SMTP delivery. Leave blank if another path is handling the queue.</div>
+                </div>
             </div>
-            <div class="form-group">
-                <label for="smtp_user">SMTP Username</label>
-                <input type="text" id="smtp_user" name="smtp_user" value="{{ effective.smtp_user }}" placeholder="Optional">
-            </div>
-            <div class="form-group">
-                <label for="smtp_password">SMTP Password</label>
-                <input type="password" id="smtp_password" name="smtp_password" value="{{ effective.smtp_password }}" placeholder="App password">
-                <div class="form-hint">Used for direct SMTP delivery. Leave blank if another sending path is handling the queue.</div>
-            </div>
-        </div>
-    </div>
+        </article>
 
-    <button type="submit" class="btn btn-primary" style="margin-top:1rem;">Save Settings</button>
-</form>
-
-<!-- Sender Profiles -->
-<div class="section" style="margin-top:2rem;">
-    <div class="section-title">Sender profiles</div>
-    <form method="POST" action="{{ url_for('create_sender_profile_route') }}" class="card" style="margin-bottom:1rem;">
-        <div class="card-header"><h3>Add sender profile</h3></div>
-        <div class="grid-2">
-            <div class="form-group">
-                <label for="profile-name">Full Name</label>
-                <input id="profile-name" name="name" type="text" placeholder="Student name">
-            </div>
-            <div class="form-group">
-                <label for="profile-email">Email</label>
-                <input id="profile-email" name="email" type="email" placeholder="student@example.com">
-            </div>
-            <div class="form-group">
-                <label for="profile-school">School</label>
-                <input id="profile-school" name="school" type="text" placeholder="High school or program">
-            </div>
-            <div class="form-group">
-                <label for="profile-grade">Grade / Year</label>
-                <input id="profile-grade" name="grade" type="text" placeholder="11th grade">
-            </div>
-            <div class="form-group">
-                <label for="profile-grad-year">Graduation Year <span style="color:var(--ao-text-dim);">(optional)</span></label>
-                <input id="profile-grad-year" name="graduation_year" type="text" placeholder="2027">
-            </div>
-            <div class="form-group">
-                <label for="profile-interests">Interests</label>
-                <input id="profile-interests" name="interests" type="text" placeholder="Machine learning, NLP, computer vision, systems">
-            </div>
+        <div style="grid-column:1 / -1;">
+            <button type="submit" class="btn btn-primary">Save settings</button>
         </div>
-        <div class="form-group">
-            <label for="profile-background">Background</label>
-            <textarea id="profile-background" name="background" rows="4" placeholder="Classes, projects, clubs, coding background, competitions, Kaggle work, papers read, or relevant ML experience."></textarea>
-            <div class="form-hint">This is the student context used during personalization, so concrete details like PyTorch work, model evaluation, or projects in ML make the drafts sound more believable.</div>
-        </div>
-        <button type="submit" class="btn btn-primary">Save Sender Profile</button>
     </form>
 
-    {% if profiles %}
-    <div class="table-wrap">
-        <table>
-            <thead><tr><th>ID</th><th>Name</th><th>School</th><th>Grade</th><th>Email</th><th>Interests</th></tr></thead>
-            <tbody>
-                {% for p in profiles %}
-                <tr>
-                    <td>#{{ p.id }}</td><td>{{ p.name }}</td><td>{{ p.school }}</td>
-                    <td>{{ p.grade }}</td><td>{{ p.email }}</td>
-                    <td style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ p.interests }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% else %}
-    <div class="empty-state"><p>No sender profiles are stored yet. Add one above so the drafting workflow knows who the outreach is coming from.</p></div>
-    {% endif %}
-</div>
+    <section class="surface-panel animate-in animate-in-3">
+        <div class="surface-panel-header">
+            <div>
+                <div class="panel-kicker">Sender profiles</div>
+                <div class="panel-title">Who the outreach is coming from</div>
+            </div>
+        </div>
 
-<!-- Suppression List -->
-<div class="section">
-    <div class="section-title">Do-not-contact list</div>
-    {% if suppression %}
-    <div class="table-wrap">
-        <table>
-            <thead><tr><th>Email</th><th>Reason</th><th>Added</th></tr></thead>
-            <tbody>
-                {% for s in suppression %}
-                <tr><td>{{ s.email }}</td><td>{{ s.reason }}</td><td style="color:var(--ao-text-dim);">{{ s.added_at }}</td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% else %}
-    <div class="empty-state"><p>Suppression list is empty.</p></div>
-    {% endif %}
+        <form method="POST" action="{{ url_for('create_sender_profile_route') }}" class="page-block" style="margin-bottom:1.2rem;">
+            <div class="grid-2">
+                <div class="form-group">
+                    <label for="profile-name">Full Name</label>
+                    <input id="profile-name" name="name" type="text" placeholder="Student name">
+                </div>
+                <div class="form-group">
+                    <label for="profile-email">Email</label>
+                    <input id="profile-email" name="email" type="email" placeholder="student@example.com">
+                </div>
+                <div class="form-group">
+                    <label for="profile-school">School</label>
+                    <input id="profile-school" name="school" type="text" placeholder="High school or program">
+                </div>
+                <div class="form-group">
+                    <label for="profile-grade">Grade / Year</label>
+                    <input id="profile-grade" name="grade" type="text" placeholder="11th grade">
+                </div>
+                <div class="form-group">
+                    <label for="profile-grad-year">Graduation Year</label>
+                    <input id="profile-grad-year" name="graduation_year" type="text" placeholder="2027">
+                </div>
+                <div class="form-group">
+                    <label for="profile-interests">Interests</label>
+                    <input id="profile-interests" name="interests" type="text" placeholder="Machine learning, systems, NLP, robotics">
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="profile-background">Background</label>
+                <textarea id="profile-background" name="background" rows="4" placeholder="Classes, projects, clubs, coding background, competition work, papers read, or other relevant context."></textarea>
+                <div class="form-hint">Concrete details make later drafts sound more believable than generic enthusiasm ever will.</div>
+            </div>
+            <div class="hero-actions">
+                <button type="submit" class="btn btn-primary">Save sender profile</button>
+            </div>
+        </form>
+
+        {% if profiles %}
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>School</th>
+                        <th>Grade</th>
+                        <th>Email</th>
+                        <th>Interests</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in profiles %}
+                    <tr>
+                        <td>#{{ p.id }}</td>
+                        <td>{{ p.name }}</td>
+                        <td>{{ p.school }}</td>
+                        <td>{{ p.grade }}</td>
+                        <td>{{ p.email }}</td>
+                        <td>{{ p.interests }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">&#128100;</div>
+            <p>No sender profiles are stored yet. Add one above so the drafting workflow knows who the outreach is coming from.</p>
+        </div>
+        {% endif %}
+    </section>
+
+    <section class="surface-panel animate-in animate-in-4">
+        <div class="surface-panel-header">
+            <div>
+                <div class="panel-kicker">Do-not-contact list</div>
+                <div class="panel-title">Suppression records</div>
+            </div>
+        </div>
+        {% if suppression %}
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Email</th>
+                        <th>Reason</th>
+                        <th>Added</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in suppression %}
+                    <tr>
+                        <td>{{ s.email }}</td>
+                        <td>{{ s.reason }}</td>
+                        <td>{{ s.added_at }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">&#128683;</div>
+            <p>Suppression list is empty.</p>
+        </div>
+        {% endif %}
+    </section>
 </div>
 {% endblock %}

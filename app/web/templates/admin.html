@@ -6,272 +6,288 @@
     <title>Admin Hub | Academic Outreach</title>
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon-admin.svg') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='revamp.css') }}">
 </head>
-<body>
-    <!-- Admin-only navbar -->
-    <nav class="navbar" style="border-bottom-color: rgba(232,65,65,0.3);">
+<body class="admin-shell">
+    <nav class="navbar">
         <div class="navbar-inner">
             <a href="{{ url_for('admin_hub') }}" class="logo">
-                <div class="logo-icon" style="background: linear-gradient(135deg, #e84141 0%, #6c5ce7 100%);">AO</div>
-                <div class="logo-text">Admin <span>Hub</span></div>
+                <div class="logo-icon">AO</div>
+                <div class="logo-text">Admin<span>Hub</span></div>
             </a>
             <ul class="nav-links">
                 <li><a href="{{ url_for('admin_hub') }}" class="active"><span class="nav-icon">&#9879;</span> Overview</a></li>
                 <li><a href="{{ url_for('admin_activity') }}"><span class="nav-icon">&#128203;</span> Activity Log</a></li>
             </ul>
             <div class="nav-user">
-                <span class="badge badge-admin" style="margin-right:0.5rem;">ADMIN</span>
+                <span class="badge badge-admin">Admin</span>
                 <span>{{ session.get('admin_key_label', 'Admin') }}</span>
-                <a href="{{ url_for('admin_logout') }}" class="btn-ghost btn-sm" style="margin-left:0.5rem;">Logout</a>
+                <a href="{{ url_for('admin_logout') }}" class="btn btn-ghost btn-sm">Logout</a>
             </div>
         </div>
     </nav>
 
-    <div class="container page-content">
-        {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-        <div class="flash-messages">
-            {% for category, message in messages %}
-            <div class="flash-msg flash-{{ category }}">{{ message }}</div>
-            {% endfor %}
-        </div>
-        {% endif %}
-        {% endwith %}
-
-        <div class="admin-header">
-            <div>
-                <h1>Admin Hub</h1>
-                <p>Manage access keys, monitor activity, and control the system</p>
-            </div>
-        </div>
-
-        <!-- Stats Row -->
-        <div class="admin-stat-row">
-            <div class="stat-card">
-                <div class="stat-label">Total Keys</div>
-                <div class="stat-number">{{ keys|length }}</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Active Keys</div>
-                <div class="stat-number">{{ keys|selectattr('is_active')|list|length }}</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Admin Keys</div>
-                <div class="stat-number">{{ keys|selectattr('role', 'equalto', 'admin')|list|length }}</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">User Keys</div>
-                <div class="stat-number">{{ keys|selectattr('role', 'equalto', 'user')|list|length }}</div>
-            </div>
-            <div class="stat-card" style="border-color: rgba(232,65,65,0.3);">
-                <div class="stat-label">Events Today</div>
-                <div class="stat-number" style="color: var(--ao-danger);">{{ stats.today_events }}</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Unique IPs</div>
-                <div class="stat-number">{{ stats.unique_ips }}</div>
-            </div>
-        </div>
-
-        <!-- Create New Key -->
-        <div class="card section">
-            <div class="card-header">
-                <h3>Create Access Key</h3>
-            </div>
-            <form method="POST" action="{{ url_for('admin_create_key') }}" style="display:grid; grid-template-columns:1fr 1fr auto; gap:0.75rem; align-items:end;">
-                <div class="form-group" style="margin:0;">
-                    <label for="label">Label</label>
-                    <input type="text" id="label" name="label" placeholder="e.g. John's key" required>
-                </div>
-                <div class="form-group" style="margin:0;">
-                    <label for="role">Role</label>
-                    <select id="role" name="role">
-                        <option value="user">User</option>
-                        <option value="admin">Admin</option>
-                    </select>
-                </div>
-                <button type="submit" class="btn btn-primary" style="margin-bottom:0;">Create Key</button>
-            </form>
-        </div>
-
-        <!-- Generated Key Display (persists in session until dismissed) -->
-        {% if new_key %}
-        <div class="card section" id="new-key-card" style="border-color: var(--ao-success); background: rgba(0,206,201,0.05);">
-            <div style="display:flex; justify-content:space-between; align-items:center; padding:0 0 0.75rem 0;">
-                <h3 style="color: var(--ao-success); margin:0;">Key for "{{ new_key_label }}"</h3>
-                <button class="btn btn-ghost btn-sm" onclick="dismissKey()" title="Dismiss this key display" style="opacity:0.6;">&times; Dismiss</button>
-            </div>
-            <div style="background: var(--ao-surface-3); padding: 1.25rem; border-radius: var(--ao-radius-sm); text-align: center; margin-bottom:1rem;">
-                <code id="new-key-value" style="font-size: 1.05rem; user-select: all; word-break: break-all; line-height:1.8;">{{ new_key }}</code>
-            </div>
-            <div style="display:flex; gap:0.75rem; justify-content:center; align-items:center; flex-wrap:wrap;">
-                <button class="btn btn-primary" onclick="copyKey()" id="copy-key-btn" style="min-width:160px;">
-                    Copy Key
-                </button>
-                <button class="btn btn-outline btn-sm" onclick="copyInstructions()" id="copy-instructions-btn">
-                    Copy with Instructions
-                </button>
-            </div>
-            <div id="copy-feedback" style="text-align:center; margin-top:0.75rem; font-size:0.85rem;"></div>
-            <div style="margin-top:1rem; padding:0.75rem; background:var(--ao-surface-2); border-radius:var(--ao-radius-sm); font-size:0.85rem; color:var(--ao-text-dim); border:1px solid var(--ao-border);">
-                <strong style="color:var(--ao-text);">Instructions for the recipient:</strong><br>
-                1. Go to <code>{{ request.host_url }}login</code><br>
-                2. Paste the access key above<br>
-                3. Click "Sign In"
-            </div>
-        </div>
-        {% endif %}
-
-        <!-- Existing Keys -->
-        <div class="section">
-            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
-                <div class="section-title" style="margin:0;">Access Keys</div>
-                <input type="text" id="key-search" placeholder="Search keys..." oninput="filterKeys()" style="width:220px; padding:0.4rem 0.75rem; font-size:0.85rem;">
-            </div>
-            {% if keys %}
-            <div class="table-wrap" style="margin-top:0.75rem;">
-                <table id="keys-table">
-                    <thead>
-                        <tr>
-                            <th>Label</th>
-                            <th>Key</th>
-                            <th>Role</th>
-                            <th>Status</th>
-                            <th>Created By</th>
-                            <th>Created</th>
-                            <th>Last Used</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for key in keys %}
-                        <tr class="key-row">
-                            <td><strong>{{ key.label or 'Unlabeled' }}</strong></td>
-                            <td>
-                                <span class="key-display key-display-masked">
-                                    {{ key.key_value[:8] }}...{{ key.key_value[-4:] }}
-                                </span>
-                            </td>
-                            <td><span class="badge badge-{{ key.role }}">{{ key.role }}</span></td>
-                            <td>
-                                {% if key.is_active %}
-                                <span class="badge badge-active">active</span>
-                                {% else %}
-                                <span class="badge badge-revoked">revoked</span>
-                                {% endif %}
-                            </td>
-                            <td style="font-size:0.82rem; color:var(--ao-text-dim);">{{ key.created_by }}</td>
-                            <td style="font-size:0.82rem; color:var(--ao-text-dim);">{{ key.created_at[:16] }}</td>
-                            <td style="font-size:0.82rem; color:var(--ao-text-dim);">{{ key.last_used[:16] if key.last_used else 'Never' }}</td>
-                            <td>
-                                {% if key.is_active %}
-                                <form method="POST" action="{{ url_for('admin_revoke_key', key_id=key.id) }}" style="display:inline;">
-                                    <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Revoke this key?');">Revoke</button>
-                                </form>
-                                {% endif %}
-                                <form method="POST" action="{{ url_for('admin_delete_key', key_id=key.id) }}" style="display:inline; margin-left:0.25rem;">
-                                    <button type="submit" class="btn btn-ghost btn-sm" onclick="return confirm('Permanently delete this key?');">Delete</button>
-                                </form>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            {% else %}
-            <div class="empty-state">
-                <div class="empty-icon">&#128273;</div>
-                <p>No access keys created yet.</p>
-            </div>
-            {% endif %}
-        </div>
-
-        <!-- Recent Activity (quick view) -->
-        <div class="section">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <div class="section-title">Recent Activity</div>
-                <a href="{{ url_for('admin_activity') }}" class="btn btn-outline btn-sm">View Full Log</a>
-            </div>
-            {% if recent_activity %}
-            <div class="table-wrap">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Time</th>
-                            <th>Actor</th>
-                            <th>Role</th>
-                            <th>Action</th>
-                            <th>Category</th>
-                            <th>IP</th>
-                            <th>Path</th>
-                            <th>Details</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for a in recent_activity[:20] %}
-                        <tr>
-                            <td style="font-size:0.8rem; white-space:nowrap; color:var(--ao-text-dim);">{{ a.timestamp[:19] }}</td>
-                            <td>
-                                {% if a.actor_label %}
-                                <strong>{{ a.actor_label }}</strong>
-                                {% else %}
-                                <span style="color:var(--ao-text-dim);">system</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if a.actor_role == 'admin' %}
-                                <span class="badge badge-admin">admin</span>
-                                {% else %}
-                                <span class="badge badge-user">{{ a.actor_role or 'user' }}</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                <code style="font-size:0.82rem; background:var(--ao-surface-3); padding:0.15rem 0.4rem; border-radius:3px;">
-                                    {{ a.action }}
-                                </code>
-                            </td>
-                            <td style="font-size:0.82rem;">{{ a.category }}</td>
-                            <td style="font-size:0.8rem; color:var(--ao-text-dim); font-family:monospace;">{{ a.ip_address or '-' }}</td>
-                            <td style="font-size:0.8rem; color:var(--ao-text-dim);">{{ a.request_method }} {{ a.request_path or '' }}</td>
-                            <td style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:0.8rem; color:var(--ao-text-dim);">
-                                {{ a.details if a.details != '{}' else '' }}
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            {% else %}
-            <div class="empty-state">
-                <p>No activity recorded yet.</p>
-            </div>
-            {% endif %}
-        </div>
-
-        <!-- Action Breakdown -->
-        {% if stats.by_action %}
-        <div class="section">
-            <div class="section-title">Action Breakdown</div>
-            <div class="grid-3" style="gap:0.5rem;">
-                {% for action, count in stats.by_action.items() %}
-                <div style="display:flex; justify-content:space-between; align-items:center; padding:0.5rem 0.75rem; background:var(--ao-surface-2); border-radius:var(--ao-radius-sm); border:1px solid var(--ao-border);">
-                    <code style="font-size:0.82rem;">{{ action }}</code>
-                    <span style="font-weight:600; color:var(--ao-primary);">{{ count }}</span>
-                </div>
+    <main class="app-main">
+        <div class="container page-content">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            <div class="flash-messages">
+                {% for category, message in messages %}
+                <div class="flash-msg flash-{{ category }}">{{ message }}</div>
                 {% endfor %}
             </div>
-        </div>
-        {% endif %}
-    </div>
+            {% endif %}
+            {% endwith %}
 
-    <footer class="footer-bar" style="text-align:center; padding:1.5rem; color:var(--ao-text-dim); font-size:0.8rem; border-top:1px solid var(--ao-border);">
-        Admin Hub | Academic Outreach v{{ app_version }}
+            <div class="editorial-page">
+                <section class="editorial-hero animate-in">
+                    <div class="hero-copy">
+                        <div class="eyebrow">Admin hub</div>
+                        <h1 class="page-title">Access control and operational review.</h1>
+                        <p class="lead">Manage access keys, inspect recent activity, and keep the admin surface honest about who is using the product and how.</p>
+                        <div class="hero-metrics">
+                            <div class="metric-card">
+                                <span>Total keys</span>
+                                <strong>{{ keys|length }}</strong>
+                            </div>
+                            <div class="metric-card">
+                                <span>Events today</span>
+                                <strong>{{ stats.today_events }}</strong>
+                            </div>
+                            <div class="metric-card">
+                                <span>Unique IPs</span>
+                                <strong>{{ stats.unique_ips }}</strong>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="image-card image-card--tall">
+                        <img src="https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&amp;fit=crop&amp;w=1600&amp;q=80" alt="Operations desk">
+                        <div class="image-caption">
+                            <span>Operations view</span>
+                            <strong>The admin side is meant for audit, issuance, and oversight, not everyday workflow.</strong>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="grid-5 animate-in animate-in-1">
+                    <div class="stat-card">
+                        <div class="stat-label">Active Keys</div>
+                        <div class="stat-number">{{ keys|selectattr('is_active')|list|length }}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Admin Keys</div>
+                        <div class="stat-number">{{ keys|selectattr('role', 'equalto', 'admin')|list|length }}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">User Keys</div>
+                        <div class="stat-number">{{ keys|selectattr('role', 'equalto', 'user')|list|length }}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Events Today</div>
+                        <div class="stat-number">{{ stats.today_events }}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Unique IPs</div>
+                        <div class="stat-number">{{ stats.unique_ips }}</div>
+                    </div>
+                </section>
+
+                <section class="surface-panel animate-in animate-in-2">
+                    <div class="surface-panel-header">
+                        <div>
+                            <div class="panel-kicker">Create access key</div>
+                            <div class="panel-title">Issue a new credential</div>
+                        </div>
+                    </div>
+                    <form method="POST" action="{{ url_for('admin_create_key') }}" class="grid-3">
+                        <div class="form-group">
+                            <label for="label">Label</label>
+                            <input type="text" id="label" name="label" placeholder="e.g. Research team workspace" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="role">Role</label>
+                            <select id="role" name="role">
+                                <option value="user">User</option>
+                                <option value="admin">Admin</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="display:flex; align-items:end;">
+                            <button type="submit" class="btn btn-primary">Create key</button>
+                        </div>
+                    </form>
+                </section>
+
+                {% if new_key %}
+                <section class="surface-panel animate-in animate-in-3" id="new-key-card">
+                    <div class="surface-panel-header">
+                        <div>
+                            <div class="panel-kicker">Freshly created</div>
+                            <div class="panel-title">Key for "{{ new_key_label }}"</div>
+                        </div>
+                        <button class="btn btn-ghost btn-sm" onclick="dismissKey()">&times; Dismiss</button>
+                    </div>
+                    <div class="auth-key-value">
+                        <code id="new-key-value" style="font-size:1rem; color:var(--ao-accent);">{{ new_key }}</code>
+                    </div>
+                    <div class="hero-actions" style="margin-top:1rem;">
+                        <button class="btn btn-primary btn-sm" onclick="copyKey()" id="copy-key-btn">Copy key</button>
+                        <button class="btn btn-outline btn-sm" onclick="copyInstructions()" id="copy-instructions-btn">Copy with instructions</button>
+                    </div>
+                    <div id="copy-feedback" class="form-hint" style="margin-top:0.6rem;"></div>
+                    <div class="admin-note" style="margin-top:1rem;">
+                        <strong style="display:block; margin-bottom:0.35rem; color:var(--ao-text);">Instructions for the recipient</strong>
+                        <p>Go to <code>{{ request.host_url }}login</code>, paste the access key, and click "Sign in".</p>
+                    </div>
+                </section>
+                {% endif %}
+
+                <section class="surface-panel animate-in animate-in-4">
+                    <div class="surface-panel-header">
+                        <div>
+                            <div class="panel-kicker">Access keys</div>
+                            <div class="panel-title">Current credential inventory</div>
+                        </div>
+                        <input type="text" id="key-search" placeholder="Search keys..." oninput="filterKeys()" style="max-width:240px;">
+                    </div>
+                    {% if keys %}
+                    <div class="table-wrap">
+                        <table id="keys-table">
+                            <thead>
+                                <tr>
+                                    <th>Label</th>
+                                    <th>Key</th>
+                                    <th>Role</th>
+                                    <th>Status</th>
+                                    <th>Created By</th>
+                                    <th>Created</th>
+                                    <th>Last Used</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for key in keys %}
+                                <tr class="key-row">
+                                    <td><strong>{{ key.label or 'Unlabeled' }}</strong></td>
+                                    <td><code>{{ key.key_value[:8] }}...{{ key.key_value[-4:] }}</code></td>
+                                    <td><span class="badge badge-{{ key.role }}">{{ key.role }}</span></td>
+                                    <td>
+                                        {% if key.is_active %}
+                                        <span class="badge badge-active">active</span>
+                                        {% else %}
+                                        <span class="badge badge-revoked">revoked</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ key.created_by }}</td>
+                                    <td>{{ key.created_at[:16] }}</td>
+                                    <td>{{ key.last_used[:16] if key.last_used else 'Never' }}</td>
+                                    <td>
+                                        {% if key.is_active %}
+                                        <form method="POST" action="{{ url_for('admin_revoke_key', key_id=key.id) }}" style="display:inline;">
+                                            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Revoke this key?');">Revoke</button>
+                                        </form>
+                                        {% endif %}
+                                        <form method="POST" action="{{ url_for('admin_delete_key', key_id=key.id) }}" style="display:inline;">
+                                            <button type="submit" class="btn btn-ghost btn-sm" onclick="return confirm('Permanently delete this key?');">Delete</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="empty-state">
+                        <div class="empty-icon">&#128273;</div>
+                        <p>No access keys created yet.</p>
+                    </div>
+                    {% endif %}
+                </section>
+
+                <section class="admin-grid">
+                    <div class="admin-main">
+                        <article class="surface-panel animate-in animate-in-5">
+                            <div class="surface-panel-header">
+                                <div>
+                                    <div class="panel-kicker">Recent activity</div>
+                                    <div class="panel-title">Latest admin-visible events</div>
+                                </div>
+                                <a href="{{ url_for('admin_activity') }}" class="btn btn-outline btn-sm">View full log</a>
+                            </div>
+                            {% if recent_activity %}
+                            <div class="table-wrap">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Time</th>
+                                            <th>Actor</th>
+                                            <th>Role</th>
+                                            <th>Action</th>
+                                            <th>Category</th>
+                                            <th>IP</th>
+                                            <th>Path</th>
+                                            <th>Details</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for a in recent_activity[:20] %}
+                                        <tr>
+                                            <td>{{ a.timestamp[:19] }}</td>
+                                            <td>{% if a.actor_label %}<strong>{{ a.actor_label }}</strong>{% else %}<span style="color:var(--ao-text-dim);">system</span>{% endif %}</td>
+                                            <td>{% if a.actor_role == 'admin' %}<span class="badge badge-admin">admin</span>{% else %}<span class="badge badge-user">{{ a.actor_role or 'user' }}</span>{% endif %}</td>
+                                            <td><code>{{ a.action }}</code></td>
+                                            <td>{{ a.category }}</td>
+                                            <td>{{ a.ip_address or '-' }}</td>
+                                            <td>{{ a.request_method }} {{ a.request_path or '' }}</td>
+                                            <td>{{ a.details if a.details != '{}' else '' }}</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% else %}
+                            <div class="empty-state">
+                                <div class="empty-icon">&#128203;</div>
+                                <p>No activity recorded yet.</p>
+                            </div>
+                            {% endif %}
+                        </article>
+                    </div>
+
+                    <aside class="admin-side">
+                        {% if stats.by_action %}
+                        <article class="surface-panel animate-in animate-in-5">
+                            <div class="surface-panel-header">
+                                <div>
+                                    <div class="panel-kicker">Action breakdown</div>
+                                    <div class="panel-title">Event mix</div>
+                                </div>
+                            </div>
+                            <div class="page-block">
+                                {% for action, count in stats.by_action.items() %}
+                                <div class="chip"><strong>{{ action }}</strong> {{ count }}</div>
+                                {% endfor %}
+                            </div>
+                        </article>
+                        {% endif %}
+                    </aside>
+                </section>
+            </div>
+        </div>
+    </main>
+
+    <footer class="app-footer">
+        <div class="app-footer-inner">
+            <div class="app-footer-mark">
+                <div class="logo-icon" style="width:32px; height:32px; font-size:1rem; border-radius:12px;">AO</div>
+                <span>Admin Hub</span>
+            </div>
+            <div>Academic Outreach v{{ app_version }}</div>
+        </div>
     </footer>
 
     <script>
-    // Clipboard helper with fallback for non-HTTPS
     function _copyText(text) {
         if (navigator.clipboard && window.isSecureContext) {
             return navigator.clipboard.writeText(text);
@@ -292,26 +308,25 @@
         const key = document.getElementById('new-key-value').textContent.trim();
         _copyText(key).then(() => {
             const btn = document.getElementById('copy-key-btn');
-            btn.textContent = 'Copied!';
-            btn.style.background = 'var(--ao-success)';
-            document.getElementById('copy-feedback').innerHTML = '<span style="color:var(--ao-success);">Key copied to clipboard</span>';
-            setTimeout(() => { btn.textContent = 'Copy Key'; btn.style.background = ''; }, 3000);
+            btn.textContent = 'Copied';
+            document.getElementById('copy-feedback').innerHTML = '<span style="color:var(--ao-success);">Key copied to clipboard.</span>';
+            setTimeout(() => { btn.textContent = 'Copy key'; }, 2800);
         }).catch(() => {
-            document.getElementById('copy-feedback').innerHTML = '<span style="color:var(--ao-warning);">Copy failed. Please select and copy manually</span>';
+            document.getElementById('copy-feedback').innerHTML = '<span style="color:var(--ao-warning);">Copy failed. Please select and copy manually.</span>';
         });
     }
 
     function copyInstructions() {
         const key = document.getElementById('new-key-value').textContent.trim();
         const host = '{{ request.host_url }}'.replace(/\/$/, '');
-        const text = `Your Academic Outreach access key:\n\n${key}\n\nHow to log in:\n1. Go to ${host}/login\n2. Paste the key above\n3. Click "Sign In"\n\nKeep this key safe. Don't share it publicly.`;
+        const text = `Your Academic Outreach access key:\n\n${key}\n\nHow to log in:\n1. Go to ${host}/login\n2. Paste the access key above\n3. Click "Sign in"\n\nKeep this key safe.`;
         _copyText(text).then(() => {
             const btn = document.getElementById('copy-instructions-btn');
-            btn.textContent = 'Copied!';
-            document.getElementById('copy-feedback').innerHTML = '<span style="color:var(--ao-success);">Key + instructions copied, ready to send</span>';
-            setTimeout(() => { btn.textContent = 'Copy with Instructions'; }, 3000);
+            btn.textContent = 'Copied';
+            document.getElementById('copy-feedback').innerHTML = '<span style="color:var(--ao-success);">Key and instructions copied.</span>';
+            setTimeout(() => { btn.textContent = 'Copy with instructions'; }, 2800);
         }).catch(() => {
-            document.getElementById('copy-feedback').innerHTML = '<span style="color:var(--ao-warning);">Copy failed. Please select and copy manually</span>';
+            document.getElementById('copy-feedback').innerHTML = '<span style="color:var(--ao-warning);">Copy failed. Please copy manually.</span>';
         });
     }
 
@@ -328,6 +343,22 @@
             row.style.display = text.includes(q) ? '' : 'none';
         });
     }
+
+    function applyTheme(t) {
+        const pref = t === 'system' ? (matchMedia('(prefers-color-scheme:light)').matches ? 'light' : 'dark') : t;
+        document.documentElement.setAttribute('data-theme', pref);
+    }
+    applyTheme(localStorage.getItem('ao_theme') || 'system');
+
+    const obs = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('animate-visible');
+                obs.unobserve(entry.target);
+            }
+        });
+    }, { threshold: 0.12 });
+    document.querySelectorAll('.animate-in').forEach((el) => obs.observe(el));
     </script>
 </body>
 </html>

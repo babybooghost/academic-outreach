@@ -6,46 +6,60 @@
     <title>Admin Login | Academic Outreach</title>
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon-admin.svg') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='revamp.css') }}">
 </head>
-<body>
-    <div class="login-page" style="background: radial-gradient(circle at 30% 20%, rgba(232,65,65,0.12) 0%, transparent 50%), radial-gradient(circle at 70% 80%, rgba(108,92,231,0.08) 0%, transparent 50%), var(--ao-bg);">
-        <div class="login-card" style="border-color: rgba(232,65,65,0.3);">
-            <div class="login-logo">
-                <div class="logo-icon" style="background: linear-gradient(135deg, #e84141 0%, #6c5ce7 100%);">AO</div>
-                <h1>Admin Hub</h1>
-                <p style="color: var(--ao-danger);">Restricted Access: Admin Credentials Required</p>
-            </div>
-
-            {% if error %}
-            <div class="login-error">{{ error }}</div>
-            {% endif %}
-
-            <form method="POST" action="{{ url_for('admin_login') }}">
-                <div class="form-group">
-                    <label for="access_key">Admin Key</label>
-                    <input type="password" id="access_key" name="access_key"
-                           placeholder="Enter admin access key" autofocus required
-                           style="text-align:center; letter-spacing:0.05em; border-color: rgba(232,65,65,0.3);">
+<body class="admin-shell">
+    <div class="auth-layout">
+        <section class="auth-stage">
+            <img src="https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&amp;fit=crop&amp;w=1800&amp;q=80" alt="Operations desk with laptop and documents">
+            <div class="auth-stage-content">
+                <div class="auth-stage-card animate-in">
+                    <div class="auth-kicker">Restricted access</div>
+                    <h1 class="auth-title">Admin hub</h1>
+                    <p>This surface is for access management, audit review, and operational oversight. All admin actions are logged with timestamp and request metadata.</p>
+                    <ul>
+                        <li>Key issuance and revocation live here.</li>
+                        <li>Audit review covers actor, route, and request context.</li>
+                        <li>Use the admin key only for operational work.</li>
+                    </ul>
                 </div>
-                <button type="submit" class="btn" style="width:100%; padding:0.75rem; background: linear-gradient(135deg, #e84141 0%, #6c5ce7 100%); color: #fff; border:none; font-weight:600;">
-                    Authenticate
-                </button>
-            </form>
-
-            <div class="login-footer" style="margin-top:1.5rem;">
-                <span style="color:var(--ao-text-dim); font-size:0.82rem;">
-                    All admin actions are logged with IP, timestamp, and session data.
-                </span>
-                <br>
-                <a href="{{ url_for('login') }}" style="color:var(--ao-primary); font-size:0.85rem; margin-top:0.5rem; display:inline-block;">
-                    Back to user login
-                </a>
-                <br>
-                <a href="{{ url_for('homepage') }}" style="color:var(--ao-text-dim); font-size:0.82rem; margin-top:0.25rem; display:inline-block;">&larr; Back to home</a>
             </div>
-        </div>
+        </section>
+
+        <section class="auth-panel">
+            <div class="auth-form-card animate-in animate-in-1">
+                <div class="auth-form-stack">
+                    <div>
+                        <div class="auth-kicker">Admin login</div>
+                        <h1 class="auth-title">Authenticate</h1>
+                        <p>Enter the admin key to open the operations and audit surfaces.</p>
+                    </div>
+
+                    {% if error %}
+                    <div class="flash-msg flash-error">{{ error }}</div>
+                    {% endif %}
+
+                    <form method="POST" action="{{ url_for('admin_login') }}" class="auth-form-stack">
+                        <div class="form-group">
+                            <label for="access_key">Admin Key</label>
+                            <input type="password" id="access_key" name="access_key" placeholder="Enter admin access key" autofocus required style="text-align:center; letter-spacing:0.05em;">
+                        </div>
+                        <button type="submit" class="btn btn-primary" style="width:100%;">Authenticate</button>
+                    </form>
+
+                    <div class="auth-note">
+                        <p>Every admin action is recorded with IP, timestamp, and route details.</p>
+                    </div>
+
+                    <div class="auth-links">
+                        <a href="{{ url_for('login') }}">Back to user login</a>
+                        <a href="{{ url_for('homepage') }}">&larr; Back to home</a>
+                    </div>
+                </div>
+            </div>
+        </section>
     </div>
 
     <script>
@@ -54,6 +68,16 @@
         document.documentElement.setAttribute('data-theme', pref);
     }
     applyTheme(localStorage.getItem('ao_theme') || 'system');
+
+    const obs = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('animate-visible');
+                obs.unobserve(entry.target);
+            }
+        });
+    }, { threshold: 0.15 });
+    document.querySelectorAll('.animate-in').forEach((el) => obs.observe(el));
     </script>
 </body>
 </html>

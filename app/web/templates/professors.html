@@ -2,72 +2,111 @@
 {% block title %}Faculty Files{% endblock %}
 
 {% block content %}
-<div class="page-header animate-in">
-    <div>
-        <div class="page-kicker">Faculty Files</div>
-        <h1>Keep the working faculty list clean and reviewable.</h1>
-        <p>These records are the backbone of the workspace: who you may contact, where they work, and what stage each file is in.</p>
-    </div>
-    <div class="page-header-meta">
-        <div class="page-meta-chip">
-            <span>Visible files</span>
-            <strong>{{ professors|length }}</strong>
+<div class="editorial-page">
+    <section class="editorial-hero animate-in">
+        <div class="hero-copy">
+            <div class="eyebrow">Faculty files</div>
+            <h1 class="page-title">A working list you can still defend.</h1>
+            <p class="lead">These records are the backbone of the workspace: who you may contact, where they work, what they study, and what stage each file is in.</p>
+            <div class="hero-metrics">
+                <div class="metric-card">
+                    <span>Visible files</span>
+                    <strong>{{ professors|length }}</strong>
+                </div>
+                <div class="metric-card">
+                    <span>Status view</span>
+                    <strong>{{ current_status or 'All' }}</strong>
+                </div>
+                <div class="metric-card">
+                    <span>Field view</span>
+                    <strong>{{ current_field or 'All' }}</strong>
+                </div>
+            </div>
         </div>
-    </div>
-</div>
+        <div class="image-card image-card--tall">
+            <img src="https://images.unsplash.com/photo-1501504905252-473c47e087f8?auto=format&amp;fit=crop&amp;w=1600&amp;q=80" alt="University lecture hall">
+            <div class="image-caption">
+                <span>Context matters</span>
+                <strong>The better this list is curated, the easier it is for later drafts to sound grounded instead of generic.</strong>
+            </div>
+        </div>
+    </section>
 
-<div class="filter-bar">
-    <form method="GET" style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap; width:100%; margin:0;">
-        <select name="status">
-            <option value="">All Statuses</option>
-            {% for s in statuses %}
-            <option value="{{ s }}" {% if current_status == s %}selected{% endif %}>{{ s }}</option>
-            {% endfor %}
-        </select>
-        <select name="field">
-            <option value="">All Fields</option>
-            {% for f in fields %}
-            <option value="{{ f }}" {% if current_field == f %}selected{% endif %}>{{ f }}</option>
-            {% endfor %}
-        </select>
-        <button type="submit" class="btn btn-outline btn-sm">Apply Filters</button>
-        {% if current_status or current_field %}
-        <a href="{{ url_for('professors_list') }}" class="btn btn-ghost btn-sm">Clear</a>
+    <section class="surface-panel animate-in animate-in-1">
+        <div class="surface-panel-header">
+            <div>
+                <div class="panel-kicker">Filters</div>
+                <div class="panel-title">Focus the list</div>
+            </div>
+        </div>
+        <form method="GET" class="grid-3">
+            <div class="form-group">
+                <label for="status">Status</label>
+                <select id="status" name="status">
+                    <option value="">All statuses</option>
+                    {% for s in statuses %}
+                    <option value="{{ s }}" {% if current_status == s %}selected{% endif %}>{{ s }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="field">Field</label>
+                <select id="field" name="field">
+                    <option value="">All fields</option>
+                    {% for f in fields %}
+                    <option value="{{ f }}" {% if current_field == f %}selected{% endif %}>{{ f }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group" style="display:flex; align-items:end; gap:0.6rem;">
+                <button type="submit" class="btn btn-primary">Apply filters</button>
+                {% if current_status or current_field %}
+                <a href="{{ url_for('professors_list') }}" class="btn btn-outline">Clear</a>
+                {% endif %}
+            </div>
+        </form>
+    </section>
+
+    <section class="surface-panel animate-in animate-in-2">
+        <div class="surface-panel-header">
+            <div>
+                <div class="panel-kicker">Saved faculty</div>
+                <div class="panel-title">Review the current file list</div>
+            </div>
+        </div>
+        {% if professors %}
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>University</th>
+                        <th>Department</th>
+                        <th>Field</th>
+                        <th>Status</th>
+                        <th>Email</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for prof in professors %}
+                    <tr class="clickable-row" onclick="window.location='{{ url_for('professor_detail', prof_id=prof.id) }}'">
+                        <td><strong>{{ prof.name }}</strong>{% if prof.title %}<br><small>{{ prof.title }}</small>{% endif %}</td>
+                        <td>{{ prof.university }}</td>
+                        <td>{{ prof.department }}</td>
+                        <td>{{ prof.field }}</td>
+                        <td><span class="badge badge-{{ prof.status }}">{{ prof.status }}</span></td>
+                        <td>{{ prof.email }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">&#10022;</div>
+            <p>No faculty files match this view yet.</p>
+        </div>
         {% endif %}
-    </form>
+    </section>
 </div>
-
-{% if professors %}
-<div class="table-wrap">
-    <table>
-        <thead>
-            <tr>
-                <th>Name</th>
-                <th>University</th>
-                <th>Department</th>
-                <th>Field</th>
-                <th>Status</th>
-                <th>Email</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for prof in professors %}
-            <tr class="clickable-row" onclick="window.location='{{ url_for('professor_detail', prof_id=prof.id) }}'">
-                <td><strong>{{ prof.name }}</strong>{% if prof.title %}<br><small>{{ prof.title }}</small>{% endif %}</td>
-                <td>{{ prof.university }}</td>
-                <td>{{ prof.department }}</td>
-                <td>{{ prof.field }}</td>
-                <td><span class="badge badge-{{ prof.status }}">{{ prof.status }}</span></td>
-                <td style="font-size:0.85rem; color:var(--ao-text-dim);">{{ prof.email }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</div>
-{% else %}
-<div class="empty-state">
-    <div class="empty-icon">&#9733;</div>
-    <p>No faculty files match this view yet. Save results from Search to start building the list.</p>
-</div>
-{% endif %}
 {% endblock %}

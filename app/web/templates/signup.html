@@ -7,128 +7,133 @@
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Source+Serif+4:wght@600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='revamp.css') }}">
 </head>
 <body>
-    <div class="login-page">
-        <div class="login-card login-card-auth" style="max-width:560px; animation: slideUp 0.6s cubic-bezier(0.16,1,0.3,1) both;">
-            <div class="login-logo">
-                <div class="logo-icon">AO</div>
-                <div class="login-kicker">New workspace</div>
-                <h1>Open a private outreach workspace.</h1>
-                <p>Create your account, keep the issued access key, and use it to enter the research and drafting workspace later.</p>
+    <div class="auth-layout">
+        <section class="auth-stage">
+            <img src="https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&amp;fit=crop&amp;w=1800&amp;q=80" alt="Students collaborating around a table">
+            <div class="auth-stage-content">
+                <div class="auth-stage-card animate-in">
+                    <div class="auth-kicker">New workspace</div>
+                    <h1 class="auth-title">Set up a private research workflow.</h1>
+                    <p>Create the account, keep the issued access key, and use it later to return to the same faculty list, draft queue, and delivery setup.</p>
+                    <ul>
+                        <li>Each user keeps a separate workspace.</li>
+                        <li>Saved settings, faculty files, drafts, and send history belong to that workspace.</li>
+                        <li>The access key is shown once, so it needs to be stored immediately.</li>
+                    </ul>
+                </div>
             </div>
+        </section>
 
-            {% if error %}
-            <div class="login-error">{{ error }}</div>
-            {% endif %}
+        <section class="auth-panel">
+            <div class="auth-form-card animate-in animate-in-1">
+                <div class="auth-form-stack">
+                    <div>
+                        <div class="auth-kicker">Sign up</div>
+                        <h1 class="auth-title">Create account</h1>
+                        <p>Use a school or personal email you can keep tied to this workspace record.</p>
+                    </div>
 
-            {% if access_key %}
-            <!-- Key display (after successful signup) -->
-            <div style="background: var(--ao-success-bg); border: 1px solid var(--ao-success); border-radius: var(--ao-radius); padding: 1.25rem; margin-bottom: 1.25rem; animation: slideUp 0.4s ease both;">
-                <div style="font-weight:700; color:var(--ao-success); margin-bottom:0.75rem; font-size:0.95rem;">
-                    Workspace created. Save this access key:
+                    {% if error %}
+                    <div class="flash-msg flash-error">{{ error }}</div>
+                    {% endif %}
+
+                    {% if access_key %}
+                    <div class="auth-key-card">
+                        <strong style="display:block; margin-bottom:0.25rem; color:var(--ao-success);">Workspace created. Save this key now.</strong>
+                        <p>It is the credential for future sign-in and it is only shown on this page once.</p>
+                        <div class="auth-key-value">
+                            <code id="signup-key" style="font-size:0.98rem; color:var(--ao-accent);">{{ access_key }}</code>
+                        </div>
+                        <div class="hero-actions" style="margin-top:0.9rem;">
+                            <button class="btn btn-primary btn-sm" onclick="copyKey()" id="copy-btn">Copy key</button>
+                            <button class="btn btn-outline btn-sm" onclick="copyWithInstructions()" id="copy-inst-btn">Copy with instructions</button>
+                        </div>
+                        <div id="copy-feedback" class="form-hint" style="margin-top:0.6rem;"></div>
+                    </div>
+
+                    <div class="auth-note">
+                        <strong style="display:block; margin-bottom:0.35rem; color:var(--ao-text);">Before you leave this page</strong>
+                        <p>Put the key in a password manager, secure notes app, or another place you will not lose it.</p>
+                    </div>
+
+                    <div class="auth-links">
+                        <a href="{{ url_for('login') }}">Go to login</a>
+                        <a href="{{ url_for('homepage') }}">&larr; Back to home</a>
+                    </div>
+                    {% else %}
+                    <form method="POST" action="{{ url_for('signup') }}" id="signup-form" class="auth-form-stack">
+                        <div class="form-group">
+                            <label for="email">Email Address</label>
+                            <input type="email" id="email" name="email" placeholder="you@school.edu" required autofocus value="{{ request.form.get('email', '') }}">
+                            <div class="form-hint">Used for your account record and recovery requests.</div>
+                        </div>
+                        <div class="form-group">
+                            <label for="display_name">Display Name</label>
+                            <input type="text" id="display_name" name="display_name" placeholder="How your name should appear inside the workspace" required value="{{ request.form.get('display_name', '') }}">
+                        </div>
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label for="password">Password</label>
+                                <input type="password" id="password" name="password" placeholder="At least 6 characters" required minlength="6">
+                            </div>
+                            <div class="form-group">
+                                <label for="password_confirm">Confirm Password</label>
+                                <input type="password" id="password_confirm" name="password_confirm" placeholder="Re-enter password" required minlength="6">
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary" style="width:100%;" id="signup-btn">Create account</button>
+                    </form>
+
+                    <div class="auth-links">
+                        <span>Already have a key? <a href="{{ url_for('login') }}">Log in</a></span>
+                        <a href="{{ url_for('homepage') }}">&larr; Back to home</a>
+                    </div>
+                    {% endif %}
                 </div>
-                <div style="background: var(--ao-surface-3); padding: 1rem; border-radius: var(--ao-radius-sm); text-align: center; margin-bottom:1rem;">
-                    <code id="signup-key" style="font-size: 1rem; user-select: all; word-break: break-all; line-height:1.8; color:var(--ao-accent);">{{ access_key }}</code>
-                </div>
-                <div style="display:flex; gap:0.75rem; justify-content:center; flex-wrap:wrap;">
-                    <button class="btn btn-primary btn-sm" onclick="copyKey()" id="copy-btn" style="min-width:140px;">Copy Key</button>
-                    <button class="btn btn-outline btn-sm" onclick="copyWithInstructions()" id="copy-inst-btn">Copy with Instructions</button>
-                </div>
-                <div id="copy-feedback" style="text-align:center; margin-top:0.5rem; font-size:0.82rem;"></div>
             </div>
-
-            <div style="background: var(--ao-surface-2); border: 1px solid var(--ao-border); border-radius: var(--ao-radius-sm); padding: 1rem; margin-bottom:1.25rem; font-size:0.88rem;">
-                <div style="font-weight:700; color:var(--ao-warning); margin-bottom:0.5rem;">&#9888; This is the handoff into your workspace.</div>
-                <ul style="margin:0; padding-left:1.2rem; color:var(--ao-text-muted); line-height:1.7;">
-                    <li>The key is shown <strong>only once</strong></li>
-                    <li>Store it in a password manager or notes app before leaving this page</li>
-                    <li>Use it to log in at the <a href="{{ url_for('login') }}" style="color:var(--ao-primary-light);">login page</a></li>
-                    <li>If you lose it, the workspace has to be reissued by an admin</li>
-                </ul>
-            </div>
-
-            <a href="{{ url_for('login') }}" class="btn btn-primary" style="width:100%; padding:0.75rem; text-align:center;">
-                Go to Login
-            </a>
-
-            {% else %}
-            <!-- Signup form -->
-            <form method="POST" action="{{ url_for('signup') }}" id="signup-form">
-                <div class="form-group">
-                    <label for="email">Email Address</label>
-                    <input type="email" id="email" name="email" placeholder="you@school.edu" required autofocus
-                           value="{{ request.form.get('email', '') }}">
-                    <div class="form-hint">Used for your account record and access-key recovery requests.</div>
-                </div>
-                <div class="form-group">
-                    <label for="display_name">Display Name</label>
-                    <input type="text" id="display_name" name="display_name" placeholder="How you should appear inside the workspace" required
-                           value="{{ request.form.get('display_name', '') }}">
-                </div>
-                <div class="form-group">
-                    <label for="password">Password</label>
-                    <input type="password" id="password" name="password" placeholder="At least 6 characters" required minlength="6">
-                    <div class="form-hint">Stored for identity verification if you need the workspace reissued.</div>
-                </div>
-                <div class="form-group">
-                    <label for="password_confirm">Confirm Password</label>
-                    <input type="password" id="password_confirm" name="password_confirm" placeholder="Re-enter password" required minlength="6">
-                </div>
-                <button type="submit" class="btn btn-primary" style="width:100%; padding:0.75rem;" id="signup-btn">
-                    Create Account
-                </button>
-            </form>
-            {% endif %}
-
-            <div class="login-footer">
-                {% if not access_key %}
-                Already have a key? <a href="{{ url_for('login') }}" style="color:var(--ao-primary-light); font-weight:600;">Log in</a>
-                {% endif %}
-                <br>
-                <a href="{{ url_for('homepage') }}" style="color:var(--ao-text-dim); font-size:0.82rem; margin-top:0.25rem; display:inline-block;">&larr; Back to home</a>
-            </div>
-        </div>
+        </section>
     </div>
 
     <script>
-    // Clipboard helper
     function _copy(text) {
         if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text);
         const ta = document.createElement('textarea');
-        ta.value = text; ta.style.cssText = 'position:fixed;left:-9999px;top:-9999px;opacity:0;';
-        document.body.appendChild(ta); ta.focus(); ta.select();
+        ta.value = text;
+        ta.style.cssText = 'position:fixed;left:-9999px;top:-9999px;opacity:0;';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
         return new Promise((res, rej) => { document.execCommand('copy') ? res() : rej(); ta.remove(); });
     }
 
     function copyKey() {
         const key = document.getElementById('signup-key').textContent.trim();
         _copy(key).then(() => {
-            document.getElementById('copy-btn').textContent = 'Copied!';
-            document.getElementById('copy-btn').style.background = 'var(--ao-success)';
-            document.getElementById('copy-feedback').innerHTML = '<span style="color:var(--ao-success);">Key copied to clipboard</span>';
-            setTimeout(() => { document.getElementById('copy-btn').textContent = 'Copy Key'; document.getElementById('copy-btn').style.background = ''; }, 3000);
+            document.getElementById('copy-btn').textContent = 'Copied';
+            document.getElementById('copy-feedback').innerHTML = '<span style="color:var(--ao-success);">Key copied to clipboard.</span>';
+            setTimeout(() => { document.getElementById('copy-btn').textContent = 'Copy key'; }, 2800);
         }).catch(() => {
-            document.getElementById('copy-feedback').innerHTML = '<span style="color:var(--ao-warning);">Select the key above and copy manually</span>';
+            document.getElementById('copy-feedback').innerHTML = '<span style="color:var(--ao-warning);">Copy failed. Select the key above and copy manually.</span>';
         });
     }
 
     function copyWithInstructions() {
         const key = document.getElementById('signup-key').textContent.trim();
         const host = window.location.origin;
-        const text = `Your Academic Outreach access key:\n\n${key}\n\nHow to log in:\n1. Go to ${host}/login\n2. Paste the key above\n3. Click "Sign In"\n\nKeep this key safe.`;
+        const text = `Your Academic Outreach access key:\n\n${key}\n\nHow to log in:\n1. Go to ${host}/login\n2. Paste the key above\n3. Click "Sign in"\n\nKeep this key safe.`;
         _copy(text).then(() => {
-            document.getElementById('copy-inst-btn').textContent = 'Copied!';
-            document.getElementById('copy-feedback').innerHTML = '<span style="color:var(--ao-success);">Key + instructions copied</span>';
-            setTimeout(() => { document.getElementById('copy-inst-btn').textContent = 'Copy with Instructions'; }, 3000);
+            document.getElementById('copy-inst-btn').textContent = 'Copied';
+            document.getElementById('copy-feedback').innerHTML = '<span style="color:var(--ao-success);">Key and instructions copied.</span>';
+            setTimeout(() => { document.getElementById('copy-inst-btn').textContent = 'Copy with instructions'; }, 2800);
         }).catch(() => {
-            document.getElementById('copy-feedback').innerHTML = '<span style="color:var(--ao-warning);">Copy failed</span>';
+            document.getElementById('copy-feedback').innerHTML = '<span style="color:var(--ao-warning);">Copy failed. Try selecting the key manually.</span>';
         });
     }
 
-    // Client-side password match
     const form = document.getElementById('signup-form');
     if (form) {
         form.addEventListener('submit', (e) => {
@@ -136,26 +141,31 @@
             const pw2 = document.getElementById('password_confirm').value;
             if (pw !== pw2) {
                 e.preventDefault();
-                const existing = form.querySelector('.login-error');
+                const existing = form.querySelector('.flash-msg');
                 if (existing) existing.remove();
                 const err = document.createElement('div');
-                err.className = 'login-error';
+                err.className = 'flash-msg flash-error';
                 err.textContent = 'Passwords do not match.';
                 form.insertBefore(err, form.firstChild);
             }
         });
     }
 
-    // Theme
     function applyTheme(t) {
         const pref = t === 'system' ? (matchMedia('(prefers-color-scheme:light)').matches ? 'light' : 'dark') : t;
         document.documentElement.setAttribute('data-theme', pref);
     }
     applyTheme(localStorage.getItem('ao_theme') || 'system');
-    </script>
 
-    <style>
-    @keyframes slideUp { from { opacity:0; transform:translateY(30px) scale(0.96); } to { opacity:1; transform:translateY(0) scale(1); } }
-    </style>
+    const obs = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('animate-visible');
+                obs.unobserve(entry.target);
+            }
+        });
+    }, { threshold: 0.15 });
+    document.querySelectorAll('.animate-in').forEach((el) => obs.observe(el));
+    </script>
 </body>
 </html>

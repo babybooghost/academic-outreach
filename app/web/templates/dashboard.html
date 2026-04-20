@@ -2,166 +2,197 @@
 {% block title %}Outreach Desk{% endblock %}
 
 {% block content %}
-<div class="page-header animate-in">
-    <div>
-        <div class="page-kicker">Outreach Desk</div>
-        <h1>Research, draft review, and delivery in one place.</h1>
-        <p>Use this desk to keep the faculty list tight, the review queue honest, and the sending queue controlled, especially when you are targeting machine learning or AI-adjacent labs.</p>
-    </div>
-    <div class="page-header-meta">
-        <div class="page-meta-chip">
-            <span>Faculty files</span>
-            <strong>{{ total_professors }}</strong>
+<div class="editorial-page">
+    <section class="editorial-hero animate-in">
+        <div class="hero-copy">
+            <div class="eyebrow">Workspace desk</div>
+            <h1 class="page-title">A calmer way to run real academic outreach.</h1>
+            <p class="lead">Use this desk to keep the faculty list narrow, the draft queue honest, and the delivery workflow visible from first search through final send.</p>
+            <div class="hero-metrics">
+                <div class="metric-card">
+                    <span>Faculty files</span>
+                    <strong>{{ total_professors }}</strong>
+                </div>
+                <div class="metric-card">
+                    <span>Draft queue</span>
+                    <strong>{{ total_drafts }}</strong>
+                </div>
+                <div class="metric-card">
+                    <span>Approved now</span>
+                    <strong>{{ draft_counts.get('approved', 0) }}</strong>
+                </div>
+            </div>
+            <div class="quick-actions">
+                <a href="{{ url_for('finder_page') }}" class="btn btn-primary">Search for faculty</a>
+                <a href="{{ url_for('drafts_list', status='generated') }}" class="btn btn-outline">Review fresh drafts</a>
+                <a href="{{ url_for('send_page') }}" class="btn btn-outline">Open delivery queue</a>
+            </div>
         </div>
-        <div class="page-meta-chip">
-            <span>Draft queue</span>
-            <strong>{{ total_drafts }}</strong>
+        <div class="image-card image-card--tall">
+            <img src="https://images.unsplash.com/photo-1455390582262-044cdead277a?auto=format&amp;fit=crop&amp;w=1600&amp;q=80" alt="Writing desk with notebook and coffee">
+            <div class="image-caption">
+                <span>Daily workflow</span>
+                <strong>Search, annotate, review, and send in batches that still feel like human work.</strong>
+                <p>The dashboard is meant to show the whole rhythm at once rather than hide the risky parts.</p>
+            </div>
         </div>
-        <div class="page-meta-chip">
-            <span>Approved</span>
-            <strong>{{ draft_counts.get('approved', 0) }}</strong>
+    </section>
+
+    <section class="surface-band">
+        <article class="surface-note animate-in animate-in-1">
+            <strong>Research first</strong>
+            <p>Use Search to find real labs and professors, then keep enough context in each file to justify later personalization.</p>
+        </article>
+        <article class="surface-note animate-in animate-in-2">
+            <strong>Review before approval</strong>
+            <p>Drafts should earn their place in the queue by sounding specific, credible, and grounded in the professor record.</p>
+        </article>
+        <article class="surface-note animate-in animate-in-3">
+            <strong>Send conservatively</strong>
+            <p>Smaller runs, dry previews, and suppression checks exist to protect the final step.</p>
+        </article>
+    </section>
+
+    <section class="workspace-grid">
+        <div class="workspace-main">
+            <article class="surface-panel animate-in animate-in-1">
+                <div class="surface-panel-header">
+                    <div>
+                        <div class="panel-kicker">Recent delivery</div>
+                        <div class="panel-title">What actually left the queue.</div>
+                    </div>
+                </div>
+                {% if recent_sends %}
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Professor</th>
+                                <th>Method</th>
+                                <th>Status</th>
+                                <th>Sent At</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for send in recent_sends %}
+                            <tr>
+                                <td>{{ send.professor_name }}</td>
+                                <td><code>{{ send.method }}</code></td>
+                                <td><span class="badge badge-{{ send.status }}">{{ send.status }}</span></td>
+                                <td>{{ send.sent_at }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="empty-state">
+                    <div class="empty-icon">&#9993;</div>
+                    <p>No sends recorded yet.</p>
+                </div>
+                {% endif %}
+            </article>
+
+            <article class="surface-panel animate-in animate-in-2">
+                <div class="surface-panel-header">
+                    <div>
+                        <div class="panel-kicker">Workspace activity</div>
+                        <div class="panel-title">The latest changes across the desk.</div>
+                    </div>
+                </div>
+                {% if recent_activity %}
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Action</th>
+                                <th>Entity</th>
+                                <th>Details</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for entry in recent_activity %}
+                            <tr>
+                                <td>{{ entry.timestamp }}</td>
+                                <td>{{ entry.action }}</td>
+                                <td>{{ entry.entity_type }} #{{ entry.entity_id }}</td>
+                                <td>{{ entry.details[:100] }}{% if entry.details|length > 100 %}...{% endif %}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="empty-state">
+                    <div class="empty-icon">&#128196;</div>
+                    <p>No workspace activity recorded yet.</p>
+                </div>
+                {% endif %}
+            </article>
         </div>
-    </div>
-</div>
 
-<!-- Summary Cards -->
-<div class="grid-5 animate-in animate-in-1">
-    <div class="stat-card">
-        <div class="stat-label">Professors</div>
-        <div class="stat-number">{{ total_professors }}</div>
-        <div class="stat-footer">
-            {% for status, count in prof_counts.items() %}
-            <span class="badge badge-{{ status }}">{{ status }}: {{ count }}</span>
-            {% endfor %}
-        </div>
-    </div>
+        <aside class="workspace-side">
+            <article class="surface-panel animate-in animate-in-2">
+                <div class="surface-panel-header">
+                    <div>
+                        <div class="panel-kicker">Current totals</div>
+                        <div class="panel-title">At a glance</div>
+                    </div>
+                </div>
+                <div class="stat-grid">
+                    <div class="stat-card">
+                        <div class="stat-label">Faculty</div>
+                        <div class="stat-number">{{ total_professors }}</div>
+                        <div class="stat-footer">
+                            {% for status, count in prof_counts.items() %}
+                            <span class="badge badge-{{ status }}">{{ status }}: {{ count }}</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Enriched</div>
+                        <div class="stat-number">{{ prof_counts.get('enriched', 0) + prof_counts.get('ready', 0) }}</div>
+                        <div class="stat-footer">
+                            <span class="badge badge-enriched">Enriched</span>
+                            <span class="badge badge-ready">Ready</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Drafts</div>
+                        <div class="stat-number">{{ total_drafts }}</div>
+                        <div class="stat-footer">
+                            {% for status, count in draft_counts.items() %}
+                            <span class="badge badge-{{ status }}">{{ status }}: {{ count }}</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Sent</div>
+                        <div class="stat-number">{{ draft_counts.get('sent', 0) }}</div>
+                        <div class="stat-footer">
+                            <span class="badge badge-sent">Sent</span>
+                            <span class="badge badge-failed">Failed</span>
+                        </div>
+                    </div>
+                </div>
+            </article>
 
-    <div class="stat-card">
-        <div class="stat-label">Enriched</div>
-        <div class="stat-number">{{ prof_counts.get('enriched', 0) + prof_counts.get('ready', 0) }}</div>
-        <div class="stat-footer">
-            <span class="badge badge-enriched">enriched: {{ prof_counts.get('enriched', 0) }}</span>
-            <span class="badge badge-ready">ready: {{ prof_counts.get('ready', 0) }}</span>
-        </div>
-    </div>
-
-    <div class="stat-card">
-        <div class="stat-label">Drafts</div>
-        <div class="stat-number">{{ total_drafts }}</div>
-        <div class="stat-footer">
-            {% for status, count in draft_counts.items() %}
-            <span class="badge badge-{{ status }}">{{ status }}: {{ count }}</span>
-            {% endfor %}
-        </div>
-    </div>
-
-    <div class="stat-card">
-        <div class="stat-label">Approved</div>
-        <div class="stat-number">{{ draft_counts.get('approved', 0) }}</div>
-        <div class="stat-footer">
-            <span class="badge badge-approved">approved: {{ draft_counts.get('approved', 0) }}</span>
-            <span class="badge badge-edited">edited: {{ draft_counts.get('edited', 0) }}</span>
-        </div>
-    </div>
-
-    <div class="stat-card">
-        <div class="stat-label">Sent</div>
-        <div class="stat-number">{{ draft_counts.get('sent', 0) }}</div>
-        <div class="stat-footer">
-            <span class="badge badge-sent">sent: {{ draft_counts.get('sent', 0) }}</span>
-            <span class="badge badge-failed">failed: {{ draft_counts.get('failed', 0) }}</span>
-        </div>
-    </div>
-</div>
-
-<!-- Quick Actions -->
-<div class="quick-actions animate-in animate-in-2">
-    <a href="{{ url_for('finder_page') }}" class="btn btn-primary">Build Faculty List</a>
-    <a href="{{ url_for('drafts_list', status='generated') }}" class="btn btn-outline">Review New Drafts</a>
-    <a href="{{ url_for('send_page') }}" class="btn btn-outline">Open Delivery Desk</a>
-    <a href="{{ url_for('export_page') }}" class="btn btn-outline">Prepare Handoff Export</a>
-</div>
-
-<div class="info-band animate-in animate-in-2">
-    <div class="info-band-item">
-        <strong>Research first</strong>
-        <span>Use Search to keep new leads grounded in real faculty work and institution fit, whether you are targeting ML systems, vision, NLP, or interpretability.</span>
-    </div>
-    <div class="info-band-item">
-        <strong>Review before send</strong>
-        <span>Draft scores and warnings help you catch generic language before it reaches an inbox, so ML outreach can reference concrete papers, benchmarks, or lab directions.</span>
-    </div>
-    <div class="info-band-item">
-        <strong>Deliver conservatively</strong>
-        <span>Smaller batches, dry runs, and suppression checks make the queue safer to trust.</span>
-    </div>
-</div>
-
-<!-- Recent Sends -->
-<div class="section">
-    <div class="section-title">Recent delivery log</div>
-    {% if recent_sends %}
-    <div class="table-wrap">
-        <table>
-            <thead>
-                <tr>
-                    <th>Professor</th>
-                    <th>Method</th>
-                    <th>Status</th>
-                    <th>Sent At</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for send in recent_sends %}
-                <tr>
-                    <td>{{ send.professor_name }}</td>
-                    <td><code>{{ send.method }}</code></td>
-                    <td><span class="badge badge-{{ send.status }}">{{ send.status }}</span></td>
-                    <td style="color:var(--ao-text-dim); font-size:0.85rem;">{{ send.sent_at }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% else %}
-    <div class="empty-state">
-        <div class="empty-icon">&#9993;</div>
-        <p>No sends recorded yet.</p>
-    </div>
-    {% endif %}
-</div>
-
-<!-- Recent Activity -->
-<div class="section">
-    <div class="section-title">Recent workspace activity</div>
-    {% if recent_activity %}
-    <div class="table-wrap">
-        <table>
-            <thead>
-                <tr>
-                    <th>Time</th>
-                    <th>Action</th>
-                    <th>Entity</th>
-                    <th>Details</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for entry in recent_activity %}
-                <tr>
-                    <td style="color:var(--ao-text-dim); font-size:0.85rem;">{{ entry.timestamp }}</td>
-                    <td>{{ entry.action }}</td>
-                    <td>{{ entry.entity_type }} #{{ entry.entity_id }}</td>
-                    <td class="details-cell">{{ entry.details[:80] }}{% if entry.details|length > 80 %}...{% endif %}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% else %}
-    <div class="empty-state">
-        <div class="empty-icon">&#128196;</div>
-        <p>No activity recorded yet.</p>
-    </div>
-    {% endif %}
+            <article class="surface-panel animate-in animate-in-3">
+                <div class="surface-panel-header">
+                    <div>
+                        <div class="panel-kicker">Recommended rhythm</div>
+                        <div class="panel-title">What to do next</div>
+                    </div>
+                </div>
+                <div class="page-block">
+                    <div class="chip"><strong>1</strong> Search for a small set of strong faculty matches.</div>
+                    <div class="chip"><strong>2</strong> Save only the contacts you can actually reference.</div>
+                    <div class="chip"><strong>3</strong> Generate drafts after your sender profile is ready.</div>
+                    <div class="chip"><strong>4</strong> Approve only the drafts that still sound specific after review.</div>
+                </div>
+            </article>
+        </aside>
+    </section>
 </div>
 {% endblock %}

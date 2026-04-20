@@ -6,188 +6,216 @@
     <title>Activity Log | Admin Hub</title>
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon-admin.svg') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='revamp.css') }}">
 </head>
-<body>
-    <!-- Admin navbar -->
-    <nav class="navbar" style="border-bottom-color: rgba(232,65,65,0.3);">
+<body class="admin-shell">
+    <nav class="navbar">
         <div class="navbar-inner">
             <a href="{{ url_for('admin_hub') }}" class="logo">
-                <div class="logo-icon" style="background: linear-gradient(135deg, #e84141 0%, #6c5ce7 100%);">AO</div>
-                <div class="logo-text">Admin <span>Hub</span></div>
+                <div class="logo-icon">AO</div>
+                <div class="logo-text">Admin<span>Hub</span></div>
             </a>
             <ul class="nav-links">
                 <li><a href="{{ url_for('admin_hub') }}"><span class="nav-icon">&#9879;</span> Overview</a></li>
                 <li><a href="{{ url_for('admin_activity') }}" class="active"><span class="nav-icon">&#128203;</span> Activity Log</a></li>
             </ul>
             <div class="nav-user">
-                <span class="badge badge-admin" style="margin-right:0.5rem;">ADMIN</span>
+                <span class="badge badge-admin">Admin</span>
                 <span>{{ session.get('admin_key_label', 'Admin') }}</span>
-                <a href="{{ url_for('admin_logout') }}" class="btn-ghost btn-sm" style="margin-left:0.5rem;">Logout</a>
+                <a href="{{ url_for('admin_logout') }}" class="btn btn-ghost btn-sm">Logout</a>
             </div>
         </div>
     </nav>
 
-    <div class="container page-content">
-        <div class="page-header">
-            <h1>Activity Log</h1>
-            <p>Complete audit trail: every action, login, IP address, and session tracked</p>
-        </div>
+    <main class="app-main">
+        <div class="container page-content">
+            <div class="editorial-page">
+                <section class="editorial-hero animate-in">
+                    <div class="hero-copy">
+                        <div class="eyebrow">Audit trail</div>
+                        <h1 class="page-title">A complete activity history for the admin side.</h1>
+                        <p class="lead">Use this view to inspect who did what, from where, and through which route. Filters are there to narrow the event stream without losing context.</p>
+                        <div class="hero-metrics">
+                            <div class="metric-card">
+                                <span>Total events</span>
+                                <strong>{{ stats.total_events }}</strong>
+                            </div>
+                            <div class="metric-card">
+                                <span>Today</span>
+                                <strong>{{ stats.today_events }}</strong>
+                            </div>
+                            <div class="metric-card">
+                                <span>Unique actors</span>
+                                <strong>{{ stats.unique_actors }}</strong>
+                            </div>
+                            <div class="metric-card">
+                                <span>Unique IPs</span>
+                                <strong>{{ stats.unique_ips }}</strong>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="image-card image-card--tall">
+                        <img src="https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&amp;fit=crop&amp;w=1600&amp;q=80" alt="Operations desk with laptop">
+                        <div class="image-caption">
+                            <span>Audit surface</span>
+                            <strong>The point is to keep admin activity legible, filterable, and traceable without feeling like a raw log dump.</strong>
+                        </div>
+                    </div>
+                </section>
 
-        <!-- Stats -->
-        <div class="admin-stat-row">
-            <div class="stat-card">
-                <div class="stat-label">Total Events</div>
-                <div class="stat-number">{{ stats.total_events }}</div>
-            </div>
-            <div class="stat-card" style="border-color: rgba(232,65,65,0.3);">
-                <div class="stat-label">Today</div>
-                <div class="stat-number" style="color: var(--ao-danger);">{{ stats.today_events }}</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Unique Actors</div>
-                <div class="stat-number">{{ stats.unique_actors }}</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Unique IPs</div>
-                <div class="stat-number">{{ stats.unique_ips }}</div>
-            </div>
-        </div>
+                <section class="surface-panel animate-in animate-in-1">
+                    <div class="surface-panel-header">
+                        <div>
+                            <div class="panel-kicker">Filters</div>
+                            <div class="panel-title">Narrow the event stream</div>
+                        </div>
+                    </div>
+                    <form method="GET" action="{{ url_for('admin_activity') }}" class="grid-4">
+                        <div class="form-group">
+                            <label for="category">Category</label>
+                            <select name="category" id="category">
+                                <option value="">All categories</option>
+                                {% for cat in categories %}
+                                <option value="{{ cat }}" {% if current_category == cat %}selected{% endif %}>{{ cat }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="actor">Actor</label>
+                            <select name="actor" id="actor">
+                                <option value="">All actors</option>
+                                {% for act in actors %}
+                                <option value="{{ act }}" {% if current_actor == act %}selected{% endif %}>{{ act }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="action">Action</label>
+                            <select name="action" id="action">
+                                <option value="">All actions</option>
+                                {% for a in actions %}
+                                <option value="{{ a }}" {% if current_action == a %}selected{% endif %}>{{ a }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group" style="display:flex; align-items:end; gap:0.6rem;">
+                            <button type="submit" class="btn btn-primary">Filter</button>
+                            <a href="{{ url_for('admin_activity') }}" class="btn btn-outline">Reset</a>
+                        </div>
+                    </form>
+                </section>
 
-        <!-- Filters -->
-        <div class="card" style="margin-bottom:1.5rem;">
-            <div class="card-header"><h3>Filters</h3></div>
-            <form method="GET" action="{{ url_for('admin_activity') }}" style="display:grid; grid-template-columns:1fr 1fr 1fr auto; gap:0.75rem; align-items:end;">
-                <div class="form-group" style="margin:0;">
-                    <label for="category">Category</label>
-                    <select name="category" id="category">
-                        <option value="">All Categories</option>
-                        {% for cat in categories %}
-                        <option value="{{ cat }}" {% if current_category == cat %}selected{% endif %}>{{ cat }}</option>
+                <section class="surface-panel animate-in animate-in-2">
+                    <div class="surface-panel-header">
+                        <div>
+                            <div class="panel-kicker">Events</div>
+                            <div class="panel-title">{{ activities|length }} matching records</div>
+                        </div>
+                    </div>
+                    {% if activities %}
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Timestamp</th>
+                                    <th>Actor</th>
+                                    <th>Role</th>
+                                    <th>Action</th>
+                                    <th>Category</th>
+                                    <th>Target</th>
+                                    <th>IP Address</th>
+                                    <th>Method</th>
+                                    <th>Path</th>
+                                    <th>User Agent</th>
+                                    <th>Details</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for a in activities %}
+                                <tr>
+                                    <td>#{{ a.id }}</td>
+                                    <td>{{ a.timestamp[:19] }}</td>
+                                    <td>{% if a.actor_label %}<strong>{{ a.actor_label }}</strong>{% else %}<span style="color:var(--ao-text-dim);">anonymous</span>{% endif %}</td>
+                                    <td>
+                                        {% if a.actor_role == 'admin' %}
+                                        <span class="badge badge-admin">admin</span>
+                                        {% elif a.actor_role %}
+                                        <span class="badge badge-user">{{ a.actor_role }}</span>
+                                        {% else %}
+                                        <span style="color:var(--ao-text-dim);">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td><code>{{ a.action }}</code></td>
+                                    <td>{{ a.category }}</td>
+                                    <td>{% if a.target_type %}{{ a.target_type }}{% if a.target_id %} #{{ a.target_id }}{% endif %}{% else %}-{% endif %}</td>
+                                    <td>{{ a.ip_address or '-' }}</td>
+                                    <td>{{ a.request_method or '-' }}</td>
+                                    <td>{{ a.request_path or '-' }}</td>
+                                    <td title="{{ a.user_agent or '' }}">{{ (a.user_agent or '-')[:60] }}</td>
+                                    <td>{% if a.details and a.details != '{}' %}<code style="white-space:normal; border-radius:14px;">{{ a.details }}</code>{% endif %}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="empty-state">
+                        <div class="empty-icon">&#128203;</div>
+                        <p>No activity events match the current filters.</p>
+                    </div>
+                    {% endif %}
+                </section>
+
+                {% if stats.by_category %}
+                <section class="surface-panel animate-in animate-in-3">
+                    <div class="surface-panel-header">
+                        <div>
+                            <div class="panel-kicker">Category breakdown</div>
+                            <div class="panel-title">Events by category</div>
+                        </div>
+                    </div>
+                    <div class="grid-3">
+                        {% for cat, count in stats.by_category.items() %}
+                        <a href="{{ url_for('admin_activity', category=cat) }}" class="chip" style="justify-content:space-between;">
+                            <strong>{{ cat }}</strong> {{ count }}
+                        </a>
                         {% endfor %}
-                    </select>
-                </div>
-                <div class="form-group" style="margin:0;">
-                    <label for="actor">Actor</label>
-                    <select name="actor" id="actor">
-                        <option value="">All Actors</option>
-                        {% for act in actors %}
-                        <option value="{{ act }}" {% if current_actor == act %}selected{% endif %}>{{ act }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="form-group" style="margin:0;">
-                    <label for="action">Action</label>
-                    <select name="action" id="action">
-                        <option value="">All Actions</option>
-                        {% for a in actions %}
-                        <option value="{{ a }}" {% if current_action == a %}selected{% endif %}>{{ a }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div style="display:flex; gap:0.5rem;">
-                    <button type="submit" class="btn btn-primary" style="margin-bottom:0;">Filter</button>
-                    <a href="{{ url_for('admin_activity') }}" class="btn btn-outline" style="margin-bottom:0;">Reset</a>
-                </div>
-            </form>
-        </div>
-
-        <!-- Activity Table -->
-        <div class="section">
-            <div class="section-title">Events ({{ activities|length }})</div>
-            {% if activities %}
-            <div class="table-wrap">
-                <table>
-                    <thead>
-                        <tr>
-                            <th style="width:60px;">ID</th>
-                            <th>Timestamp</th>
-                            <th>Actor</th>
-                            <th>Role</th>
-                            <th>Action</th>
-                            <th>Category</th>
-                            <th>Target</th>
-                            <th>IP Address</th>
-                            <th>Method</th>
-                            <th>Path</th>
-                            <th>User Agent</th>
-                            <th>Details</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for a in activities %}
-                        <tr>
-                            <td style="font-size:0.8rem; color:var(--ao-text-dim);">#{{ a.id }}</td>
-                            <td style="font-size:0.8rem; white-space:nowrap; color:var(--ao-text-dim);">{{ a.timestamp[:19] }}</td>
-                            <td>
-                                {% if a.actor_label %}
-                                <strong style="font-size:0.85rem;">{{ a.actor_label }}</strong>
-                                {% else %}
-                                <span style="color:var(--ao-text-dim); font-size:0.85rem;">anonymous</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if a.actor_role == 'admin' %}
-                                <span class="badge badge-admin">admin</span>
-                                {% elif a.actor_role %}
-                                <span class="badge badge-user">{{ a.actor_role }}</span>
-                                {% else %}
-                                <span style="color:var(--ao-text-dim);">-</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                <code style="font-size:0.8rem; background:var(--ao-surface-3); padding:0.1rem 0.35rem; border-radius:3px;
-                                    {% if 'fail' in a.action or 'denied' in a.action %}color:var(--ao-danger);{% elif 'login' in a.action %}color:var(--ao-success);{% endif %}">
-                                    {{ a.action }}
-                                </code>
-                            </td>
-                            <td style="font-size:0.82rem;">{{ a.category }}</td>
-                            <td style="font-size:0.82rem; color:var(--ao-text-dim);">
-                                {% if a.target_type %}{{ a.target_type }}{% if a.target_id %} #{{ a.target_id }}{% endif %}{% else %}-{% endif %}
-                            </td>
-                            <td style="font-size:0.8rem; font-family:monospace; color:var(--ao-accent);">{{ a.ip_address or '-' }}</td>
-                            <td style="font-size:0.8rem;">{{ a.request_method or '-' }}</td>
-                            <td style="font-size:0.8rem; color:var(--ao-text-dim); max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ a.request_path or '-' }}</td>
-                            <td style="font-size:0.75rem; color:var(--ao-text-dim); max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="{{ a.user_agent or '' }}">
-                                {{ (a.user_agent or '-')[:60] }}
-                            </td>
-                            <td style="max-width:220px; font-size:0.78rem; color:var(--ao-text-dim);">
-                                {% if a.details and a.details != '{}' %}
-                                <code style="word-break:break-all; font-size:0.75rem;">{{ a.details }}</code>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            {% else %}
-            <div class="empty-state">
-                <div class="empty-icon">&#128203;</div>
-                <p>No activity events match the current filters.</p>
-            </div>
-            {% endif %}
-        </div>
-
-        <!-- Category Breakdown -->
-        {% if stats.by_category %}
-        <div class="section">
-            <div class="section-title">Events by Category</div>
-            <div class="grid-3" style="gap:0.5rem;">
-                {% for cat, count in stats.by_category.items() %}
-                <a href="{{ url_for('admin_activity', category=cat) }}" style="display:flex; justify-content:space-between; align-items:center; padding:0.6rem 0.75rem; background:var(--ao-surface-2); border-radius:var(--ao-radius-sm); border:1px solid var(--ao-border); text-decoration:none; color:inherit; transition:border-color 0.2s;">
-                    <span style="font-weight:500;">{{ cat }}</span>
-                    <span style="font-weight:700; color:var(--ao-primary);">{{ count }}</span>
-                </a>
-                {% endfor %}
+                    </div>
+                </section>
+                {% endif %}
             </div>
         </div>
-        {% endif %}
-    </div>
+    </main>
 
-    <footer class="footer-bar" style="text-align:center; padding:1.5rem; color:var(--ao-text-dim); font-size:0.8rem; border-top:1px solid var(--ao-border);">
-        Admin Hub | Academic Outreach v{{ app_version }}
+    <footer class="app-footer">
+        <div class="app-footer-inner">
+            <div class="app-footer-mark">
+                <div class="logo-icon" style="width:32px; height:32px; font-size:1rem; border-radius:12px;">AO</div>
+                <span>Admin Hub</span>
+            </div>
+            <div>Academic Outreach v{{ app_version }}</div>
+        </div>
     </footer>
+
+    <script>
+    function applyTheme(t) {
+        const pref = t === 'system' ? (matchMedia('(prefers-color-scheme:light)').matches ? 'light' : 'dark') : t;
+        document.documentElement.setAttribute('data-theme', pref);
+    }
+    applyTheme(localStorage.getItem('ao_theme') || 'system');
+
+    const obs = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('animate-visible');
+                obs.unobserve(entry.target);
+            }
+        });
+    }, { threshold: 0.12 });
+    document.querySelectorAll('.animate-in').forEach((el) => obs.observe(el));
+    </script>
 </body>
 </html>

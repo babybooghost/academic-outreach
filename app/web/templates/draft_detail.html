@@ -2,100 +2,137 @@
 {% block title %}Draft #{{ draft.id }}{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1>Draft #{{ draft.id }}</h1>
-    <p>{{ professor.name if professor else 'Unknown' }}, {{ professor.university if professor else '' }}</p>
-</div>
-
-<div class="detail-layout">
-    <!-- Left: Context -->
-    <div class="professor-context">
-        {% if professor %}
-        <div class="card">
-            <div class="card-header"><h3>Professor</h3></div>
-            <div style="display:flex; flex-direction:column; gap:0.5rem;">
-                <div><label>Name</label><div><a href="{{ url_for('professor_detail', prof_id=professor.id) }}">{{ professor.name }}</a></div></div>
-                <div><label>Email</label><div style="font-size:0.88rem;">{{ professor.email }}</div></div>
-                <div><label>Field</label><div>{{ professor.field }}</div></div>
-                <div><label>University</label><div>{{ professor.university }}</div></div>
+<div class="editorial-page">
+    <section class="editorial-hero animate-in">
+        <div class="hero-copy">
+            <div class="eyebrow">Draft detail</div>
+            <h1 class="page-title">Draft #{{ draft.id }}</h1>
+            <p class="lead">{{ professor.name if professor else 'Unknown professor' }}{% if professor and professor.university %}, {{ professor.university }}{% endif %}</p>
+            <div class="hero-metrics">
+                <div class="metric-card">
+                    <span>Status</span>
+                    <strong>{{ draft.status }}</strong>
+                </div>
+                <div class="metric-card">
+                    <span>Template</span>
+                    <strong>{{ draft.template_variant }}</strong>
+                </div>
+                <div class="metric-card">
+                    <span>Overall score</span>
+                    <strong>{{ "%.1f"|format(draft.overall_score) }}</strong>
+                </div>
+            </div>
+            {% if draft.status in ('generated', 'edited') %}
+            <div class="action-buttons">
+                <button class="btn btn-success" onclick="draftAction({{ draft.id }}, 'approve')">Approve draft</button>
+                <button class="btn btn-danger" onclick="draftAction({{ draft.id }}, 'reject')">Reject draft</button>
+            </div>
+            {% endif %}
+        </div>
+        <div class="image-card image-card--tall">
+            <img src="https://images.unsplash.com/photo-1455390582262-044cdead277a?auto=format&amp;fit=crop&amp;w=1600&amp;q=80" alt="Desk with paper notes">
+            <div class="image-caption">
+                <span>Review surface</span>
+                <strong>This page is for the final read-through: subject, body, warnings, and whether the message deserves approval.</strong>
             </div>
         </div>
-        {% endif %}
+    </section>
 
-        <div class="card" style="margin-top:1rem;">
-            <div class="card-header"><h3>Scores</h3></div>
-            <div class="scores-grid">
-                {% set dims = [('Specificity', draft.specificity_score), ('Authenticity', draft.authenticity_score), ('Relevance', draft.relevance_score), ('Conciseness', draft.conciseness_score), ('Completeness', draft.completeness_score)] %}
-                {% for name, val in dims %}
-                <div class="score-item">
-                    <label>{{ name }}</label>
-                    <div class="score-bar-container">
-                        {% set pct = (val * 10)|int %}
-                        <div class="score-bar {% if val >= 7.5 %}bar-high{% elif val >= 4.0 %}bar-mid{% else %}bar-low{% endif %}" style="width:{{ pct }}%;">
-                            {{ "%.1f"|format(val) }}
-                        </div>
+    <div class="detail-layout">
+        <aside class="professor-context">
+            {% if professor %}
+            <article class="surface-panel animate-in animate-in-1">
+                <div class="surface-panel-header">
+                    <div>
+                        <div class="panel-kicker">Professor file</div>
+                        <div class="panel-title">{{ professor.name }}</div>
                     </div>
                 </div>
+                <div class="page-block">
+                    <div class="chip"><strong>Email</strong> {{ professor.email }}</div>
+                    <div class="chip"><strong>Field</strong> {{ professor.field }}</div>
+                    <div class="chip"><strong>University</strong> {{ professor.university }}</div>
+                    <div class="chip"><strong>Profile</strong> <a href="{{ url_for('professor_detail', prof_id=professor.id) }}">Open faculty file</a></div>
+                </div>
+            </article>
+            {% endif %}
+
+            <article class="surface-panel animate-in animate-in-2">
+                <div class="surface-panel-header">
+                    <div>
+                        <div class="panel-kicker">Scores</div>
+                        <div class="panel-title">How the draft performed</div>
+                    </div>
+                </div>
+                <div class="scores-grid">
+                    {% set dims = [('Specificity', draft.specificity_score), ('Authenticity', draft.authenticity_score), ('Relevance', draft.relevance_score), ('Conciseness', draft.conciseness_score), ('Completeness', draft.completeness_score)] %}
+                    {% for name, val in dims %}
+                    <div class="score-item">
+                        <label>{{ name }}</label>
+                        <div class="score-bar-container">
+                            {% set pct = (val * 10)|int %}
+                            <div class="score-bar {% if val >= 7.5 %}bar-high{% elif val >= 4.0 %}bar-mid{% else %}bar-low{% endif %}" style="width:{{ pct }}%;">
+                                {{ "%.1f"|format(val) }}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </article>
+
+            {% if draft.warnings_list %}
+            <article class="surface-panel warnings-panel animate-in animate-in-3">
+                <div class="surface-panel-header">
+                    <div>
+                        <div class="panel-kicker">Warnings</div>
+                        <div class="panel-title">What to check</div>
+                    </div>
+                </div>
+                <ul class="warnings-list">
+                    {% for w in draft.warnings_list %}
+                    <li class="warning-item">{{ w }}</li>
+                    {% endfor %}
+                </ul>
+            </article>
+            {% endif %}
+        </aside>
+
+        <div class="draft-content-panel">
+            <article class="surface-panel animate-in animate-in-1">
+                <div class="surface-panel-header">
+                    <div>
+                        <div class="panel-kicker">Subject lines</div>
+                        <div class="panel-title">What appears in the inbox</div>
+                    </div>
+                </div>
+                {% for subj in draft.subject_lines_list %}
+                <div class="subject-option {% if loop.first %}subject-primary{% endif %}">{{ subj }}</div>
                 {% endfor %}
-            </div>
-            <div style="margin-top:1rem; text-align:center;">
-                <span style="font-size:0.8rem; color:var(--ao-text-dim);">Overall</span><br>
-                {% set sc = draft.overall_score %}
-                <span class="score-badge badge-lg {% if sc >= 7.5 %}score-high{% elif sc >= 4.0 %}score-mid{% else %}score-low{% endif %}">
-                    {{ "%.1f"|format(sc) }} / 10
-                </span>
-            </div>
-        </div>
+            </article>
 
-        {% if draft.warnings_list %}
-        <div class="card warnings-panel" style="margin-top:1rem;">
-            <div class="card-header"><h3>Warnings</h3></div>
-            <ul class="warnings-list">
-                {% for w in draft.warnings_list %}
-                <li class="warning-item">{{ w }}</li>
-                {% endfor %}
-            </ul>
-        </div>
-        {% endif %}
-    </div>
+            <article class="surface-panel animate-in animate-in-2">
+                <div class="surface-panel-header">
+                    <div>
+                        <div class="panel-kicker">Email body</div>
+                        <div class="panel-title">Draft text</div>
+                    </div>
+                </div>
+                <div class="email-preview">{{ draft.body }}</div>
+            </article>
 
-    <!-- Right: Draft Content -->
-    <div class="draft-content-panel">
-        <div class="draft-header">
-            <div>
-                <span class="badge badge-{{ draft.status }} badge-lg">{{ draft.status }}</span>
-                <code style="margin-left:0.5rem;">{{ draft.template_variant }}</code>
-            </div>
-            <div class="action-buttons">
-                {% if draft.status in ('generated', 'edited') %}
-                <button class="btn btn-success btn-sm" onclick="draftAction({{ draft.id }}, 'approve')">Approve</button>
-                <button class="btn btn-danger btn-sm" onclick="draftAction({{ draft.id }}, 'reject')">Reject</button>
-                {% endif %}
-            </div>
+            {% if draft.similarity_score is not none %}
+            <article class="surface-panel animate-in animate-in-3">
+                <div class="surface-panel-header">
+                    <div>
+                        <div class="panel-kicker">Similarity</div>
+                        <div class="panel-title">Cross-draft overlap</div>
+                    </div>
+                </div>
+                <p>Cross-draft similarity score: <strong>{{ "%.2f"|format(draft.similarity_score) }}</strong>
+                {% if draft.similarity_score > 0.85 %}<span class="badge badge-error">Too similar</span>{% endif %}</p>
+            </article>
+            {% endif %}
         </div>
-
-        <!-- Subject Lines -->
-        <div class="card">
-            <div class="card-header"><h3>Subject Lines</h3></div>
-            {% for subj in draft.subject_lines_list %}
-            <div class="subject-option {% if loop.first %}subject-primary{% endif %}">{{ subj }}</div>
-            {% endfor %}
-        </div>
-
-        <!-- Email Body -->
-        <div class="card">
-            <div class="card-header"><h3>Email Body</h3></div>
-            <div class="email-preview">{{ draft.body }}</div>
-        </div>
-
-        {% if draft.similarity_score is not none %}
-        <div class="card">
-            <div class="card-header"><h3>Similarity</h3></div>
-            <p>Cross-draft similarity: <strong>{{ "%.2f"|format(draft.similarity_score) }}</strong>
-            {% if draft.similarity_score > 0.85 %}<span class="badge badge-error">Too similar</span>{% endif %}
-            </p>
-        </div>
-        {% endif %}
     </div>
 </div>
 

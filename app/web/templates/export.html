@@ -2,33 +2,68 @@
 {% block title %}Exports And Handoff{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <div>
-        <div class="page-kicker">Exports And Handoff</div>
-        <h1>Package the records you need outside the workspace.</h1>
-        <p>Use exports when you want to review draft history offline, share a handoff file, or preserve the current state of the outreach log.</p>
-    </div>
-</div>
+<div class="editorial-page">
+    <section class="editorial-hero animate-in">
+        <div class="hero-copy">
+            <div class="eyebrow">Exports and handoff</div>
+            <h1 class="page-title">Package the records you need outside the workspace.</h1>
+            <p class="lead">Use exports when you want to review draft history offline, share a handoff file, or preserve the current state of the outreach log.</p>
+            <div class="hero-actions">
+                <button class="btn btn-primary" onclick="triggerExport()">Export draft register</button>
+            </div>
+        </div>
+        <div class="image-card image-card--tall">
+            <img src="https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&amp;fit=crop&amp;w=1600&amp;q=80" alt="Books and notes in a library">
+            <div class="image-caption">
+                <span>Archive surface</span>
+                <strong>Exports are for review, handoff, and keeping a durable record of what the workspace looked like at a given moment.</strong>
+            </div>
+        </div>
+    </section>
 
-<div class="grid-3">
-    <div class="card" style="text-align:center;">
-        <div class="card-header"><h3>Draft register</h3></div>
-        <p>Export draft rows with scores, statuses, and supporting metadata.</p>
-        <button class="btn btn-primary" onclick="triggerExport()">Export CSV</button>
-    </div>
-    <div class="card" style="text-align:center;">
-        <div class="card-header"><h3>Activity log</h3></div>
-        <p>A shareable record of what changed in the workspace and when.</p>
-        <button class="btn btn-outline" disabled>Coming Soon</button>
-    </div>
-    <div class="card" style="text-align:center;">
-        <div class="card-header"><h3>Tracking sheet</h3></div>
-        <p>A cleaner handoff sheet for outreach tracking outside the app.</p>
-        <button class="btn btn-outline" disabled>Coming Soon</button>
-    </div>
-</div>
+    <section class="grid-3">
+        <article class="surface-panel animate-in animate-in-1">
+            <div class="surface-panel-header">
+                <div>
+                    <div class="panel-kicker">Available now</div>
+                    <div class="panel-title">Draft register</div>
+                </div>
+            </div>
+            <p>Export draft rows with scores, statuses, and supporting metadata for spreadsheet review or handoff.</p>
+            <div class="hero-actions" style="margin-top:1rem;">
+                <button class="btn btn-primary" onclick="triggerExport()">Export CSV</button>
+            </div>
+        </article>
 
-<div id="export-result" style="margin-top:1.5rem;"></div>
+        <article class="surface-panel animate-in animate-in-2">
+            <div class="surface-panel-header">
+                <div>
+                    <div class="panel-kicker">Roadmap</div>
+                    <div class="panel-title">Activity log</div>
+                </div>
+            </div>
+            <p>A shareable record of what changed in the workspace and when. This export is not wired yet, but the surface is reserved for it.</p>
+            <div class="hero-actions" style="margin-top:1rem;">
+                <button class="btn btn-outline" disabled>Coming soon</button>
+            </div>
+        </article>
+
+        <article class="surface-panel animate-in animate-in-3">
+            <div class="surface-panel-header">
+                <div>
+                    <div class="panel-kicker">Roadmap</div>
+                    <div class="panel-title">Tracking sheet</div>
+                </div>
+            </div>
+            <p>A cleaner handoff sheet for outreach tracking outside the app, useful for advisors or shared review workflows.</p>
+            <div class="hero-actions" style="margin-top:1rem;">
+                <button class="btn btn-outline" disabled>Coming soon</button>
+            </div>
+        </article>
+    </section>
+
+    <div id="export-result"></div>
+</div>
 
 {% block scripts %}
 <script>
@@ -37,7 +72,7 @@ async function triggerExport() {
     const data = await res.json();
     const el = document.getElementById('export-result');
     if (data.success) {
-        el.innerHTML = '<div class="flash-msg flash-success">Export ready: <a href="' + data.download_url + '" style="color:var(--ao-success); font-weight:600;">Download ' + data.filename + '</a></div>';
+        el.innerHTML = '<div class="flash-msg flash-success">Export ready: <a href="' + data.download_url + '">Download ' + data.filename + '</a></div>';
     } else {
         el.innerHTML = '<div class="flash-msg flash-error">' + (data.error || 'Export failed') + '</div>';
     }

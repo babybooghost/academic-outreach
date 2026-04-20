@@ -2,100 +2,173 @@
 {% block title %}Draft Review{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <div>
-        <div class="page-kicker">Draft Review</div>
-        <h1>Read the queue before anything gets approved.</h1>
-        <p>This is the editorial pass: check specificity, warnings, and subject lines until each draft sounds like it came from a prepared student.</p>
-    </div>
-    <div class="page-header-meta">
-        <div class="page-meta-chip">
-            <span>Visible drafts</span>
-            <strong>{{ drafts|length }}</strong>
+<div class="editorial-page">
+    <section class="editorial-hero animate-in">
+        <div class="hero-copy">
+            <div class="eyebrow">Draft review</div>
+            <h1 class="page-title">Read the queue before anything gets approved.</h1>
+            <p class="lead">This is the editorial pass: check specificity, warnings, subject lines, and overall tone until each message sounds like it came from a prepared student instead of a generic generator.</p>
+            <div class="hero-metrics">
+                <div class="metric-card">
+                    <span>Visible drafts</span>
+                    <strong>{{ drafts|length }}</strong>
+                </div>
+                <div class="metric-card">
+                    <span>Faculty ready</span>
+                    <strong>{{ professor_count }}</strong>
+                </div>
+                <div class="metric-card">
+                    <span>Profiles saved</span>
+                    <strong>{{ profiles|length }}</strong>
+                </div>
+            </div>
         </div>
-    </div>
-</div>
+        <div class="image-card image-card--tall">
+            <img src="https://images.unsplash.com/photo-1455390582262-044cdead277a?auto=format&amp;fit=crop&amp;w=1600&amp;q=80" alt="Notebook and handwritten notes on a desk">
+            <div class="image-caption">
+                <span>Editorial pass</span>
+                <strong>The queue should read like someone stopped to think, trimmed the generic parts, and checked the research references.</strong>
+            </div>
+        </div>
+    </section>
 
-<div class="filter-bar">
-    <form method="POST" action="{{ url_for('generate_drafts_route') }}" style="display:flex; align-items:end; gap:0.75rem; flex-wrap:wrap; width:100%; margin:0 0 1rem 0;">
-        <div style="min-width:220px; flex:1;">
-            <label for="sender_profile_id" style="display:block; font-size:0.8rem; color:var(--ao-text-dim); margin-bottom:0.35rem;">Sender profile</label>
-            <select id="sender_profile_id" name="sender_profile_id" {% if not profiles %}disabled{% endif %}>
-                <option value="">Choose a profile</option>
-                {% for profile in profiles %}
-                <option value="{{ profile.id }}">{{ profile.name }} · {{ profile.school }}</option>
-                {% endfor %}
-            </select>
+    <section class="review-grid">
+        <article class="surface-panel animate-in animate-in-1">
+            <div class="surface-panel-header">
+                <div>
+                    <div class="panel-kicker">Generation</div>
+                    <div class="panel-title">Create a review session</div>
+                </div>
+            </div>
+            <form method="POST" action="{{ url_for('generate_drafts_route') }}" class="page-block">
+                <div class="form-group">
+                    <label for="sender_profile_id">Sender profile</label>
+                    <select id="sender_profile_id" name="sender_profile_id" {% if not profiles %}disabled{% endif %}>
+                        <option value="">Choose a profile</option>
+                        {% for profile in profiles %}
+                        <option value="{{ profile.id }}">{{ profile.name }} - {{ profile.school }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="variant">Template variant</label>
+                    <select id="variant" name="variant">
+                        <option value="">Auto-select</option>
+                        {% for variant in variants %}
+                        <option value="{{ variant }}">{{ variant.replace('_', ' ')|title }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="hero-actions">
+                    <button type="submit" class="btn btn-primary" {% if not profiles or professor_count == 0 %}disabled{% endif %}>Generate drafts</button>
+                </div>
+                <div class="auth-note">
+                    <p>{{ professor_count }} faculty file{{ '' if professor_count == 1 else 's' }} available. {% if not profiles %}Create a sender profile in Setup first.{% endif %}</p>
+                </div>
+            </form>
+        </article>
+
+        <aside class="workspace-side">
+            <article class="surface-panel animate-in animate-in-2">
+                <div class="surface-panel-header">
+                    <div>
+                        <div class="panel-kicker">Review checklist</div>
+                        <div class="panel-title">What to look for</div>
+                    </div>
+                </div>
+                <div class="page-block">
+                    <div class="chip"><strong>Specific hook</strong> Does the opening reflect the professor's work and not just their title?</div>
+                    <div class="chip"><strong>Real student voice</strong> Does the message sound plausible for the sender profile you chose?</div>
+                    <div class="chip"><strong>Clean ask</strong> Is the closing direct, realistic, and brief enough to respect the inbox?</div>
+                </div>
+            </article>
+        </aside>
+    </section>
+
+    <section class="surface-panel animate-in animate-in-3">
+        <div class="surface-panel-header">
+            <div>
+                <div class="panel-kicker">Queue filters</div>
+                <div class="panel-title">Focus the current review view</div>
+            </div>
         </div>
-        <div style="min-width:180px;">
-            <label for="variant" style="display:block; font-size:0.8rem; color:var(--ao-text-dim); margin-bottom:0.35rem;">Template variant</label>
-            <select id="variant" name="variant">
-                <option value="">Auto-select</option>
-                {% for variant in variants %}
-                <option value="{{ variant }}">{{ variant.replace('_', ' ')|title }}</option>
-                {% endfor %}
-            </select>
+        <form method="GET" class="grid-3">
+            <div class="form-group">
+                <label for="status">Status</label>
+                <select id="status" name="status">
+                    <option value="">All statuses</option>
+                    {% for s in statuses %}
+                    <option value="{{ s }}" {% if current_status == s %}selected{% endif %}>{{ s }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="session">Session</label>
+                <select id="session" name="session">
+                    <option value="">All sessions</option>
+                    {% for sid in sessions %}
+                    <option value="{{ sid }}" {% if current_session == sid %}selected{% endif %}>Session #{{ sid }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group" style="display:flex; align-items:end; gap:0.6rem;">
+                <button type="submit" class="btn btn-outline">Apply filters</button>
+                {% if current_status or current_session %}
+                <a href="{{ url_for('drafts_list') }}" class="btn btn-ghost">Clear</a>
+                {% endif %}
+            </div>
+        </form>
+    </section>
+
+    <section class="surface-panel animate-in animate-in-4">
+        <div class="surface-panel-header">
+            <div>
+                <div class="panel-kicker">Draft queue</div>
+                <div class="panel-title">Review the current session</div>
+            </div>
         </div>
-        <button type="submit" class="btn btn-primary" {% if not profiles or professor_count == 0 %}disabled{% endif %}>Generate Drafts</button>
-        <span style="font-size:0.85rem; color:var(--ao-text-dim);">
-            {{ professor_count }} faculty file{{ '' if professor_count == 1 else 's' }} available.
-            {% if not profiles %}Create a sender profile in Setup first.{% endif %}
-        </span>
-    </form>
-    <form method="GET" style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap; width:100%; margin:0;">
-        <select name="status">
-            <option value="">All Statuses</option>
-            {% for s in statuses %}
-            <option value="{{ s }}" {% if current_status == s %}selected{% endif %}>{{ s }}</option>
-            {% endfor %}
-        </select>
-        <select name="session">
-            <option value="">All Sessions</option>
-            {% for sid in sessions %}
-            <option value="{{ sid }}" {% if current_session == sid %}selected{% endif %}>Session #{{ sid }}</option>
-            {% endfor %}
-        </select>
-        <button type="submit" class="btn btn-outline btn-sm">Apply Filters</button>
-        {% if current_status or current_session %}
-        <a href="{{ url_for('drafts_list') }}" class="btn btn-ghost btn-sm">Clear</a>
+        {% if drafts %}
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Professor</th>
+                        <th>Subject</th>
+                        <th>Template</th>
+                        <th>Score</th>
+                        <th>Warnings</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for d in drafts %}
+                    <tr class="clickable-row" onclick="window.location='{{ url_for('draft_detail', draft_id=d.id) }}'">
+                        <td>#{{ d.id }}</td>
+                        <td>{{ prof_map.get(d.professor_id, 'Unknown') }}</td>
+                        <td>{{ d.subject_lines_list[0] if d.subject_lines_list else '(no subject)' }}</td>
+                        <td><code>{{ d.template_variant }}</code></td>
+                        <td>
+                            {% set sc = d.overall_score %}
+                            <span class="score-badge {% if sc >= 7.5 %}score-high{% elif sc >= 4.0 %}score-mid{% else %}score-low{% endif %}">{{ "%.1f"|format(sc) }}</span>
+                        </td>
+                        <td>
+                            {% if d.warnings_list %}<span class="warning-count">{{ d.warnings_list|length }}</span>{% else %}<span style="color:var(--ao-text-dim);">-</span>{% endif %}
+                        </td>
+                        <td><span class="badge badge-{{ d.status }}">{{ d.status }}</span></td>
+                        <td>{{ d.created_at[:16] }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">&#9998;</div>
+            <p>No drafts are in this view yet. Use the generation panel above to turn saved faculty and a sender profile into a review session.</p>
+        </div>
         {% endif %}
-    </form>
+    </section>
 </div>
-
-{% if drafts %}
-<div class="table-wrap">
-    <table>
-        <thead>
-            <tr>
-                <th>ID</th><th>Professor</th><th>Subject</th><th>Template</th>
-                <th>Score</th><th>Warnings</th><th>Status</th><th>Created</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for d in drafts %}
-            <tr class="clickable-row" onclick="window.location='{{ url_for('draft_detail', draft_id=d.id) }}'">
-                <td>#{{ d.id }}</td>
-                <td>{{ prof_map.get(d.professor_id, 'Unknown') }}</td>
-                <td style="max-width:250px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
-                    {{ d.subject_lines_list[0] if d.subject_lines_list else '(no subject)' }}
-                </td>
-                <td><code>{{ d.template_variant }}</code></td>
-                <td>
-                    {% set sc = d.overall_score %}
-                    <span class="score-badge {% if sc >= 7.5 %}score-high{% elif sc >= 4.0 %}score-mid{% else %}score-low{% endif %}">{{ "%.1f"|format(sc) }}</span>
-                </td>
-                <td>
-                    {% if d.warnings_list %}<span class="warning-count">{{ d.warnings_list|length }}</span>
-                    {% else %}<span style="color:var(--ao-text-dim);">-</span>{% endif %}
-                </td>
-                <td><span class="badge badge-{{ d.status }}">{{ d.status }}</span></td>
-                <td style="font-size:0.82rem; color:var(--ao-text-dim);">{{ d.created_at[:16] }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</div>
-{% else %}
-<div class="empty-state"><div class="empty-icon">&#9998;</div><p>No drafts are in this view yet. Use the generation bar above to turn saved faculty and a sender profile into a new review session.</p></div>
-{% endif %}
 {% endblock %}
