@@ -16,10 +16,66 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import click
-from rich.console import Console
-from rich.panel import Panel
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
-from rich.table import Table
+
+try:
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
+    from rich.table import Table
+except ImportError:  # pragma: no cover - exercised in minimal local installs
+    class Console:  # type: ignore[override]
+        def print(self, *args: Any, **kwargs: Any) -> None:
+            print(*args)
+
+    def Panel(content: str, style: str | None = None) -> str:  # type: ignore[misc]
+        return content
+
+    class Table:  # type: ignore[override]
+        def __init__(self, title: str | None = None, show_header: bool = True) -> None:
+            self.title = title or ""
+            self.rows: list[tuple[Any, ...]] = []
+
+        def add_column(self, *args: Any, **kwargs: Any) -> None:
+            return None
+
+        def add_row(self, *args: Any) -> None:
+            self.rows.append(args)
+
+        def __str__(self) -> str:
+            lines = [self.title] if self.title else []
+            lines.extend(" | ".join(str(item) for item in row) for row in self.rows)
+            return "\n".join(lines)
+
+        __repr__ = __str__
+
+    class Progress:  # type: ignore[override]
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            pass
+
+        def __enter__(self) -> "Progress":
+            return self
+
+        def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> bool:
+            return False
+
+        def add_task(self, *args: Any, **kwargs: Any) -> int:
+            return 0
+
+        def advance(self, *args: Any, **kwargs: Any) -> None:
+            return None
+
+    class SpinnerColumn:  # type: ignore[override]
+        pass
+
+    class TextColumn:  # type: ignore[override]
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            pass
+
+    class BarColumn:  # type: ignore[override]
+        pass
+
+    class TaskProgressColumn:  # type: ignore[override]
+        pass
 
 from app.config import Config, ConfigError, DEFAULT_CONFIG_YAML, load_config
 from app.database import (

@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 import random
+import sqlite3
 import smtplib
 import time
 from datetime import datetime, timezone
@@ -26,6 +28,7 @@ from app.database import (
     get_draft,
     get_drafts,
     get_professor,
+    get_sender_profile,
     is_duplicate_send,
     is_suppressed,
     record_send,
@@ -123,9 +126,9 @@ class GmailAPISender:
             from googleapiclient.discovery import build
         except ImportError as exc:
             raise RuntimeError(
-                "Gmail API dependencies not installed. "
-                "Install google-api-python-client, google-auth-oauthlib, "
-                "and google-auth-httplib2."
+                "Gmail API dependencies are not installed in this environment. "
+                "Use SMTP for hosted sends, or install google-api-python-client, "
+                "google-auth-oauthlib, and google-auth-httplib2 for local Gmail drafts."
             ) from exc
 
         scopes: list[str] = [
@@ -147,6 +150,11 @@ class GmailAPISender:
                 if not credentials_path.exists():
                     raise FileNotFoundError(
                         f"Gmail credentials file not found: {credentials_path}"
+                    )
+                if os.environ.get("VERCEL"):
+                    raise RuntimeError(
+                        "Hosted Gmail OAuth setup is not supported from the web app. "
+                        "Use SMTP for hosted sending, or authenticate Gmail locally first."
                     )
                 flow = InstalledAppFlow.from_client_secrets_file(
                     str(credentials_path), scopes
@@ -353,6 +361,39 @@ class SafeSender:
         self._gmail_sender: GmailAPISender | None = None
         self._smtp_sender: SMTPSender | None = None
 
+    def _resolve_method(self, method: str | None) -> str:
+        return method or self._method
+
+    def _resolve_draft_only(
+        self,
+        method: str,
+        draft_only: bool | None,
+    ) -> bool:
+        if draft_only is not None:
+            return draft_only
+        return method == "gmail_draft"
+
+    def _resolve_context(
+        self,
+        conn: sqlite3.Connection,
+        draft: Draft,
+        professor: Professor | None = None,
+        sender_profile: SenderProfile | None = None,
+    ) -> tuple[Professor, SenderProfile]:
+        resolved_professor = professor or get_professor(conn, draft.professor_id)
+        if resolved_professor is None:
+            raise RuntimeError(
+                f"Professor {draft.professor_id} for draft {draft.id} was not found."
+            )
+
+        resolved_sender = sender_profile or get_sender_profile(conn, draft.sender_profile_id)
+        if resolved_sender is None:
+            raise RuntimeError(
+                f"Sender profile {draft.sender_profile_id} for draft {draft.id} was not found."
+            )
+
+        return resolved_professor, resolved_sender
+
     def _get_gmail_sender(self) -> GmailAPISender:
         if self._gmail_sender is None:
             self._gmail_sender = GmailAPISender()
@@ -395,6 +436,189 @@ class SafeSender:
                 status="failed",
                 error_message=f"Unknown send method: {self._method}",
             )
+
+    def send(
+        self,
+        draft: Draft,
+        method: str | None = None,
+        *,
+        conn: sqlite3.Connection | None = None,
+        professor: Professor | None = None,
+        sender_profile: SenderProfile | None = None,
+        draft_only: bool | None = None,
+        dry_run: bool = False,
+    ) -> SendRecord:
+        """Send a single draft and persist the outcome.
+
+        Raises
+        ------
+        RuntimeError
+            If the draft cannot be sent or the send backend reports failure.
+        """
+        owned_conn = conn is None
+        effective_method = self._resolve_method(method)
+        effective_draft_only = self._resolve_draft_only(effective_method, draft_only)
+        active_conn = conn or get_connection(self._config.db_path)
+
+        try:
+            resolved_professor, resolved_sender = self._resolve_context(
+                active_conn,
+                draft,
+                professor=professor,
+                sender_profile=sender_profile,
+            )
+
+            if is_suppressed(active_conn, resolved_professor.email):
+                raise RuntimeError(
+                    f"{resolved_professor.email} is on the suppression list."
+                )
+
+            if is_duplicate_send(active_conn, resolved_professor.id or 0):
+                raise RuntimeError(
+                    f"{resolved_professor.email} has already been contacted."
+                )
+
+            if not self._bucket.acquire():
+                wait = self._bucket.wait_time()
+                logger.info("Rate limit hit, waiting %.1f seconds", wait)
+                time.sleep(wait)
+                self._bucket.acquire()
+
+            if dry_run:
+                audit_log(
+                    action="send_dry_run",
+                    detail=f"Dry run: draft {draft.id} to {resolved_professor.email}",
+                    metadata={
+                        "draft_id": draft.id,
+                        "professor_email": resolved_professor.email,
+                        "method": effective_method,
+                    },
+                    db_path=self._config.db_path,
+                )
+                return SendRecord(
+                    draft_id=draft.id or 0,
+                    professor_id=resolved_professor.id or 0,
+                    sent_at=_now_iso(),
+                    method=effective_method,
+                    status="success",
+                )
+
+            record: SendRecord | None = None
+            for attempt in range(2):
+                record = self._send_single(
+                    draft,
+                    resolved_professor,
+                    resolved_sender,
+                    effective_draft_only,
+                )
+                if record.status == "success":
+                    break
+                if attempt == 0:
+                    logger.warning(
+                        "Draft %d: first send attempt failed, retrying... (%s)",
+                        draft.id,
+                        record.error_message,
+                    )
+                    time.sleep(2)
+
+            if record is None:
+                raise RuntimeError("Sending failed before a result could be recorded.")
+
+            record_send(active_conn, record)
+
+            if record.status != "success":
+                update_draft_status(active_conn, draft.id or 0, "failed")
+                audit_log(
+                    action="email_failed",
+                    detail=f"Draft {draft.id} failed for {resolved_professor.email}: {record.error_message}",
+                    metadata={
+                        "draft_id": draft.id,
+                        "professor_email": resolved_professor.email,
+                        "error": record.error_message,
+                        "method": effective_method,
+                    },
+                    db_path=self._config.db_path,
+                )
+                raise RuntimeError(record.error_message or "Sending failed.")
+
+            update_draft_status(active_conn, draft.id or 0, "sent")
+            add_suppression(active_conn, resolved_professor.email, reason="email_sent")
+            audit_log(
+                action="email_sent",
+                detail=f"Draft {draft.id} sent to {resolved_professor.email} via {effective_method}",
+                metadata={
+                    "draft_id": draft.id,
+                    "professor_id": resolved_professor.id,
+                    "professor_email": resolved_professor.email,
+                    "method": effective_method,
+                    "draft_only": effective_draft_only,
+                    "gmail_draft_id": record.gmail_draft_id,
+                },
+                db_path=self._config.db_path,
+            )
+            return record
+        finally:
+            if owned_conn:
+                active_conn.close()
+
+    def send_many(
+        self,
+        drafts: list[Draft],
+        *,
+        conn: sqlite3.Connection | None = None,
+        method: str | None = None,
+        draft_only: bool | None = None,
+        dry_run: bool = False,
+        cooldown: bool = False,
+    ) -> list[dict[str, Any]]:
+        """Send multiple drafts and return user-facing result objects."""
+        owned_conn = conn is None
+        active_conn = conn or get_connection(self._config.db_path)
+        results: list[dict[str, Any]] = []
+        effective_method = self._resolve_method(method)
+
+        try:
+            for index, draft in enumerate(drafts):
+                try:
+                    professor = get_professor(active_conn, draft.professor_id)
+                    record = self.send(
+                        draft,
+                        method=effective_method,
+                        conn=active_conn,
+                        professor=professor,
+                        draft_only=draft_only,
+                        dry_run=dry_run,
+                    )
+                    results.append({
+                        "draft_id": draft.id,
+                        "professor": professor.name if professor else "Unknown",
+                        "email": professor.email if professor else "",
+                        "method": record.method,
+                        "status": "dry_run" if dry_run else "sent",
+                    })
+                except Exception as exc:
+                    professor = get_professor(active_conn, draft.professor_id)
+                    results.append({
+                        "draft_id": draft.id,
+                        "professor": professor.name if professor else "Unknown",
+                        "email": professor.email if professor else "",
+                        "method": effective_method,
+                        "status": "failed",
+                        "error": str(exc),
+                    })
+
+                if cooldown and index < len(drafts) - 1 and not dry_run:
+                    pause = random.uniform(
+                        self._config.sending.cooldown_min,
+                        self._config.sending.cooldown_max,
+                    )
+                    logger.debug("Cooldown: %.1f seconds", pause)
+                    time.sleep(pause)
+
+            return results
+        finally:
+            if owned_conn:
+                active_conn.close()
 
     def send_batch(
         self,
@@ -439,151 +663,20 @@ class SafeSender:
             if not approved_drafts:
                 logger.info("No approved drafts to send")
                 return summary
-
-            processed: int = 0
-
-            for draft in approved_drafts:
-                if processed >= effective_limit:
-                    logger.info("Session cap reached (%d)", effective_limit)
-                    break
-
-                professor: Professor | None = get_professor(conn, draft.professor_id)
-                if professor is None:
-                    logger.warning(
-                        "Draft %d: professor_id %d not found -- skipping",
-                        draft.id,
-                        draft.professor_id,
-                    )
-                    summary["failed"] += 1
-                    continue
-
-                # Suppression check
-                if is_suppressed(conn, professor.email):
-                    logger.info(
-                        "Draft %d: %s is suppressed -- skipping",
-                        draft.id,
-                        professor.email,
-                    )
-                    summary["skipped_suppressed"] += 1
-                    continue
-
-                # Duplicate check
-                if is_duplicate_send(conn, professor.id or 0):
-                    logger.info(
-                        "Draft %d: duplicate send for professor %d -- skipping",
-                        draft.id,
-                        professor.id,
-                    )
-                    summary["skipped_duplicate"] += 1
-                    continue
-
-                # Rate limiting
-                if not self._bucket.acquire():
-                    wait: float = self._bucket.wait_time()
-                    logger.info("Rate limit hit, waiting %.1f seconds", wait)
-                    time.sleep(wait)
-                    self._bucket.acquire()
-
-                # Build a sender profile (fetch from DB)
-                from app.database import get_sender_profile
-                sender: SenderProfile | None = get_sender_profile(conn, draft.sender_profile_id)
-                if sender is None:
-                    logger.warning(
-                        "Draft %d: sender_profile_id %d not found -- skipping",
-                        draft.id,
-                        draft.sender_profile_id,
-                    )
-                    summary["failed"] += 1
-                    continue
-
-                # Dry run
-                if dry_run:
-                    logger.info(
-                        "[DRY RUN] Would send draft %d to %s (%s)",
-                        draft.id,
-                        professor.name,
-                        professor.email,
-                    )
-                    audit_log(
-                        action="send_dry_run",
-                        detail=f"Dry run: draft {draft.id} to {professor.email}",
-                        metadata={
-                            "draft_id": draft.id,
-                            "professor_email": professor.email,
-                            "method": self._method,
-                        },
-                        db_path=db_path,
-                    )
-                    summary["sent"] += 1
-                    processed += 1
-                    continue
-
-                # Actual send with retry (1 retry on failure)
-                record: SendRecord | None = None
-                for attempt in range(2):
-                    record = self._send_single(draft, professor, sender, draft_only)
-                    if record.status == "success":
-                        break
-                    if attempt == 0:
-                        logger.warning(
-                            "Draft %d: send attempt 1 failed, retrying... (%s)",
-                            draft.id,
-                            record.error_message,
-                        )
-                        time.sleep(2)
-
-                if record is None:
-                    summary["failed"] += 1
-                    continue
-
-                # Record to database
-                record_send(conn, record)
-
-                if record.status == "success":
-                    summary["sent"] += 1
-                    update_draft_status(conn, draft.id or 0, "sent")
-
-                    # Add to suppression after successful send
-                    add_suppression(conn, professor.email, reason="email_sent")
-
-                    audit_log(
-                        action="email_sent",
-                        detail=f"Draft {draft.id} sent to {professor.email} via {self._method}",
-                        metadata={
-                            "draft_id": draft.id,
-                            "professor_id": professor.id,
-                            "professor_email": professor.email,
-                            "method": self._method,
-                            "draft_only": draft_only,
-                            "gmail_draft_id": record.gmail_draft_id,
-                        },
-                        db_path=db_path,
-                    )
-                else:
-                    summary["failed"] += 1
-                    update_draft_status(conn, draft.id or 0, "failed")
-
-                    audit_log(
-                        action="email_failed",
-                        detail=f"Draft {draft.id} failed for {professor.email}: {record.error_message}",
-                        metadata={
-                            "draft_id": draft.id,
-                            "professor_email": professor.email,
-                            "error": record.error_message,
-                        },
-                        db_path=db_path,
-                    )
-
-                processed += 1
-
-                # Random cooldown between sends
-                if processed < effective_limit and processed < len(approved_drafts):
-                    cooldown: float = random.uniform(
-                        self._config.sending.cooldown_min,
-                        self._config.sending.cooldown_max,
-                    )
-                    logger.debug("Cooldown: %.1f seconds", cooldown)
-                    time.sleep(cooldown)
+            results = self.send_many(
+                approved_drafts[:effective_limit],
+                conn=conn,
+                method=self._method,
+                draft_only=draft_only,
+                dry_run=dry_run,
+                cooldown=not dry_run,
+            )
+            summary["sent"] = sum(
+                1 for result in results if result["status"] in {"sent", "dry_run"}
+            )
+            summary["failed"] = sum(
+                1 for result in results if result["status"] == "failed"
+            )
 
         finally:
             conn.close()

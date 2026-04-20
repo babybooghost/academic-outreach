@@ -4,7 +4,7 @@
 {% block content %}
 <div class="page-header">
     <h1>Send Queue</h1>
-    <p>Approved drafts ready to send</p>
+    <p>Approved drafts ready to deliver through one stable sending flow</p>
 </div>
 
 {% if send_queue %}
@@ -36,9 +36,31 @@
     </table>
 </div>
 
-<div style="margin-top:1.5rem; display:flex; gap:0.75rem;">
-    <button class="btn btn-primary" onclick="triggerSend(false)">Send All ({{ send_queue|length }})</button>
-    <button class="btn btn-outline" onclick="triggerSend(true)">Dry Run</button>
+<div class="card" style="margin-top:1.5rem;">
+    <div class="card-header">
+        <h3>Delivery Controls</h3>
+    </div>
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:1rem;">
+        <div class="form-group" style="margin:0;">
+            <label for="send-method">Method</label>
+            <select id="send-method">
+                <option value="smtp" selected>SMTP (recommended for hosted app)</option>
+                <option value="gmail_draft">Gmail Draft</option>
+                <option value="gmail_send">Gmail Send</option>
+            </select>
+        </div>
+        <div class="form-group" style="margin:0;">
+            <label for="send-limit">How many drafts</label>
+            <input id="send-limit" type="number" min="1" max="{{ send_queue|length }}" value="{{ send_queue|length }}">
+        </div>
+    </div>
+    <div class="form-hint" style="margin-top:0.75rem;">
+        SMTP is the most reliable hosted path. Gmail modes require Gmail API credentials and local OAuth setup.
+    </div>
+    <div style="margin-top:1rem; display:flex; gap:0.75rem; flex-wrap:wrap;">
+        <button class="btn btn-primary" onclick="triggerSend(false)">Execute Queue</button>
+        <button class="btn btn-outline" onclick="triggerSend(true)">Dry Run</button>
+    </div>
 </div>
 <div id="send-results" style="margin-top:1rem;"></div>
 {% else %}
@@ -51,15 +73,20 @@
 {% block scripts %}
 <script>
 async function triggerSend(dryRun) {
+    const method = document.getElementById('send-method').value;
+    const limit = Number(document.getElementById('send-limit').value || {{ send_queue|length }});
     const res = await fetch('/send', {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({dry_run: dryRun, method:'gmail_draft', limit:50})
+        body: JSON.stringify({dry_run: dryRun, method, limit})
     });
     const data = await res.json();
     const el = document.getElementById('send-results');
     if (data.success) {
+        const title = dryRun
+            ? 'Dry Run: ' + data.count + ' drafts'
+            : 'Processed ' + data.count + ' drafts (' + data.sent + ' sent, ' + data.failed + ' failed)';
         el.innerHTML = '<div class="card" style="border-color:var(--ao-success);"><div class="card-header"><h3>' +
-            (dryRun ? 'Dry Run' : 'Sent') + ': ' + data.count + ' emails</h3></div>' +
+            title + '</h3></div>' +
             '<pre style="font-size:0.85rem;color:var(--ao-text-muted);">' + JSON.stringify(data.results, null, 2) + '</pre></div>';
     } else {
         el.innerHTML = '<div class="flash-msg flash-error">' + (data.error || 'Send failed') + '</div>';

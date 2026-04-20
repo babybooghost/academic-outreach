@@ -28,5 +28,6 @@ google-auth-oauthlib>=1.1.0
 # Email
 secure-smtplib>=0.1.1
 
-# Turso (cloud SQLite for Vercel deployment)
-libsql-experimental>=0.0.47
+# Turso / libsql is optional. Install separately if you actually use Turso:
+#   pip install libsql-experimental
+# Keeping it out of the default Windows install avoids Rust build failures.

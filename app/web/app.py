@@ -637,47 +637,70 @@ def create_app() -> Flask:
         try:
             data = request.get_json(silent=True) or {}
             dry_run = data.get("dry_run", True)
-            method = data.get("method", "gmail_draft")
-            limit = data.get("limit", 10)
+            method = data.get("method", "smtp")
+            limit = min(int(data.get("limit", 10)), 50)
 
             approved = get_drafts(conn, status="approved")
             edited = get_drafts(conn, status="edited")
             send_queue = (approved + edited)[:limit]
 
+            if not send_queue:
+                return jsonify({
+                    "success": False,
+                    "error": "No approved or edited drafts are ready to send.",
+                }), 400
+
             if dry_run:
                 results = []
-                for d in send_queue:
-                    p = get_professor(conn, d.professor_id)
+                for draft in send_queue:
+                    professor = get_professor(conn, draft.professor_id)
                     results.append({
-                        "draft_id": d.id,
-                        "professor": p.name if p else "Unknown",
-                        "email": p.email if p else "Unknown",
-                        "subject": d.subject_lines_list[0] if d.subject_lines_list else "(no subject)",
+                        "draft_id": draft.id,
+                        "professor": professor.name if professor else "Unknown",
+                        "email": professor.email if professor else "Unknown",
+                        "subject": draft.subject_lines_list[0] if draft.subject_lines_list else "(no subject)",
+                        "method": method,
                         "status": "dry_run",
                     })
                 _log_activity("send_dry_run", category="send",
                               details={"count": len(results), "method": method})
-                return jsonify({"success": True, "dry_run": True, "count": len(results), "results": results})
+                return jsonify({
+                    "success": True,
+                    "dry_run": True,
+                    "count": len(results),
+                    "sent": 0,
+                    "failed": 0,
+                    "results": results,
+                })
 
             try:
                 from app.sender import SafeSender
                 cfg = app.config["APP_CFG"]
-                sender = SafeSender(cfg)
-                results = []
-                for d in send_queue:
-                    p = get_professor(conn, d.professor_id)
-                    if not p:
-                        continue
-                    try:
-                        sender.send(draft=d, professor=p, method=method, conn=conn)
-                        results.append({"draft_id": d.id, "professor": p.name, "status": "sent"})
-                    except Exception as send_exc:
-                        results.append({"draft_id": d.id, "professor": p.name, "status": "failed", "error": str(send_exc)})
+                if not cfg:
+                    return jsonify({"success": False, "error": "Config not loaded."}), 500
+
+                sender = SafeSender(cfg, method=method)
+                results = sender.send_many(
+                    send_queue,
+                    conn=conn,
+                    method=method,
+                    dry_run=False,
+                    cooldown=False,
+                )
+                sent_count = sum(1 for result in results if result["status"] == "sent")
+                failed_count = sum(1 for result in results if result["status"] == "failed")
                 _log_activity("send_execute", category="send",
                               details={"count": len(results), "method": method,
-                                       "sent": sum(1 for r in results if r["status"] == "sent"),
-                                       "failed": sum(1 for r in results if r["status"] == "failed")})
-                return jsonify({"success": True, "dry_run": False, "count": len(results), "results": results})
+                                       "sent": sent_count,
+                                       "failed": failed_count})
+                return jsonify({
+                    "success": True,
+                    "dry_run": False,
+                    "count": len(results),
+                    "sent": sent_count,
+                    "failed": failed_count,
+                    "results": results,
+                })
             except ImportError:
                 return jsonify({"error": "Sender module not available"}), 500
         except Exception as exc:
