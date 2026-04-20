@@ -81,6 +81,42 @@
 <!-- Sender Profiles -->
 <div class="section" style="margin-top:2rem;">
     <div class="section-title">Sender profiles</div>
+    <form method="POST" action="{{ url_for('create_sender_profile_route') }}" class="card" style="margin-bottom:1rem;">
+        <div class="card-header"><h3>Add sender profile</h3></div>
+        <div class="grid-2">
+            <div class="form-group">
+                <label for="profile-name">Full Name</label>
+                <input id="profile-name" name="name" type="text" placeholder="Student name">
+            </div>
+            <div class="form-group">
+                <label for="profile-email">Email</label>
+                <input id="profile-email" name="email" type="email" placeholder="student@example.com">
+            </div>
+            <div class="form-group">
+                <label for="profile-school">School</label>
+                <input id="profile-school" name="school" type="text" placeholder="High school or program">
+            </div>
+            <div class="form-group">
+                <label for="profile-grade">Grade / Year</label>
+                <input id="profile-grade" name="grade" type="text" placeholder="11th grade">
+            </div>
+            <div class="form-group">
+                <label for="profile-grad-year">Graduation Year <span style="color:var(--ao-text-dim);">(optional)</span></label>
+                <input id="profile-grad-year" name="graduation_year" type="text" placeholder="2027">
+            </div>
+            <div class="form-group">
+                <label for="profile-interests">Interests</label>
+                <input id="profile-interests" name="interests" type="text" placeholder="AI, cryptography, systems">
+            </div>
+        </div>
+        <div class="form-group">
+            <label for="profile-background">Background</label>
+            <textarea id="profile-background" name="background" rows="4" placeholder="Classes, projects, clubs, coding background, competitions, or relevant experience."></textarea>
+            <div class="form-hint">This is the student context used during personalization, so concrete details help the drafts sound real.</div>
+        </div>
+        <button type="submit" class="btn btn-primary">Save Sender Profile</button>
+    </form>
+
     {% if profiles %}
     <div class="table-wrap">
         <table>
@@ -97,7 +133,7 @@
         </table>
     </div>
     {% else %}
-    <div class="empty-state"><p>No sender profiles are stored yet. The hosted app still needs a web flow for creating the student profile that the drafting pipeline writes against.</p></div>
+    <div class="empty-state"><p>No sender profiles are stored yet. Add one above so the drafting workflow knows who the outreach is coming from.</p></div>
     {% endif %}
 </div>
 

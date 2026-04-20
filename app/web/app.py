@@ -46,6 +46,7 @@ from app.database import (
     get_setting,
     get_suppression_list,
     init_db,
+    insert_sender_profile,
     log_admin_activity,
     revoke_access_key,
     set_settings_bulk,
@@ -55,6 +56,7 @@ from app.database import (
 )
 from app.logger import get_logger
 from app.models import Draft, Professor, SenderProfile
+from app.generation_service import run_generation_pipeline
 
 # ---------------------------------------------------------------------------
 # App factory
@@ -583,15 +585,86 @@ def create_app() -> Flask:
             all_drafts = get_drafts(conn)
             sessions = sorted({d.session_id for d in all_drafts})
             statuses = sorted({d.status for d in all_drafts})
+            profiles = get_sender_profiles(conn)
+            cfg = _workspace_config(conn)
+            variants = list(cfg.generation.template_variants)
+            professor_count = conn.execute(
+                "SELECT COUNT(*) AS count FROM professors"
+            ).fetchone()["count"]
 
             return render_template(
                 "drafts.html", drafts=drafts, prof_map=prof_map,
                 sessions=sessions, statuses=statuses,
                 current_session=session_filter or "",
                 current_status=status_filter or "",
+                profiles=profiles,
+                variants=variants,
+                professor_count=professor_count,
             )
         finally:
             conn.close()
+
+    @app.route("/drafts/generate", methods=["POST"])
+    @login_required
+    def generate_drafts_route():
+        conn = _workspace_conn()
+        try:
+            sender_profile_id = request.form.get("sender_profile_id", type=int)
+            variant = request.form.get("variant", "").strip() or None
+            professor_count = conn.execute(
+                "SELECT COUNT(*) AS count FROM professors"
+            ).fetchone()["count"]
+            if not sender_profile_id:
+                flash("Choose a sender profile before generating drafts.", "error")
+                return redirect(url_for("drafts_list"))
+            if professor_count == 0:
+                flash("Save at least one professor before generating drafts.", "error")
+                return redirect(url_for("finder_page"))
+            cfg = _workspace_config(conn)
+        finally:
+            conn.close()
+
+        try:
+            summary = run_generation_pipeline(
+                db_path=_workspace_db_path(),
+                config=cfg,
+                sender_profile_id=sender_profile_id,
+                variant=variant,
+            )
+        except Exception as exc:
+            flash(f"Draft generation failed: {exc}", "error")
+            return redirect(url_for("drafts_list"))
+
+        _log_activity(
+            "draft_generate",
+            category="drafts",
+            target_type="session",
+            target_id=str(summary.session_id),
+            details={
+                "sender_profile_id": sender_profile_id,
+                "variant": variant or "auto",
+                "created": summary.created,
+                "skipped": summary.skipped,
+                "failed": summary.failed,
+                "scored": summary.scored,
+            },
+        )
+
+        if summary.created == 0:
+            flash(
+                "No drafts were created. Add richer research summaries or save better faculty matches first.",
+                "warning",
+            )
+            return redirect(url_for("drafts_list"))
+
+        message = (
+            f"Created {summary.created} draft(s) in session {summary.session_id}. "
+            f"Skipped {summary.skipped}, failed {summary.failed}."
+        )
+        if summary.flagged_similarity:
+            message += f" {summary.flagged_similarity} draft(s) were flagged for similarity."
+        flash(message, "success")
+        return redirect(url_for("drafts_list", session=summary.session_id))
 
     @app.route("/drafts/<int:draft_id>")
     @login_required
@@ -887,6 +960,40 @@ def create_app() -> Flask:
             return redirect(url_for("settings_page"))
         except Exception as exc:
             flash(f"Failed to save settings: {exc}", "error")
+            return redirect(url_for("settings_page"))
+        finally:
+            conn.close()
+
+    @app.route("/settings/profiles", methods=["POST"])
+    @login_required
+    def create_sender_profile_route():
+        conn = _workspace_conn()
+        try:
+            profile = SenderProfile(
+                name=request.form.get("name", "").strip(),
+                school=request.form.get("school", "").strip(),
+                grade=request.form.get("grade", "").strip(),
+                email=request.form.get("email", "").strip(),
+                interests=request.form.get("interests", "").strip(),
+                background=request.form.get("background", "").strip(),
+                graduation_year=request.form.get("graduation_year", "").strip() or None,
+            )
+            if not profile.name or not profile.school or not profile.grade or not profile.email:
+                flash("Name, school, grade, and email are required for a sender profile.", "error")
+                return redirect(url_for("settings_page"))
+
+            profile_id = insert_sender_profile(conn, profile)
+            _log_activity(
+                "sender_profile_create",
+                category="settings",
+                target_type="sender_profile",
+                target_id=str(profile_id),
+                details={"email": profile.email, "school": profile.school},
+            )
+            flash("Sender profile saved to this workspace.", "success")
+            return redirect(url_for("settings_page"))
+        except Exception as exc:
+            flash(f"Failed to create sender profile: {exc}", "error")
             return redirect(url_for("settings_page"))
         finally:
             conn.close()

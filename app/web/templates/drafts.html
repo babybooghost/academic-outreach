@@ -17,6 +17,31 @@
 </div>
 
 <div class="filter-bar">
+    <form method="POST" action="{{ url_for('generate_drafts_route') }}" style="display:flex; align-items:end; gap:0.75rem; flex-wrap:wrap; width:100%; margin:0 0 1rem 0;">
+        <div style="min-width:220px; flex:1;">
+            <label for="sender_profile_id" style="display:block; font-size:0.8rem; color:var(--ao-text-dim); margin-bottom:0.35rem;">Sender profile</label>
+            <select id="sender_profile_id" name="sender_profile_id" {% if not profiles %}disabled{% endif %}>
+                <option value="">Choose a profile</option>
+                {% for profile in profiles %}
+                <option value="{{ profile.id }}">{{ profile.name }} · {{ profile.school }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div style="min-width:180px;">
+            <label for="variant" style="display:block; font-size:0.8rem; color:var(--ao-text-dim); margin-bottom:0.35rem;">Template variant</label>
+            <select id="variant" name="variant">
+                <option value="">Auto-select</option>
+                {% for variant in variants %}
+                <option value="{{ variant }}">{{ variant.replace('_', ' ')|title }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary" {% if not profiles or professor_count == 0 %}disabled{% endif %}>Generate Drafts</button>
+        <span style="font-size:0.85rem; color:var(--ao-text-dim);">
+            {{ professor_count }} faculty file{{ '' if professor_count == 1 else 's' }} available.
+            {% if not profiles %}Create a sender profile in Setup first.{% endif %}
+        </span>
+    </form>
     <form method="GET" style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap; width:100%; margin:0;">
         <select name="status">
             <option value="">All Statuses</option>
@@ -71,6 +96,6 @@
     </table>
 </div>
 {% else %}
-<div class="empty-state"><div class="empty-icon">&#9998;</div><p>No drafts are in this view yet. The hosted app still needs a web-native draft generation step, so this queue only fills after the backend drafting pipeline runs.</p></div>
+<div class="empty-state"><div class="empty-icon">&#9998;</div><p>No drafts are in this view yet. Use the generation bar above to turn saved faculty and a sender profile into a new review session.</p></div>
 {% endif %}
 {% endblock %}
