@@ -46,6 +46,13 @@
     </nav>
 
     <div class="container page-content">
+        {% if storage_status and storage_status.severity == 'warning' %}
+        <div class="storage-banner storage-banner-warning">
+            <strong>{{ storage_status.label }}</strong>
+            <span>{{ storage_status.detail }}</span>
+        </div>
+        {% endif %}
+
         {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
         <div class="flash-messages">

@@ -32,6 +32,12 @@
         <div class="hp-hero-bg"></div>
         <div class="container hp-hero-shell">
             <div class="hp-hero-copy">
+                {% if storage_status and storage_status.severity == 'warning' %}
+                <div class="flash-msg flash-warning" style="margin-bottom:1rem;">
+                    <strong>{{ storage_status.label }}</strong>
+                    {{ storage_status.detail }}
+                </div>
+                {% endif %}
                 <div class="hp-badge animate-in">Faculty search, notes, drafts, and reviewed sending</div>
                 <h1 class="hp-hero-title animate-in animate-in-1">
                     Outreach that looks like

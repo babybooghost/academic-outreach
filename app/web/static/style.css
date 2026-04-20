@@ -105,6 +105,27 @@ hr { border: none; border-top: 1px solid var(--ao-border); margin: 1.5rem 0; }
 /* --- Layout --- */
 .container { max-width: 1200px; margin: 0 auto; padding: 0 1.5rem; }
 .page-content { padding: 2rem 0 4rem; }
+.storage-banner {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-start;
+    padding: 0.85rem 1rem;
+    margin-bottom: 1rem;
+    border-radius: var(--ao-radius-sm);
+    border: 1px solid var(--ao-border);
+    background: var(--ao-surface-2);
+}
+.storage-banner strong {
+    color: var(--ao-text);
+    white-space: nowrap;
+}
+.storage-banner span {
+    color: var(--ao-text-muted);
+}
+.storage-banner-warning {
+    border-color: color-mix(in srgb, var(--ao-warning) 50%, var(--ao-border));
+    background: linear-gradient(180deg, var(--ao-warning-bg), var(--ao-surface-2));
+}
 
 /* --- Logo --- */
 .logo { display: flex; align-items: center; gap: 0.6rem; text-decoration: none; }

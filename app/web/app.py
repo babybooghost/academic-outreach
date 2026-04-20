@@ -96,7 +96,11 @@ def create_app() -> Flask:
     # Context processor
     @app.context_processor
     def inject_globals() -> dict[str, Any]:
-        return {"app_version": _APP_VERSION, "now": datetime.utcnow()}
+        return {
+            "app_version": _APP_VERSION,
+            "now": datetime.utcnow(),
+            "storage_status": _storage_status(),
+        }
 
     # ------------------------------------------------------------------
     # DB helpers
@@ -158,6 +162,51 @@ def create_app() -> Flask:
             smtp_user=saved.get("smtp_user", base_cfg.smtp_user),
             smtp_password=saved.get("smtp_password", base_cfg.smtp_password),
         )
+
+    def _storage_status() -> dict[str, Any]:
+        cfg = app.config.get("APP_CFG")
+        db_path = cfg.db_path if cfg else ""
+        has_turso = bool(
+            os.environ.get("TURSO_DATABASE_URL", "").strip()
+            and os.environ.get("TURSO_AUTH_TOKEN", "").strip()
+        )
+        if has_turso:
+            return {
+                "mode": "remote-shared",
+                "persistent": True,
+                "workspace_isolated": False,
+                "severity": "warning",
+                "label": "Remote database attached, tenant isolation still incomplete",
+                "detail": (
+                    "This deployment can persist auth and app data remotely, but workspace isolation still "
+                    "assumes per-user database files. A tenant-scoped remote schema migration is still required "
+                    "before hosted multi-user privacy is trustworthy."
+                ),
+            }
+
+        if os.environ.get("VERCEL") and str(db_path).startswith("/tmp"):
+            return {
+                "mode": "ephemeral-instance",
+                "persistent": False,
+                "workspace_isolated": True,
+                "severity": "warning",
+                "label": "Temporary hosted storage",
+                "detail": (
+                    "This deployment stores workspace data on the server instance filesystem. Per-user workspaces "
+                    "are separated, but data can reset after cold starts, deploys, or instance replacement."
+                ),
+            }
+
+        return {
+            "mode": "local-files",
+            "persistent": True,
+            "workspace_isolated": True,
+            "severity": "info",
+            "label": "Local persistent workspace files",
+            "detail": (
+                "Workspace data is stored in per-user database files on this machine."
+            ),
+        }
 
     # ------------------------------------------------------------------
     # Auth helpers
@@ -457,10 +506,12 @@ def create_app() -> Flask:
     @app.route("/health")
     def health_check():
         cfg = app.config.get("APP_CFG")
+        storage = _storage_status()
         return jsonify({
             "status": "ok",
             "config_loaded": cfg is not None,
             "db_path": cfg.db_path if cfg else None,
+            "storage": storage,
         })
 
     # ------------------------------------------------------------------

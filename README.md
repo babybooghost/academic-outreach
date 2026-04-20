@@ -23,6 +23,19 @@ This is **not** a mass-email tool. It prioritizes quality, authenticity, and hum
 - **Multi-user** -- Multiple sender profiles for you and friends
 - **Export** -- CSV, JSON, TXT, and tracking spreadsheet exports
 
+## Hosted Storage Status
+
+The current hosted web app still has one important deployment limitation:
+
+- On Vercel without a real database service, the app stores workspace files under `/tmp`, which is temporary instance storage.
+- That means user workspaces are isolated from each other, but hosted data can disappear after deploys, cold starts, or instance replacement.
+- The app now reports this clearly in the UI banner and `/health` output so the deployment mode is visible.
+
+Important caveat:
+
+- The existing Turso/libsql adapter is not yet tenant-safe for the web workspace model, because the hosted app currently isolates users with per-workspace database files.
+- A proper remote multi-tenant schema migration is still needed before hosted persistent multi-user storage is trustworthy.
+
 ## Quick Start
 
 ### 1. Install Python
