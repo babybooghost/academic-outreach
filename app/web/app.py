@@ -647,12 +647,15 @@ def create_app() -> Flask:
                 "skipped": summary.skipped,
                 "failed": summary.failed,
                 "scored": summary.scored,
+                "warnings": summary.warnings[:5],
             },
         )
 
         if summary.created == 0:
+            warning_detail = f" {summary.warnings[0]}" if summary.warnings else ""
             flash(
-                "No drafts were created. Add richer research summaries or save better faculty matches first.",
+                "No drafts were created. Add richer research summaries or save better faculty matches first."
+                + warning_detail,
                 "warning",
             )
             return redirect(url_for("drafts_list"))
@@ -663,6 +666,8 @@ def create_app() -> Flask:
         )
         if summary.flagged_similarity:
             message += f" {summary.flagged_similarity} draft(s) were flagged for similarity."
+        elif summary.warnings:
+            message += f" {len(summary.warnings)} warning(s) were recorded during generation."
         flash(message, "success")
         return redirect(url_for("drafts_list", session=summary.session_id))
 
