@@ -211,7 +211,7 @@ class LLMSummarizer:
     _PROMPT_TEMPLATE: str = (
         "Given text from a professor's research page, extract 5-8 research "
         "keywords and write a 2-sentence summary. Return JSON: "
-        '{"keywords": [...], "summary": "..."}. '
+        '{{"keywords": [...], "summary": "..."}}. '
         "Text: {text}"
     )
     _MAX_TEXT_FOR_LLM: int = 3000
