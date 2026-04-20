@@ -11,6 +11,7 @@ import json
 import os
 import secrets
 import traceback
+from dataclasses import replace
 from datetime import datetime
 from functools import wraps
 from pathlib import Path
@@ -96,13 +97,65 @@ def create_app() -> Flask:
         return {"app_version": _APP_VERSION, "now": datetime.utcnow()}
 
     # ------------------------------------------------------------------
-    # DB helper
+    # DB helpers
     # ------------------------------------------------------------------
-    def _conn():
+    def _auth_conn():
         c = app.config.get("APP_CFG")
         if c is None:
             raise RuntimeError("Application config not loaded")
         return get_connection(c.db_path)
+
+    def _workspace_db_path(key_id: Optional[int] = None) -> str:
+        cfg = app.config.get("APP_CFG")
+        if cfg is None:
+            raise RuntimeError("Application config not loaded")
+
+        workspace_key_id = key_id or session.get("key_id")
+        if not workspace_key_id:
+            raise RuntimeError("No workspace is associated with this session")
+
+        override_path = session.get("workspace_db_path")
+        if override_path:
+            return str(override_path)
+
+        base_db = Path(cfg.db_path)
+        workspace_root = base_db.parent / "workspaces"
+        workspace_root.mkdir(parents=True, exist_ok=True)
+        return str(workspace_root / f"workspace_{workspace_key_id}.db")
+
+    def _ensure_workspace_db(key_id: Optional[int] = None) -> str:
+        workspace_path = _workspace_db_path(key_id=key_id)
+        init_db(workspace_path)
+        return workspace_path
+
+    def _workspace_conn():
+        return get_connection(_ensure_workspace_db())
+
+    def _workspace_output_dir() -> Path:
+        cfg = app.config.get("APP_CFG")
+        if cfg is None:
+            raise RuntimeError("Application config not loaded")
+        output_dir = Path(cfg.output_dir) / f"workspace_{session.get('key_id')}"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        return output_dir
+
+    def _workspace_config(conn) -> Any:
+        base_cfg = app.config.get("APP_CFG")
+        if base_cfg is None:
+            raise RuntimeError("Application config not loaded")
+
+        saved = get_all_settings(conn)
+        llm_provider = saved.get("llm_provider", base_cfg.llm_provider or "").strip() or None
+
+        return replace(
+            base_cfg,
+            sender_email=saved.get("sender_email", base_cfg.sender_email),
+            llm_provider=llm_provider,
+            llm_model=saved.get("llm_model", base_cfg.llm_model),
+            email_provider=saved.get("email_provider", base_cfg.email_provider),
+            smtp_user=saved.get("smtp_user", base_cfg.smtp_user),
+            smtp_password=saved.get("smtp_password", base_cfg.smtp_password),
+        )
 
     # ------------------------------------------------------------------
     # Auth helpers
@@ -148,7 +201,7 @@ def create_app() -> Flask:
                       details: dict = None, is_admin: bool = False):
         """Log an activity entry with full request context."""
         try:
-            conn = _conn()
+            conn = _auth_conn()
             try:
                 ip = request.headers.get("X-Forwarded-For", request.remote_addr)
                 if ip and "," in ip:
@@ -210,19 +263,27 @@ def create_app() -> Flask:
             if not key_value:
                 error = "Please enter an access key."
             else:
-                conn = _conn()
+                conn = _auth_conn()
                 try:
                     key_data = validate_access_key(conn, key_value)
                     if key_data:
-                        session["authenticated"] = True
-                        session["key_id"] = key_data["id"]
-                        session["key_label"] = key_data["label"]
-                        session["role"] = key_data["role"]
-                        _log_activity(
-                            "user_login", category="auth",
-                            details={"label": key_data["label"], "role": key_data["role"]},
-                        )
-                        return redirect(url_for("dashboard"))
+                        if key_data["role"] == "admin":
+                            error = "Admin access keys must use the admin login."
+                            _log_activity(
+                                "user_login_denied_admin_key", category="auth",
+                                details={"label": key_data["label"], "role": key_data["role"]},
+                            )
+                        else:
+                            _ensure_workspace_db(key_data["id"])
+                            session["authenticated"] = True
+                            session["key_id"] = key_data["id"]
+                            session["key_label"] = key_data["label"]
+                            session["role"] = key_data["role"]
+                            _log_activity(
+                                "user_login", category="auth",
+                                details={"label": key_data["label"], "role": key_data["role"]},
+                            )
+                            return redirect(url_for("dashboard"))
                     else:
                         error = "Invalid or revoked access key."
                         _log_activity(
@@ -255,7 +316,7 @@ def create_app() -> Flask:
             elif password != password_confirm:
                 error = "Passwords do not match."
             else:
-                conn = _conn()
+                conn = _auth_conn()
                 try:
                     # Check if email already registered
                     existing = conn.execute(
@@ -283,10 +344,11 @@ def create_app() -> Flask:
                         conn.commit()
 
                         # Create the actual access key
-                        create_access_key(
+                        key_id = create_access_key(
                             conn, key_value, display_name, "user",
                             created_by=f"signup:{email}",
                         )
+                        _ensure_workspace_db(key_id)
 
                         # Log signup in admin activity
                         ip = request.headers.get("X-Forwarded-For", request.remote_addr)
@@ -349,7 +411,7 @@ def create_app() -> Flask:
             if not key_value:
                 error = "Please enter an admin access key."
             else:
-                conn = _conn()
+                conn = _auth_conn()
                 try:
                     key_data = validate_access_key(conn, key_value)
                     if key_data and key_data["role"] == "admin":
@@ -405,29 +467,35 @@ def create_app() -> Flask:
     @app.route("/dashboard")
     @login_required
     def dashboard():
-        conn = _conn()
+        workspace_conn = _workspace_conn()
+        auth_conn = _auth_conn()
         try:
-            prof_rows = conn.execute(
+            prof_rows = workspace_conn.execute(
                 "SELECT status, COUNT(*) as cnt FROM professors GROUP BY status"
             ).fetchall()
             prof_counts: dict[str, int] = {r["status"]: r["cnt"] for r in prof_rows}
             total_professors = sum(prof_counts.values())
 
-            draft_rows = conn.execute(
+            draft_rows = workspace_conn.execute(
                 "SELECT status, COUNT(*) as cnt FROM drafts GROUP BY status"
             ).fetchall()
             draft_counts: dict[str, int] = {r["status"]: r["cnt"] for r in draft_rows}
             total_drafts = sum(draft_counts.values())
 
-            recent_sends = conn.execute(
+            recent_sends = workspace_conn.execute(
                 """SELECT sl.*, p.name as professor_name
                    FROM send_log sl
                    JOIN professors p ON sl.professor_id = p.id
                    ORDER BY sl.sent_at DESC LIMIT 10"""
             ).fetchall()
 
-            recent_activity = conn.execute(
-                "SELECT * FROM audit_log ORDER BY id DESC LIMIT 15"
+            recent_activity = auth_conn.execute(
+                """SELECT timestamp, action, target_type AS entity_type,
+                          target_id AS entity_id, details
+                   FROM admin_activity_log
+                   WHERE actor_key_id = ?
+                   ORDER BY id DESC LIMIT 15""",
+                (session.get("key_id"),),
             ).fetchall()
 
             return render_template(
@@ -440,7 +508,8 @@ def create_app() -> Flask:
                 recent_activity=[dict(r) for r in recent_activity],
             )
         finally:
-            conn.close()
+            workspace_conn.close()
+            auth_conn.close()
 
     # ------------------------------------------------------------------
     # Professors
@@ -448,7 +517,7 @@ def create_app() -> Flask:
     @app.route("/professors")
     @login_required
     def professors_list():
-        conn = _conn()
+        conn = _workspace_conn()
         try:
             status_filter = request.args.get("status")
             field_filter = request.args.get("field")
@@ -473,7 +542,7 @@ def create_app() -> Flask:
     @app.route("/professors/<int:prof_id>")
     @login_required
     def professor_detail(prof_id: int):
-        conn = _conn()
+        conn = _workspace_conn()
         try:
             prof = get_professor(conn, prof_id)
             if prof is None:
@@ -496,7 +565,7 @@ def create_app() -> Flask:
     @app.route("/drafts")
     @login_required
     def drafts_list():
-        conn = _conn()
+        conn = _workspace_conn()
         try:
             session_filter = request.args.get("session", type=int)
             status_filter = request.args.get("status")
@@ -527,7 +596,7 @@ def create_app() -> Flask:
     @app.route("/drafts/<int:draft_id>")
     @login_required
     def draft_detail(draft_id: int):
-        conn = _conn()
+        conn = _workspace_conn()
         try:
             draft = get_draft(conn, draft_id)
             if draft is None:
@@ -541,7 +610,7 @@ def create_app() -> Flask:
     @app.route("/drafts/<int:draft_id>/approve", methods=["POST"])
     @login_required
     def approve_draft_route(draft_id: int):
-        conn = _conn()
+        conn = _workspace_conn()
         try:
             draft = get_draft(conn, draft_id)
             if draft is None:
@@ -558,7 +627,7 @@ def create_app() -> Flask:
     @app.route("/drafts/<int:draft_id>/reject", methods=["POST"])
     @login_required
     def reject_draft_route(draft_id: int):
-        conn = _conn()
+        conn = _workspace_conn()
         try:
             draft = get_draft(conn, draft_id)
             if draft is None:
@@ -579,7 +648,7 @@ def create_app() -> Flask:
     @app.route("/drafts/<int:draft_id>/edit", methods=["POST"])
     @login_required
     def edit_draft_route(draft_id: int):
-        conn = _conn()
+        conn = _workspace_conn()
         try:
             draft = get_draft(conn, draft_id)
             if draft is None:
@@ -613,7 +682,7 @@ def create_app() -> Flask:
     @app.route("/send")
     @login_required
     def send_page():
-        conn = _conn()
+        conn = _workspace_conn()
         try:
             approved = get_drafts(conn, status="approved")
             edited = get_drafts(conn, status="edited")
@@ -633,7 +702,7 @@ def create_app() -> Flask:
     @app.route("/send", methods=["POST"])
     @login_required
     def send_trigger():
-        conn = _conn()
+        conn = _workspace_conn()
         try:
             data = request.get_json(silent=True) or {}
             dry_run = data.get("dry_run", True)
@@ -675,7 +744,7 @@ def create_app() -> Flask:
 
             try:
                 from app.sender import SafeSender
-                cfg = app.config["APP_CFG"]
+                cfg = _workspace_config(conn)
                 if not cfg:
                     return jsonify({"success": False, "error": "Config not loaded."}), 500
 
@@ -719,31 +788,25 @@ def create_app() -> Flask:
     @app.route("/export", methods=["POST"])
     @login_required
     def export_trigger():
-        conn = _conn()
+        conn = _workspace_conn()
         try:
-            cfg = app.config["APP_CFG"]
+            cfg = _workspace_config(conn)
             if not cfg:
                 return jsonify({"error": "Config not loaded"}), 500
 
-            output_dir = Path(cfg.output_dir)
-            output_dir.mkdir(parents=True, exist_ok=True)
-
+            output_dir = _workspace_output_dir()
             timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
             filename = f"drafts_export_{timestamp}.csv"
             filepath = output_dir / filename
 
-            try:
-                from app.storage import export_drafts_csv
-                export_drafts_csv(conn, str(filepath))
-            except ImportError:
-                import csv
-                drafts = get_drafts(conn)
-                with open(filepath, "w", newline="", encoding="utf-8") as f:
-                    writer = csv.writer(f)
-                    writer.writerow(["id", "professor_id", "session_id", "subject", "body", "overall_score", "status", "warnings", "created_at"])
-                    for d in drafts:
-                        subj = d.subject_lines_list[0] if d.subject_lines_list else ""
-                        writer.writerow([d.id, d.professor_id, d.session_id, subj, d.body, d.overall_score, d.status, ", ".join(d.warnings_list), d.created_at])
+            import csv
+            drafts = get_drafts(conn)
+            with open(filepath, "w", newline="", encoding="utf-8") as f:
+                writer = csv.writer(f)
+                writer.writerow(["id", "professor_id", "session_id", "subject", "body", "overall_score", "status", "warnings", "created_at"])
+                for d in drafts:
+                    subj = d.subject_lines_list[0] if d.subject_lines_list else ""
+                    writer.writerow([d.id, d.professor_id, d.session_id, subj, d.body, d.overall_score, d.status, ", ".join(d.warnings_list), d.created_at])
 
             return jsonify({"success": True, "filename": filename, "download_url": url_for("download_export", filename=filename)})
         except Exception as exc:
@@ -754,11 +817,7 @@ def create_app() -> Flask:
     @app.route("/export/download/<filename>")
     @login_required
     def download_export(filename: str):
-        cfg = app.config.get("APP_CFG")
-        if not cfg:
-            flash("Config not loaded.", "error")
-            return redirect(url_for("export_page"))
-        filepath = Path(cfg.output_dir) / filename
+        filepath = _workspace_output_dir() / filename
         if not filepath.exists():
             flash("File not found.", "error")
             return redirect(url_for("export_page"))
@@ -784,21 +843,21 @@ def create_app() -> Flask:
     @app.route("/settings")
     @login_required
     def settings_page():
-        conn = _conn()
+        conn = _workspace_conn()
         try:
-            cfg = app.config.get("APP_CFG")
+            cfg = _workspace_config(conn)
             profiles = get_sender_profiles(conn)
             suppression = get_suppression_list(conn)
             saved = get_all_settings(conn)
 
             effective: dict[str, Any] = {
-                "sender_email": saved.get("sender_email", os.environ.get("SENDER_EMAIL", cfg.sender_email if cfg else "")),
-                "llm_provider": saved.get("llm_provider", os.environ.get("LLM_PROVIDER", cfg.llm_provider if cfg else "")),
-                "llm_api_key_set": bool(os.environ.get("LLM_API_KEY", cfg.llm_api_key if cfg else "")),
-                "llm_model": saved.get("llm_model", os.environ.get("LLM_MODEL", cfg.llm_model if cfg else "google/gemini-2.5-flash-preview")),
-                "email_provider": saved.get("email_provider", os.environ.get("EMAIL_PROVIDER", cfg.email_provider if cfg else "gmail")),
-                "smtp_user": saved.get("smtp_user", os.environ.get("SMTP_USER", cfg.smtp_user if cfg else "")),
-                "smtp_password": saved.get("smtp_password", os.environ.get("SMTP_PASSWORD", cfg.smtp_password if cfg else "")),
+                "sender_email": saved.get("sender_email", cfg.sender_email if cfg else ""),
+                "llm_provider": saved.get("llm_provider", cfg.llm_provider if cfg else ""),
+                "llm_api_key_set": bool((cfg.llm_api_key if cfg else "") or os.environ.get("LLM_API_KEY", "")),
+                "llm_model": saved.get("llm_model", cfg.llm_model if cfg else "google/gemini-2.5-flash-preview"),
+                "email_provider": saved.get("email_provider", cfg.email_provider if cfg else "gmail"),
+                "smtp_user": saved.get("smtp_user", cfg.smtp_user if cfg else ""),
+                "smtp_password": saved.get("smtp_password", cfg.smtp_password if cfg else ""),
             }
 
             return render_template(
@@ -812,7 +871,7 @@ def create_app() -> Flask:
     @app.route("/settings", methods=["POST"])
     @login_required
     def settings_save():
-        conn = _conn()
+        conn = _workspace_conn()
         try:
             new_settings: dict[str, str] = {}
             for key in ("sender_email", "llm_provider", "llm_model",
@@ -822,28 +881,9 @@ def create_app() -> Flask:
 
             set_settings_bulk(conn, new_settings)
 
-            # Sync safe settings to env (skip llm_provider if no API key
-            # is set, to avoid config validation errors)
-            safe_env_keys = {"sender_email", "email_provider", "smtp_user",
-                             "smtp_password", "llm_model"}
-            for key, val in new_settings.items():
-                if val and key in safe_env_keys:
-                    os.environ[key.upper()] = val
-            # Only set LLM_PROVIDER env if an API key exists
-            if new_settings.get("llm_provider"):
-                if os.environ.get("LLM_API_KEY"):
-                    os.environ["LLM_PROVIDER"] = new_settings["llm_provider"]
-            else:
-                os.environ.pop("LLM_PROVIDER", None)
-
-            try:
-                app.config["APP_CFG"] = load_config()
-            except Exception:
-                pass
-
             _log_activity("settings_update", category="settings",
                           details={k: v for k, v in new_settings.items() if k != "smtp_password"})
-            flash("Settings saved successfully.", "success")
+            flash("Settings saved for this workspace only.", "success")
             return redirect(url_for("settings_page"))
         except Exception as exc:
             flash(f"Failed to save settings: {exc}", "error")
@@ -918,7 +958,7 @@ def create_app() -> Flask:
         if not professors_data:
             return jsonify({"success": False, "error": "No professors to save."})
 
-        conn = _conn()
+        conn = _workspace_conn()
         saved = 0
         skipped = 0
         errors = 0
@@ -1039,7 +1079,7 @@ def create_app() -> Flask:
         if not user_message:
             return jsonify({"success": False, "error": "No message"})
 
-        conn = _conn()
+        conn = _auth_conn()
         try:
             ip = request.headers.get("X-Forwarded-For", request.remote_addr)
             if ip and "," in ip:
@@ -1077,7 +1117,7 @@ def create_app() -> Flask:
         if severity not in ("low", "medium", "high"):
             severity = "medium"
 
-        conn = _conn()
+        conn = _auth_conn()
         try:
             ip = request.headers.get("X-Forwarded-For", request.remote_addr)
             if ip and "," in ip:
@@ -1110,7 +1150,7 @@ def create_app() -> Flask:
     @app.route("/admin")
     @admin_required
     def admin_hub():
-        conn = _conn()
+        conn = _auth_conn()
         try:
             keys = get_access_keys(conn)
             # Key persists in session until dismissed
@@ -1135,7 +1175,7 @@ def create_app() -> Flask:
     @app.route("/admin/activity")
     @admin_required
     def admin_activity():
-        conn = _conn()
+        conn = _auth_conn()
         try:
             category = request.args.get("category")
             actor = request.args.get("actor")
@@ -1176,7 +1216,7 @@ def create_app() -> Flask:
     @admin_required
     def admin_activity_api():
         """JSON API for activity log (for live refresh)."""
-        conn = _conn()
+        conn = _auth_conn()
         try:
             category = request.args.get("category")
             limit = min(int(request.args.get("limit", 50)), 500)
@@ -1188,7 +1228,7 @@ def create_app() -> Flask:
     @app.route("/admin/keys/create", methods=["POST"])
     @admin_required
     def admin_create_key():
-        conn = _conn()
+        conn = _auth_conn()
         try:
             label = request.form.get("label", "").strip() or "Unlabeled"
             role = request.form.get("role", "user")
@@ -1214,7 +1254,7 @@ def create_app() -> Flask:
     @app.route("/admin/keys/<int:key_id>/revoke", methods=["POST"])
     @admin_required
     def admin_revoke_key(key_id: int):
-        conn = _conn()
+        conn = _auth_conn()
         try:
             # Get key info before revoking for logging
             key_info = conn.execute("SELECT label, role FROM access_keys WHERE id = ?", (key_id,)).fetchone()
@@ -1233,7 +1273,7 @@ def create_app() -> Flask:
     @app.route("/admin/keys/<int:key_id>/delete", methods=["POST"])
     @admin_required
     def admin_delete_key(key_id: int):
-        conn = _conn()
+        conn = _auth_conn()
         try:
             key_info = conn.execute("SELECT label, role FROM access_keys WHERE id = ?", (key_id,)).fetchone()
             delete_access_key(conn, key_id)

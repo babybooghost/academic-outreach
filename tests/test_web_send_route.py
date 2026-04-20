@@ -88,6 +88,7 @@ class WebSendRouteTests(unittest.TestCase):
             session["key_id"] = 1
             session["key_label"] = "Test User"
             session["role"] = "user"
+            session["workspace_db_path"] = self.db_path
 
     def test_send_route_returns_summary_from_service(self) -> None:
         self._login()

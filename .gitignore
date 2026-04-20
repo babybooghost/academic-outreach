@@ -6,6 +6,7 @@ token.json
 # Database
 data/outreach.db
 data/*.db
+data/workspaces/
 
 # Python
 __pycache__/
