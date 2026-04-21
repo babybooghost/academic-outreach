@@ -2,32 +2,27 @@
 {% block title %}Faculty Files{% endblock %}
 
 {% block content %}
-<div class="editorial-page">
-    <section class="editorial-hero animate-in">
-        <div class="hero-copy">
-            <div class="eyebrow">Faculty files</div>
-            <h1 class="page-title">A working list you can still defend.</h1>
-            <p class="lead">These records are the backbone of the workspace: who you may contact, where they work, what they study, and what stage each file is in.</p>
-            <div class="hero-metrics">
-                <div class="metric-card">
-                    <span>Visible files</span>
-                    <strong>{{ professors|length }}</strong>
-                </div>
-                <div class="metric-card">
-                    <span>Status view</span>
-                    <strong>{{ current_status or 'All' }}</strong>
-                </div>
-                <div class="metric-card">
-                    <span>Field view</span>
-                    <strong>{{ current_field or 'All' }}</strong>
-                </div>
+<div class="editorial-page workspace-page">
+    <section class="workspace-header animate-in">
+        <div class="workspace-header-top">
+            <div>
+                <div class="eyebrow">Faculty files</div>
+                <h1 class="workspace-title">A working list you can still defend.</h1>
+                <p class="workspace-summary">These records are the backbone of the workspace: who you may contact, where they work, what they study, and what stage each file is in.</p>
             </div>
         </div>
-        <div class="image-card image-card--tall">
-            <img src="https://images.unsplash.com/photo-1501504905252-473c47e087f8?auto=format&amp;fit=crop&amp;w=1600&amp;q=80" alt="University lecture hall">
-            <div class="image-caption">
-                <span>Context matters</span>
-                <strong>The better this list is curated, the easier it is for later drafts to sound grounded instead of generic.</strong>
+        <div class="workspace-stats">
+            <div class="workspace-stat">
+                <span>Visible files</span>
+                <strong>{{ professors|length }}</strong>
+            </div>
+            <div class="workspace-stat">
+                <span>Status view</span>
+                <strong>{{ current_status or 'All' }}</strong>
+            </div>
+            <div class="workspace-stat">
+                <span>Field view</span>
+                <strong>{{ current_field or 'All' }}</strong>
             </div>
         </div>
     </section>

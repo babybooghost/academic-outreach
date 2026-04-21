@@ -2,32 +2,27 @@
 {% block title %}Workspace Setup{% endblock %}
 
 {% block content %}
-<div class="editorial-page">
-    <section class="editorial-hero animate-in">
-        <div class="hero-copy">
-            <div class="eyebrow">Workspace setup</div>
-            <h1 class="page-title">Control how drafts are written and how approved email leaves the queue.</h1>
-            <p class="lead">These settings define the sender identity, model behavior, and delivery path behind the workspace.</p>
-            <div class="hero-metrics">
-                <div class="metric-card">
-                    <span>Sender email</span>
-                    <strong>{{ effective.sender_email or 'Unset' }}</strong>
-                </div>
-                <div class="metric-card">
-                    <span>Delivery mode</span>
-                    <strong>{{ effective.email_provider or 'Unset' }}</strong>
-                </div>
-                <div class="metric-card">
-                    <span>Profiles saved</span>
-                    <strong>{{ profiles|length }}</strong>
-                </div>
+<div class="editorial-page workspace-page">
+    <section class="workspace-header animate-in">
+        <div class="workspace-header-top">
+            <div>
+                <div class="eyebrow">Workspace setup</div>
+                <h1 class="workspace-title">Control how drafts are written and how approved email leaves the queue.</h1>
+                <p class="workspace-summary">These settings define the sender identity, model behavior, and delivery path behind the workspace.</p>
             </div>
         </div>
-        <div class="image-card image-card--tall">
-            <img src="https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&amp;fit=crop&amp;w=1600&amp;q=80" alt="Collaborative workspace with students">
-            <div class="image-caption">
-                <span>Control desk</span>
-                <strong>This is where the identity behind the message gets defined before drafting and delivery ever begin.</strong>
+        <div class="workspace-stats">
+            <div class="workspace-stat">
+                <span>Sender email</span>
+                <strong>{{ effective.sender_email or 'Unset' }}</strong>
+            </div>
+            <div class="workspace-stat">
+                <span>Delivery mode</span>
+                <strong>{{ effective.email_provider or 'Unset' }}</strong>
+            </div>
+            <div class="workspace-stat">
+                <span>Profiles saved</span>
+                <strong>{{ profiles|length }}</strong>
             </div>
         </div>
     </section>

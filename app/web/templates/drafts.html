@@ -2,37 +2,32 @@
 {% block title %}Draft Review{% endblock %}
 
 {% block content %}
-<div class="editorial-page">
-    <section class="editorial-hero animate-in">
-        <div class="hero-copy">
-            <div class="eyebrow">Draft review</div>
-            <h1 class="page-title">Read the queue before anything gets approved.</h1>
-            <p class="lead">This is the editorial pass: check specificity, warnings, subject lines, and overall tone until each message sounds like it came from a prepared student instead of a generic generator.</p>
-            <div class="hero-metrics">
-                <div class="metric-card">
-                    <span>Visible drafts</span>
-                    <strong>{{ drafts|length }}</strong>
-                </div>
-                <div class="metric-card">
-                    <span>Faculty ready</span>
-                    <strong>{{ professor_count }}</strong>
-                </div>
-                <div class="metric-card">
-                    <span>Profiles saved</span>
-                    <strong>{{ profiles|length }}</strong>
-                </div>
+<div class="editorial-page workspace-page">
+    <section class="workspace-header animate-in">
+        <div class="workspace-header-top">
+            <div>
+                <div class="eyebrow">Draft review</div>
+                <h1 class="workspace-title">Read the queue before anything gets approved.</h1>
+                <p class="workspace-summary">Check specificity, warnings, subject lines, and overall tone until each message sounds like it came from a prepared student instead of a generic generator.</p>
             </div>
         </div>
-        <div class="image-card image-card--tall">
-            <img src="https://images.unsplash.com/photo-1455390582262-044cdead277a?auto=format&amp;fit=crop&amp;w=1600&amp;q=80" alt="Notebook and handwritten notes on a desk">
-            <div class="image-caption">
-                <span>Editorial pass</span>
-                <strong>The queue should read like someone stopped to think, trimmed the generic parts, and checked the research references.</strong>
+        <div class="workspace-stats">
+            <div class="workspace-stat">
+                <span>Visible drafts</span>
+                <strong>{{ drafts|length }}</strong>
+            </div>
+            <div class="workspace-stat">
+                <span>Faculty ready</span>
+                <strong>{{ professor_count }}</strong>
+            </div>
+            <div class="workspace-stat">
+                <span>Profiles saved</span>
+                <strong>{{ profiles|length }}</strong>
             </div>
         </div>
     </section>
 
-    <section class="review-grid">
+    <section class="grid-2">
         <article class="surface-panel animate-in animate-in-1">
             <div class="surface-panel-header">
                 <div>
@@ -68,59 +63,46 @@
             </form>
         </article>
 
-        <aside class="workspace-side">
-            <article class="surface-panel animate-in animate-in-2">
-                <div class="surface-panel-header">
-                    <div>
-                        <div class="panel-kicker">Review checklist</div>
-                        <div class="panel-title">What to look for</div>
+        <article class="surface-panel animate-in animate-in-2">
+            <div class="surface-panel-header">
+                <div>
+                    <div class="panel-kicker">Queue filters</div>
+                    <div class="panel-title">Focus the current review view</div>
+                </div>
+            </div>
+            <form method="GET" class="page-block">
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label for="status">Status</label>
+                        <select id="status" name="status">
+                            <option value="">All statuses</option>
+                            {% for s in statuses %}
+                            <option value="{{ s }}" {% if current_status == s %}selected{% endif %}>{{ s }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="session">Session</label>
+                        <select id="session" name="session">
+                            <option value="">All sessions</option>
+                            {% for sid in sessions %}
+                            <option value="{{ sid }}" {% if current_session == sid %}selected{% endif %}>Session #{{ sid }}</option>
+                            {% endfor %}
+                        </select>
                     </div>
                 </div>
-                <div class="page-block">
-                    <div class="chip"><strong>Specific hook</strong> Does the opening reflect the professor's work and not just their title?</div>
-                    <div class="chip"><strong>Real student voice</strong> Does the message sound plausible for the sender profile you chose?</div>
-                    <div class="chip"><strong>Clean ask</strong> Is the closing direct, realistic, and brief enough to respect the inbox?</div>
+                <div class="hero-actions">
+                    <button type="submit" class="btn btn-outline">Apply filters</button>
+                    {% if current_status or current_session %}
+                    <a href="{{ url_for('drafts_list') }}" class="btn btn-ghost">Clear</a>
+                    {% endif %}
                 </div>
-            </article>
-        </aside>
+                <div class="form-hint">Look for a specific opening, a believable student voice, and a closing ask that respects the inbox.</div>
+            </form>
+        </article>
     </section>
 
     <section class="surface-panel animate-in animate-in-3">
-        <div class="surface-panel-header">
-            <div>
-                <div class="panel-kicker">Queue filters</div>
-                <div class="panel-title">Focus the current review view</div>
-            </div>
-        </div>
-        <form method="GET" class="grid-3">
-            <div class="form-group">
-                <label for="status">Status</label>
-                <select id="status" name="status">
-                    <option value="">All statuses</option>
-                    {% for s in statuses %}
-                    <option value="{{ s }}" {% if current_status == s %}selected{% endif %}>{{ s }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="session">Session</label>
-                <select id="session" name="session">
-                    <option value="">All sessions</option>
-                    {% for sid in sessions %}
-                    <option value="{{ sid }}" {% if current_session == sid %}selected{% endif %}>Session #{{ sid }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="form-group" style="display:flex; align-items:end; gap:0.6rem;">
-                <button type="submit" class="btn btn-outline">Apply filters</button>
-                {% if current_status or current_session %}
-                <a href="{{ url_for('drafts_list') }}" class="btn btn-ghost">Clear</a>
-                {% endif %}
-            </div>
-        </form>
-    </section>
-
-    <section class="surface-panel animate-in animate-in-4">
         <div class="surface-panel-header">
             <div>
                 <div class="panel-kicker">Draft queue</div>

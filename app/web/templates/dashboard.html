@@ -2,38 +2,32 @@
 {% block title %}Outreach Desk{% endblock %}
 
 {% block content %}
-<div class="editorial-page">
-    <section class="editorial-hero animate-in">
-        <div class="hero-copy">
-            <div class="eyebrow">Workspace desk</div>
-            <h1 class="page-title">A calmer way to run real academic outreach.</h1>
-            <p class="lead">Use this desk to keep the faculty list narrow, the draft queue honest, and the delivery workflow visible from first search through final send.</p>
-            <div class="hero-metrics">
-                <div class="metric-card">
-                    <span>Faculty files</span>
-                    <strong>{{ total_professors }}</strong>
-                </div>
-                <div class="metric-card">
-                    <span>Draft queue</span>
-                    <strong>{{ total_drafts }}</strong>
-                </div>
-                <div class="metric-card">
-                    <span>Approved now</span>
-                    <strong>{{ draft_counts.get('approved', 0) }}</strong>
-                </div>
+<div class="editorial-page workspace-page">
+    <section class="workspace-header animate-in">
+        <div class="workspace-header-top">
+            <div>
+                <div class="eyebrow">Workspace desk</div>
+                <h1 class="workspace-title">Academic outreach, one careful batch at a time.</h1>
+                <p class="workspace-summary">Keep the faculty list narrow, the draft queue honest, and the delivery workflow readable from first search through final send.</p>
             </div>
-            <div class="quick-actions">
+            <div class="workspace-actions">
                 <a href="{{ url_for('finder_page') }}" class="btn btn-primary">Search for faculty</a>
                 <a href="{{ url_for('drafts_list', status='generated') }}" class="btn btn-outline">Review fresh drafts</a>
                 <a href="{{ url_for('send_page') }}" class="btn btn-outline">Open delivery queue</a>
             </div>
         </div>
-        <div class="image-card image-card--tall">
-            <img src="https://images.unsplash.com/photo-1455390582262-044cdead277a?auto=format&amp;fit=crop&amp;w=1600&amp;q=80" alt="Writing desk with notebook and coffee">
-            <div class="image-caption">
-                <span>Daily workflow</span>
-                <strong>Search, annotate, review, and send in batches that still feel like human work.</strong>
-                <p>The dashboard is meant to show the whole rhythm at once rather than hide the risky parts.</p>
+        <div class="workspace-stats">
+            <div class="workspace-stat">
+                <span>Faculty files</span>
+                <strong>{{ total_professors }}</strong>
+            </div>
+            <div class="workspace-stat">
+                <span>Draft queue</span>
+                <strong>{{ total_drafts }}</strong>
+            </div>
+            <div class="workspace-stat">
+                <span>Approved now</span>
+                <strong>{{ draft_counts.get('approved', 0) }}</strong>
             </div>
         </div>
     </section>

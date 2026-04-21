@@ -106,7 +106,7 @@ body.admin-shell::before {
 }
 
 body.app-shell::before {
-    opacity: 0.18;
+    display: none;
 }
 
 img {
@@ -183,6 +183,68 @@ hr {
 .app-main {
     position: relative;
     z-index: 1;
+}
+
+body.app-shell {
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 18%),
+        var(--ao-bg);
+}
+
+.app-shell .page-content {
+    padding: 1.25rem 0 3rem;
+}
+
+.app-shell .workspace-title,
+.app-shell .page-title,
+.app-shell .panel-title {
+    font-family: 'Manrope', 'Segoe UI', sans-serif;
+    letter-spacing: -0.03em;
+    font-weight: 800;
+}
+
+.app-shell .navbar-inner {
+    min-height: 66px;
+    gap: 0.9rem;
+}
+
+.app-shell .logo {
+    gap: 0.75rem;
+}
+
+.app-shell .logo-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 14px;
+    font-size: 1.2rem;
+}
+
+.app-shell .logo-text {
+    font-size: 1.55rem;
+    line-height: 1;
+}
+
+.app-shell .logo-text span,
+.app-shell .nav-icon {
+    display: none;
+}
+
+.app-shell .nav-links {
+    gap: 0.25rem;
+}
+
+.app-shell .nav-links a {
+    padding: 0.55rem 0.8rem;
+    font-size: 0.82rem;
+}
+
+.app-shell .nav-user {
+    gap: 0.55rem;
+    padding: 0.2rem 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    font-size: 0.82rem;
 }
 
 .navbar {
@@ -403,33 +465,25 @@ hr {
 
 .app-shell .editorial-hero {
     grid-template-columns: 1fr;
-    gap: 1rem;
-    padding: 1.35rem;
+    gap: 0.8rem;
+    padding: 0 0 0.95rem;
+    border: 0;
+    border-bottom: 1px solid var(--ao-border);
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
 }
 
 .app-shell .editorial-hero .image-card {
-    order: -1;
-}
-
-.app-shell .editorial-hero .image-card--tall {
-    min-height: 220px;
-    max-height: 220px;
-}
-
-.app-shell .editorial-hero .image-caption {
-    padding: 1rem 1.1rem 1.05rem;
-}
-
-.app-shell .editorial-hero .image-caption p {
     display: none;
 }
 
 .app-shell .page-title {
-    font-size: clamp(2.35rem, 4.2vw, 3.6rem);
+    font-size: clamp(2rem, 3.6vw, 3rem);
 }
 
 .app-shell .hero-copy {
-    gap: 0.85rem;
+    gap: 0.75rem;
 }
 
 .app-shell .lead {
@@ -440,6 +494,102 @@ hr {
 .app-shell .metric-card {
     min-width: 8rem;
     padding: 0.9rem 0.95rem;
+}
+
+.workspace-page {
+    gap: 1rem;
+}
+
+.workspace-header {
+    display: grid;
+    gap: 0.8rem;
+    padding: 0 0 0.95rem;
+    border-bottom: 1px solid var(--ao-border);
+}
+
+.workspace-header-top {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.workspace-title {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: clamp(2rem, 3.6vw, 3rem);
+    line-height: 0.96;
+    letter-spacing: -0.04em;
+    color: var(--ao-text);
+}
+
+.workspace-summary {
+    max-width: 72ch;
+    font-size: 0.98rem;
+    line-height: 1.65;
+}
+
+.workspace-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+}
+
+.workspace-stat {
+    min-width: 8rem;
+    padding: 0.72rem 0.82rem;
+    border-radius: 16px;
+    border: 1px solid var(--ao-border);
+    background: var(--ao-panel);
+    display: grid;
+    gap: 0.18rem;
+}
+
+.workspace-stat span {
+    color: var(--ao-text-dim);
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.workspace-stat strong {
+    color: var(--ao-text);
+    font-size: 1.05rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.25;
+    word-break: break-word;
+}
+
+.workspace-header .workspace-actions,
+.app-shell .hero-actions,
+.app-shell .quick-actions {
+    gap: 0.6rem;
+}
+
+.app-shell .surface-panel {
+    border-radius: 22px;
+    padding: 1.05rem;
+    box-shadow: 0 14px 36px rgba(3, 5, 4, 0.18);
+}
+
+.app-shell .surface-panel-header {
+    margin-bottom: 0.85rem;
+    align-items: center;
+}
+
+.app-shell .panel-title {
+    font-size: 1.45rem;
+}
+
+.app-shell .panel-kicker {
+    padding: 0.32rem 0.7rem;
+    font-size: 0.66rem;
+}
+
+.app-shell .empty-state {
+    padding: 2rem 1.4rem;
 }
 
 .hero-copy,
@@ -1304,6 +1454,21 @@ tbody tr:hover td {
     transition: background var(--ao-transition), border-color var(--ao-transition), color var(--ao-transition), transform var(--ao-transition);
 }
 
+.app-shell .footer-link-btn,
+.app-shell .chat-fab {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--ao-text-dim);
+    font-size: 0.8rem;
+    font-weight: 700;
+    box-shadow: none;
+}
+
+.app-shell .chat-fab span:first-child {
+    display: none;
+}
+
 .footer-link-btn:hover,
 .chat-fab:hover {
     background: rgba(255, 255, 255, 0.05);
@@ -1315,6 +1480,12 @@ tbody tr:hover td {
 .chat-widget {
     position: relative;
     z-index: 20;
+}
+
+.app-shell .footer-link-btn:hover,
+.app-shell .chat-fab:hover {
+    background: transparent;
+    color: var(--ao-text);
 }
 
 .chat-panel {
@@ -1525,15 +1696,18 @@ tbody tr:hover td {
     right: 1.5rem;
     top: 5.25rem;
     z-index: 400;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.6rem;
+    display: block;
+    width: auto;
+    max-width: min(320px, calc(100vw - 2rem));
+    height: auto;
     padding: 0.88rem 1rem;
     border-radius: 20px;
     border: 1px solid var(--ao-border);
     background: var(--ao-surface);
     box-shadow: var(--ao-shadow);
     pointer-events: none;
+    line-height: 1.4;
+    white-space: normal;
 }
 
 .toast-success {
@@ -1960,6 +2134,10 @@ tbody tr:hover td {
         min-height: 52vh;
     }
 
+    .workspace-header-top {
+        align-items: flex-start;
+    }
+
     .editorial-page .editorial-hero .image-card {
         min-height: 320px;
     }
@@ -2023,6 +2201,19 @@ tbody tr:hover td {
         width: 100%;
         justify-content: flex-start;
         font-size: 0.82rem;
+    }
+
+    .workspace-title {
+        font-size: 1.85rem;
+    }
+
+    .workspace-stats {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .workspace-stat {
+        min-width: 0;
     }
 
     .editorial-hero,

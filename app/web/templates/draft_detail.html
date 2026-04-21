@@ -2,38 +2,33 @@
 {% block title %}Draft #{{ draft.id }}{% endblock %}
 
 {% block content %}
-<div class="editorial-page">
-    <section class="editorial-hero animate-in">
-        <div class="hero-copy">
-            <div class="eyebrow">Draft detail</div>
-            <h1 class="page-title">Draft #{{ draft.id }}</h1>
-            <p class="lead">{{ professor.name if professor else 'Unknown professor' }}{% if professor and professor.university %}, {{ professor.university }}{% endif %}</p>
-            <div class="hero-metrics">
-                <div class="metric-card">
-                    <span>Status</span>
-                    <strong>{{ draft.status }}</strong>
-                </div>
-                <div class="metric-card">
-                    <span>Template</span>
-                    <strong>{{ draft.template_variant }}</strong>
-                </div>
-                <div class="metric-card">
-                    <span>Overall score</span>
-                    <strong>{{ "%.1f"|format(draft.overall_score) }}</strong>
-                </div>
+<div class="editorial-page workspace-page">
+    <section class="workspace-header animate-in">
+        <div class="workspace-header-top">
+            <div>
+                <div class="eyebrow">Draft detail</div>
+                <h1 class="workspace-title">Draft #{{ draft.id }}</h1>
+                <p class="workspace-summary">{{ professor.name if professor else 'Unknown professor' }}{% if professor and professor.university %}, {{ professor.university }}{% endif %}</p>
             </div>
             {% if draft.status in ('generated', 'edited') %}
-            <div class="action-buttons">
+            <div class="workspace-actions">
                 <button type="button" class="btn btn-success" onclick="draftAction({{ draft.id }}, 'approve')">Approve draft</button>
                 <button type="button" class="btn btn-danger" onclick="draftAction({{ draft.id }}, 'reject')">Reject draft</button>
             </div>
             {% endif %}
         </div>
-        <div class="image-card image-card--tall">
-            <img src="https://images.unsplash.com/photo-1455390582262-044cdead277a?auto=format&amp;fit=crop&amp;w=1600&amp;q=80" alt="Desk with paper notes">
-            <div class="image-caption">
-                <span>Review surface</span>
-                <strong>This page is for the final read-through: subject, body, warnings, and whether the message deserves approval.</strong>
+        <div class="workspace-stats">
+            <div class="workspace-stat">
+                <span>Status</span>
+                <strong>{{ draft.status }}</strong>
+            </div>
+            <div class="workspace-stat">
+                <span>Template</span>
+                <strong>{{ draft.template_variant }}</strong>
+            </div>
+            <div class="workspace-stat">
+                <span>Overall score</span>
+                <strong>{{ "%.1f"|format(draft.overall_score) }}</strong>
             </div>
         </div>
     </section>

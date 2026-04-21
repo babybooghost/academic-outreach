@@ -2,37 +2,32 @@
 {% block title %}Faculty Search{% endblock %}
 
 {% block content %}
-<div class="editorial-page">
-    <section class="editorial-hero animate-in">
-        <div class="hero-copy">
-            <div class="eyebrow">Faculty search</div>
-            <h1 class="page-title">Build a tighter list of plausible contacts.</h1>
-            <p class="lead">Search across research sources, narrow by institution, and save only the professors who actually fit the outreach story you want to tell.</p>
-            <div class="hero-metrics">
-                <div class="metric-card">
-                    <span>Sources</span>
-                    <strong>5</strong>
-                </div>
-                <div class="metric-card">
-                    <span>Default batch</span>
-                    <strong>25</strong>
-                </div>
-                <div class="metric-card">
-                    <span>Best practice</span>
-                    <strong>Small lists</strong>
-                </div>
+<div class="editorial-page workspace-page">
+    <section class="workspace-header animate-in">
+        <div class="workspace-header-top">
+            <div>
+                <div class="eyebrow">Faculty search</div>
+                <h1 class="workspace-title">Build a tighter list of plausible contacts.</h1>
+                <p class="workspace-summary">Search across research sources, narrow by institution, and save only the professors who actually fit the outreach story you want to tell.</p>
             </div>
         </div>
-        <div class="image-card image-card--tall">
-            <img src="https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&amp;fit=crop&amp;w=1600&amp;q=80" alt="Students working together on laptops">
-            <div class="image-caption">
-                <span>Search session</span>
-                <strong>The goal is not volume. It is finding the few labs you can write to with real context.</strong>
+        <div class="workspace-stats">
+            <div class="workspace-stat">
+                <span>Sources</span>
+                <strong>5</strong>
+            </div>
+            <div class="workspace-stat">
+                <span>Default batch</span>
+                <strong>25</strong>
+            </div>
+            <div class="workspace-stat">
+                <span>Best practice</span>
+                <strong>Small lists</strong>
             </div>
         </div>
     </section>
 
-    <section class="finder-grid">
+    <section class="workspace-stack">
         <article class="surface-panel animate-in animate-in-1">
             <div class="surface-panel-header">
                 <div>
@@ -87,24 +82,9 @@
                     <button type="button" class="btn btn-primary" id="search-btn" onclick="runSearch()">Build faculty list</button>
                     <span id="search-status" class="form-hint" style="align-self:center;"></span>
                 </div>
+                <div class="form-hint">Start with a phrase that sounds like a paper topic, not a whole field. Smaller shortlists usually produce better drafts.</div>
             </div>
         </article>
-
-        <aside class="workspace-side">
-            <article class="surface-panel animate-in animate-in-2">
-                <div class="surface-panel-header">
-                    <div>
-                        <div class="panel-kicker">Good search habits</div>
-                        <div class="panel-title">What tends to work</div>
-                    </div>
-                </div>
-                <div class="page-block">
-                    <div class="chip"><strong>Start narrower</strong> Phrase the work area like a recent paper topic, not a whole discipline.</div>
-                    <div class="chip"><strong>Add one school filter</strong> It is often easier to compare labs within a smaller institutional set.</div>
-                    <div class="chip"><strong>Save less</strong> Keep only the professors you can imagine referencing specifically in a draft.</div>
-                </div>
-            </article>
-        </aside>
     </section>
 
     <div id="results-section" class="results-shell" style="display:none;">
