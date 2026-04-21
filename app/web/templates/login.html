@@ -44,7 +44,7 @@
                     <form method="POST" action="{{ url_for('login') }}" class="auth-form-stack">
                         <div class="form-group">
                             <label for="access_key">Access Key</label>
-                            <input type="password" id="access_key" name="access_key" placeholder="Paste the key you received at signup" autofocus required style="text-align:center; letter-spacing:0.05em;">
+                            <input type="password" id="access_key" name="access_key" placeholder="Paste the key you received at signup" autofocus required autocomplete="current-password" style="text-align:center; letter-spacing:0.05em;">
                             <div class="form-hint">Keys are shown once at account creation. Store them before leaving the signup page.</div>
                         </div>
                         <button type="submit" class="btn btn-primary" style="width:100%;">Sign in</button>

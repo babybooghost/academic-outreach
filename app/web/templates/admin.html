@@ -126,14 +126,14 @@
                             <div class="panel-kicker">Freshly created</div>
                             <div class="panel-title">Key for "{{ new_key_label }}"</div>
                         </div>
-                        <button class="btn btn-ghost btn-sm" onclick="dismissKey()">&times; Dismiss</button>
+                        <button type="button" class="btn btn-ghost btn-sm" onclick="dismissKey()">&times; Dismiss</button>
                     </div>
                     <div class="auth-key-value">
                         <code id="new-key-value" style="font-size:1rem; color:var(--ao-accent);">{{ new_key }}</code>
                     </div>
                     <div class="hero-actions" style="margin-top:1rem;">
-                        <button class="btn btn-primary btn-sm" onclick="copyKey()" id="copy-key-btn">Copy key</button>
-                        <button class="btn btn-outline btn-sm" onclick="copyInstructions()" id="copy-instructions-btn">Copy with instructions</button>
+                        <button type="button" class="btn btn-primary btn-sm" onclick="copyKey()" id="copy-key-btn">Copy key</button>
+                        <button type="button" class="btn btn-outline btn-sm" onclick="copyInstructions()" id="copy-instructions-btn">Copy with instructions</button>
                     </div>
                     <div id="copy-feedback" class="form-hint" style="margin-top:0.6rem;"></div>
                     <div class="admin-note" style="margin-top:1rem;">

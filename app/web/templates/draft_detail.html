@@ -24,8 +24,8 @@
             </div>
             {% if draft.status in ('generated', 'edited') %}
             <div class="action-buttons">
-                <button class="btn btn-success" onclick="draftAction({{ draft.id }}, 'approve')">Approve draft</button>
-                <button class="btn btn-danger" onclick="draftAction({{ draft.id }}, 'reject')">Reject draft</button>
+                <button type="button" class="btn btn-success" onclick="draftAction({{ draft.id }}, 'approve')">Approve draft</button>
+                <button type="button" class="btn btn-danger" onclick="draftAction({{ draft.id }}, 'reject')">Reject draft</button>
             </div>
             {% endif %}
         </div>
@@ -135,6 +135,7 @@
         </div>
     </div>
 </div>
+{% endblock %}
 
 {% block scripts %}
 <script>
@@ -145,5 +146,4 @@ async function draftAction(id, action) {
     else alert(data.error || 'Action failed');
 }
 </script>
-{% endblock %}
 {% endblock %}

@@ -49,8 +49,8 @@
                             <code id="signup-key" style="font-size:0.98rem; color:var(--ao-accent);">{{ access_key }}</code>
                         </div>
                         <div class="hero-actions" style="margin-top:0.9rem;">
-                            <button class="btn btn-primary btn-sm" onclick="copyKey()" id="copy-btn">Copy key</button>
-                            <button class="btn btn-outline btn-sm" onclick="copyWithInstructions()" id="copy-inst-btn">Copy with instructions</button>
+                            <button type="button" class="btn btn-primary btn-sm" onclick="copyKey()" id="copy-btn">Copy key</button>
+                            <button type="button" class="btn btn-outline btn-sm" onclick="copyWithInstructions()" id="copy-inst-btn">Copy with instructions</button>
                         </div>
                         <div id="copy-feedback" class="form-hint" style="margin-top:0.6rem;"></div>
                     </div>
@@ -68,21 +68,21 @@
                     <form method="POST" action="{{ url_for('signup') }}" id="signup-form" class="auth-form-stack">
                         <div class="form-group">
                             <label for="email">Email Address</label>
-                            <input type="email" id="email" name="email" placeholder="you@school.edu" required autofocus value="{{ request.form.get('email', '') }}">
+                            <input type="email" id="email" name="email" placeholder="you@school.edu" required autofocus autocomplete="email" value="{{ request.form.get('email', '') }}">
                             <div class="form-hint">Used for your account record and recovery requests.</div>
                         </div>
                         <div class="form-group">
                             <label for="display_name">Display Name</label>
-                            <input type="text" id="display_name" name="display_name" placeholder="How your name should appear inside the workspace" required value="{{ request.form.get('display_name', '') }}">
+                            <input type="text" id="display_name" name="display_name" placeholder="How your name should appear inside the workspace" required autocomplete="name" value="{{ request.form.get('display_name', '') }}">
                         </div>
                         <div class="grid-2">
                             <div class="form-group">
                                 <label for="password">Password</label>
-                                <input type="password" id="password" name="password" placeholder="At least 6 characters" required minlength="6">
+                                <input type="password" id="password" name="password" placeholder="At least 6 characters" required minlength="6" autocomplete="new-password">
                             </div>
                             <div class="form-group">
                                 <label for="password_confirm">Confirm Password</label>
-                                <input type="password" id="password_confirm" name="password_confirm" placeholder="Re-enter password" required minlength="6">
+                                <input type="password" id="password_confirm" name="password_confirm" placeholder="Re-enter password" required minlength="6" autocomplete="new-password">
                             </div>
                         </div>
                         <button type="submit" class="btn btn-primary" style="width:100%;" id="signup-btn">Create account</button>

@@ -38,23 +38,43 @@
         </div>
     </section>
 
-    <section class="surface-band">
-        <article class="surface-note animate-in animate-in-1">
-            <strong>Research first</strong>
-            <p>Use Search to find real labs and professors, then keep enough context in each file to justify later personalization.</p>
-        </article>
-        <article class="surface-note animate-in animate-in-2">
-            <strong>Review before approval</strong>
-            <p>Drafts should earn their place in the queue by sounding specific, credible, and grounded in the professor record.</p>
-        </article>
-        <article class="surface-note animate-in animate-in-3">
-            <strong>Send conservatively</strong>
-            <p>Smaller runs, dry previews, and suppression checks exist to protect the final step.</p>
-        </article>
-    </section>
-
     <section class="workspace-grid">
         <div class="workspace-main">
+            {% if not total_professors and not total_drafts and not recent_sends and not recent_activity %}
+            <article class="surface-panel animate-in animate-in-1">
+                <div class="surface-panel-header">
+                    <div>
+                        <div class="panel-kicker">Getting started</div>
+                        <div class="panel-title">Use the desk like a shortlist, not a blast tool.</div>
+                    </div>
+                </div>
+                <div class="step-list">
+                    <div class="step-card">
+                        <div class="step-number">1</div>
+                        <div>
+                            <strong>Search one narrow topic</strong>
+                            <p>Start in Search with a precise research phrase and save only the few faculty files you can genuinely reference later.</p>
+                        </div>
+                    </div>
+                    <div class="step-card">
+                        <div class="step-number">2</div>
+                        <div>
+                            <strong>Set the sender identity</strong>
+                            <p>Use Setup to lock in the student profile and sender details before any draft generation or delivery decisions happen.</p>
+                        </div>
+                    </div>
+                    <div class="step-card">
+                        <div class="step-number">3</div>
+                        <div>
+                            <strong>Review before approval</strong>
+                            <p>Draft Review is where specificity, tone, and warnings get checked so the queue never turns into generic outreach.</p>
+                        </div>
+                    </div>
+                </div>
+            </article>
+            {% endif %}
+
+            {% if recent_sends or total_drafts %}
             <article class="surface-panel animate-in animate-in-1">
                 <div class="surface-panel-header">
                     <div>
@@ -92,7 +112,9 @@
                 </div>
                 {% endif %}
             </article>
+            {% endif %}
 
+            {% if recent_activity %}
             <article class="surface-panel animate-in animate-in-2">
                 <div class="surface-panel-header">
                     <div>
@@ -130,50 +152,33 @@
                 </div>
                 {% endif %}
             </article>
+            {% endif %}
         </div>
 
         <aside class="workspace-side">
             <article class="surface-panel animate-in animate-in-2">
                 <div class="surface-panel-header">
                     <div>
-                        <div class="panel-kicker">Current totals</div>
-                        <div class="panel-title">At a glance</div>
+                        <div class="panel-kicker">Pipeline snapshot</div>
+                        <div class="panel-title">What the desk holds right now</div>
                     </div>
                 </div>
-                <div class="stat-grid">
-                    <div class="stat-card">
-                        <div class="stat-label">Faculty</div>
-                        <div class="stat-number">{{ total_professors }}</div>
-                        <div class="stat-footer">
-                            {% for status, count in prof_counts.items() %}
-                            <span class="badge badge-{{ status }}">{{ status }}: {{ count }}</span>
-                            {% endfor %}
-                        </div>
+                <div class="status-list">
+                    <div class="status-row">
+                        <span>Faculty files</span>
+                        <strong>{{ total_professors }}</strong>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-label">Enriched</div>
-                        <div class="stat-number">{{ prof_counts.get('enriched', 0) + prof_counts.get('ready', 0) }}</div>
-                        <div class="stat-footer">
-                            <span class="badge badge-enriched">Enriched</span>
-                            <span class="badge badge-ready">Ready</span>
-                        </div>
+                    <div class="status-row">
+                        <span>Drafts in queue</span>
+                        <strong>{{ total_drafts }}</strong>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-label">Drafts</div>
-                        <div class="stat-number">{{ total_drafts }}</div>
-                        <div class="stat-footer">
-                            {% for status, count in draft_counts.items() %}
-                            <span class="badge badge-{{ status }}">{{ status }}: {{ count }}</span>
-                            {% endfor %}
-                        </div>
+                    <div class="status-row">
+                        <span>Approved to send</span>
+                        <strong>{{ draft_counts.get('approved', 0) }}</strong>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-label">Sent</div>
-                        <div class="stat-number">{{ draft_counts.get('sent', 0) }}</div>
-                        <div class="stat-footer">
-                            <span class="badge badge-sent">Sent</span>
-                            <span class="badge badge-failed">Failed</span>
-                        </div>
+                    <div class="status-row">
+                        <span>Messages sent</span>
+                        <strong>{{ draft_counts.get('sent', 0) }}</strong>
                     </div>
                 </div>
             </article>
@@ -181,15 +186,32 @@
             <article class="surface-panel animate-in animate-in-3">
                 <div class="surface-panel-header">
                     <div>
-                        <div class="panel-kicker">Recommended rhythm</div>
-                        <div class="panel-title">What to do next</div>
+                        <div class="panel-kicker">Next move</div>
+                        <div class="panel-title">What the workspace needs next</div>
                     </div>
                 </div>
                 <div class="page-block">
-                    <div class="chip"><strong>1</strong> Search for a small set of strong faculty matches.</div>
-                    <div class="chip"><strong>2</strong> Save only the contacts you can actually reference.</div>
-                    <div class="chip"><strong>3</strong> Generate drafts after your sender profile is ready.</div>
-                    <div class="chip"><strong>4</strong> Approve only the drafts that still sound specific after review.</div>
+                    {% if total_professors == 0 %}
+                    <p>The desk is still empty. Start by saving three to five plausible faculty files instead of building a huge list.</p>
+                    <div class="hero-actions">
+                        <a href="{{ url_for('finder_page') }}" class="btn btn-primary">Open search</a>
+                    </div>
+                    {% elif total_drafts == 0 %}
+                    <p>You have faculty files, but no review queue yet. Generate a small batch and read it like an editor before approving anything.</p>
+                    <div class="hero-actions">
+                        <a href="{{ url_for('drafts_list') }}" class="btn btn-primary">Generate drafts</a>
+                    </div>
+                    {% elif draft_counts.get('approved', 0) == 0 %}
+                    <p>Drafts exist, but nothing is approved. Review for specificity, tone, and a believable closing ask before anything reaches Delivery.</p>
+                    <div class="hero-actions">
+                        <a href="{{ url_for('drafts_list', status='generated') }}" class="btn btn-primary">Review queue</a>
+                    </div>
+                    {% else %}
+                    <p>You have approved work ready for a controlled send. Preview the batch first and confirm the delivery path before going live.</p>
+                    <div class="hero-actions">
+                        <a href="{{ url_for('send_page') }}" class="btn btn-primary">Open delivery</a>
+                    </div>
+                    {% endif %}
                 </div>
             </article>
         </aside>

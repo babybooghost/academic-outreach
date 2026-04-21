@@ -49,11 +49,11 @@
                 </div>
 
                 <div class="chip-row">
-                    <button class="pill-button" onclick="useTopic('machine learning systems', 'Machine Learning')">ML Systems</button>
-                    <button class="pill-button" onclick="useTopic('interpretability and evaluation', 'Machine Learning')">Interpretability</button>
-                    <button class="pill-button" onclick="useTopic('computer vision representation learning', 'Machine Learning')">Computer Vision</button>
-                    <button class="pill-button" onclick="useTopic('natural language processing and language models', 'Machine Learning')">NLP</button>
-                    <button class="pill-button" onclick="useTopic('reinforcement learning and decision making', 'Machine Learning')">Reinforcement Learning</button>
+                    <button type="button" class="pill-button" onclick="useTopic('machine learning systems', 'Machine Learning')">ML Systems</button>
+                    <button type="button" class="pill-button" onclick="useTopic('interpretability and evaluation', 'Machine Learning')">Interpretability</button>
+                    <button type="button" class="pill-button" onclick="useTopic('computer vision representation learning', 'Machine Learning')">Computer Vision</button>
+                    <button type="button" class="pill-button" onclick="useTopic('natural language processing and language models', 'Machine Learning')">NLP</button>
+                    <button type="button" class="pill-button" onclick="useTopic('reinforcement learning and decision making', 'Machine Learning')">Reinforcement Learning</button>
                 </div>
 
                 <div class="grid-3">
@@ -75,16 +75,16 @@
                 <div id="selected-unis" class="chip-row"></div>
 
                 <div class="chip-row">
-                    <button class="pill-button" onclick="addPreset('ivy')">Ivy League</button>
-                    <button class="pill-button" onclick="addPreset('top10')">Top 10 CS</button>
-                    <button class="pill-button" onclick="addPreset('texas')">Texas</button>
-                    <button class="pill-button" onclick="addPreset('uc')">UC System</button>
-                    <button class="pill-button" onclick="addPreset('intl')">Top International</button>
-                    <button class="pill-button" onclick="clearUnis()" style="color:var(--ao-danger); border-color:rgba(217,126,114,0.3);">Clear all</button>
+                    <button type="button" class="pill-button" onclick="addPreset('ivy')">Ivy League</button>
+                    <button type="button" class="pill-button" onclick="addPreset('top10')">Top 10 CS</button>
+                    <button type="button" class="pill-button" onclick="addPreset('texas')">Texas</button>
+                    <button type="button" class="pill-button" onclick="addPreset('uc')">UC System</button>
+                    <button type="button" class="pill-button" onclick="addPreset('intl')">Top International</button>
+                    <button type="button" class="pill-button" onclick="clearUnis()" style="color:var(--ao-danger); border-color:rgba(217,126,114,0.3);">Clear all</button>
                 </div>
 
                 <div class="hero-actions">
-                    <button class="btn btn-primary" id="search-btn" onclick="runSearch()">Build faculty list</button>
+                    <button type="button" class="btn btn-primary" id="search-btn" onclick="runSearch()">Build faculty list</button>
                     <span id="search-status" class="form-hint" style="align-self:center;"></span>
                 </div>
             </div>
@@ -104,14 +104,6 @@
                     <div class="chip"><strong>Save less</strong> Keep only the professors you can imagine referencing specifically in a draft.</div>
                 </div>
             </article>
-
-            <div class="image-card image-card--short animate-in animate-in-3">
-                <img src="https://images.unsplash.com/photo-1503676260728-1c00da094a0b?auto=format&amp;fit=crop&amp;w=1200&amp;q=80" alt="Student carrying books on a campus walkway">
-                <div class="image-caption">
-                    <span>Student angle</span>
-                    <strong>The search is stronger when you already know the type of lab you would realistically want to join.</strong>
-                </div>
-            </div>
         </aside>
     </section>
 
@@ -123,9 +115,9 @@
                     <div class="panel-title" id="results-title">Results</div>
                 </div>
                 <div class="results-actions">
-                    <button class="btn btn-outline btn-sm" onclick="selectAll()">Select all</button>
-                    <button class="btn btn-outline btn-sm" onclick="selectNone()">Deselect</button>
-                    <button class="btn btn-primary btn-sm" id="save-btn" onclick="saveSelected()">Save selected</button>
+                    <button type="button" class="btn btn-outline btn-sm" onclick="selectAll()">Select all</button>
+                    <button type="button" class="btn btn-outline btn-sm" onclick="selectNone()">Deselect</button>
+                    <button type="button" class="btn btn-primary btn-sm" id="save-btn" onclick="saveSelected()">Save selected</button>
                 </div>
             </div>
 
@@ -153,6 +145,7 @@
 
     <div id="save-result"></div>
 </div>
+{% endblock %}
 
 {% block scripts %}
 <script>
@@ -370,5 +363,4 @@ async function saveSelected() {
     btn.textContent = 'Save selected';
 }
 </script>
-{% endblock %}
 {% endblock %}

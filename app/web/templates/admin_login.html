@@ -44,7 +44,7 @@
                     <form method="POST" action="{{ url_for('admin_login') }}" class="auth-form-stack">
                         <div class="form-group">
                             <label for="access_key">Admin Key</label>
-                            <input type="password" id="access_key" name="access_key" placeholder="Enter admin access key" autofocus required style="text-align:center; letter-spacing:0.05em;">
+                            <input type="password" id="access_key" name="access_key" placeholder="Enter admin access key" autofocus required autocomplete="current-password" style="text-align:center; letter-spacing:0.05em;">
                         </div>
                         <button type="submit" class="btn btn-primary" style="width:100%;">Authenticate</button>
                     </form>

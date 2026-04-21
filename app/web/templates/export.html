@@ -9,7 +9,7 @@
             <h1 class="page-title">Package the records you need outside the workspace.</h1>
             <p class="lead">Use exports when you want to review draft history offline, share a handoff file, or preserve the current state of the outreach log.</p>
             <div class="hero-actions">
-                <button class="btn btn-primary" onclick="triggerExport()">Export draft register</button>
+                <button type="button" class="btn btn-primary" onclick="triggerExport()">Export draft register</button>
             </div>
         </div>
         <div class="image-card image-card--tall">
@@ -31,7 +31,7 @@
             </div>
             <p>Export draft rows with scores, statuses, and supporting metadata for spreadsheet review or handoff.</p>
             <div class="hero-actions" style="margin-top:1rem;">
-                <button class="btn btn-primary" onclick="triggerExport()">Export CSV</button>
+                <button type="button" class="btn btn-primary" onclick="triggerExport()">Export CSV</button>
             </div>
         </article>
 
@@ -44,7 +44,7 @@
             </div>
             <p>A shareable record of what changed in the workspace and when. This export is not wired yet, but the surface is reserved for it.</p>
             <div class="hero-actions" style="margin-top:1rem;">
-                <button class="btn btn-outline" disabled>Coming soon</button>
+                <button type="button" class="btn btn-outline" disabled>Coming soon</button>
             </div>
         </article>
 
@@ -57,13 +57,14 @@
             </div>
             <p>A cleaner handoff sheet for outreach tracking outside the app, useful for advisors or shared review workflows.</p>
             <div class="hero-actions" style="margin-top:1rem;">
-                <button class="btn btn-outline" disabled>Coming soon</button>
+                <button type="button" class="btn btn-outline" disabled>Coming soon</button>
             </div>
         </article>
     </section>
 
     <div id="export-result"></div>
 </div>
+{% endblock %}
 
 {% block scripts %}
 <script>
@@ -78,5 +79,4 @@ async function triggerExport() {
     }
 }
 </script>
-{% endblock %}
 {% endblock %}

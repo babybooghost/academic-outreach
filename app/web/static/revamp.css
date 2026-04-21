@@ -105,6 +105,10 @@ body.admin-shell::before {
         linear-gradient(90deg, rgba(255, 255, 255, 0.012) 1px, transparent 1px);
 }
 
+body.app-shell::before {
+    opacity: 0.18;
+}
+
 img {
     display: block;
     max-width: 100%;
@@ -395,6 +399,47 @@ hr {
     grid-template-columns: minmax(0, 1.08fr) minmax(360px, 0.92fr);
     gap: 1.5rem;
     align-items: stretch;
+}
+
+.app-shell .editorial-hero {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    padding: 1.35rem;
+}
+
+.app-shell .editorial-hero .image-card {
+    order: -1;
+}
+
+.app-shell .editorial-hero .image-card--tall {
+    min-height: 220px;
+    max-height: 220px;
+}
+
+.app-shell .editorial-hero .image-caption {
+    padding: 1rem 1.1rem 1.05rem;
+}
+
+.app-shell .editorial-hero .image-caption p {
+    display: none;
+}
+
+.app-shell .page-title {
+    font-size: clamp(2.35rem, 4.2vw, 3.6rem);
+}
+
+.app-shell .hero-copy {
+    gap: 0.85rem;
+}
+
+.app-shell .lead {
+    max-width: 58ch;
+    font-size: 1rem;
+}
+
+.app-shell .metric-card {
+    min-width: 8rem;
+    padding: 0.9rem 0.95rem;
 }
 
 .hero-copy,
@@ -693,6 +738,69 @@ hr {
     display: flex;
     flex-wrap: wrap;
     gap: 0.35rem;
+}
+
+.status-list {
+    display: grid;
+    gap: 0.35rem;
+}
+
+.status-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.9rem 0;
+    border-top: 1px solid var(--ao-border);
+}
+
+.status-row:first-child {
+    padding-top: 0.1rem;
+    border-top: 0;
+}
+
+.status-row span {
+    color: var(--ao-text-muted);
+}
+
+.status-row strong {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 2rem;
+    line-height: 0.9;
+    color: var(--ao-text);
+}
+
+.step-list {
+    display: grid;
+    gap: 0.9rem;
+}
+
+.step-card {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.9rem;
+    padding: 1rem 1.05rem;
+    border-radius: 22px;
+    border: 1px solid var(--ao-border);
+    background: var(--ao-panel);
+}
+
+.step-card strong {
+    display: block;
+    margin-bottom: 0.2rem;
+    color: var(--ao-text);
+}
+
+.step-number {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: var(--ao-primary-glow);
+    color: var(--ao-primary-light);
+    font-size: 0.85rem;
+    font-weight: 800;
 }
 
 .badge {
@@ -1171,37 +1279,48 @@ tbody tr:hover td {
     gap: 1rem;
 }
 
-.help-fab,
-.chat-fab {
-    width: 58px;
-    height: 58px;
-    border-radius: 50%;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: linear-gradient(135deg, var(--ao-primary), var(--ao-primary-light));
-    color: #fff;
-    display: grid;
-    place-items: center;
-    box-shadow: var(--ao-shadow);
+.app-footer-tools {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.7rem;
+    flex-wrap: wrap;
 }
 
-.help-fab {
-    position: fixed;
-    left: 1.5rem;
-    bottom: 1.5rem;
-    z-index: 150;
+.footer-link-btn,
+.chat-fab {
+    border-radius: 999px;
+    border: 1px solid var(--ao-border-light);
+    background: var(--ao-surface);
+    color: var(--ao-text);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    padding: 0.68rem 0.95rem;
+    font: inherit;
+    font-size: 0.8rem;
+    font-weight: 800;
+    cursor: pointer;
+    transition: background var(--ao-transition), border-color var(--ao-transition), color var(--ao-transition), transform var(--ao-transition);
+}
+
+.footer-link-btn:hover,
+.chat-fab:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: var(--ao-border-light);
+    color: var(--ao-text);
+    transform: translateY(-1px);
 }
 
 .chat-widget {
-    position: fixed;
-    right: 1.5rem;
-    bottom: 1.5rem;
-    z-index: 150;
+    position: relative;
+    z-index: 20;
 }
 
 .chat-panel {
     position: absolute;
     right: 0;
-    bottom: 70px;
+    bottom: calc(100% + 0.8rem);
     width: 380px;
     max-height: 560px;
     display: flex;
@@ -1404,7 +1523,7 @@ tbody tr:hover td {
 .toast {
     position: fixed;
     right: 1.5rem;
-    bottom: 5.75rem;
+    top: 5.25rem;
     z-index: 400;
     display: inline-flex;
     align-items: center;
@@ -1414,6 +1533,7 @@ tbody tr:hover td {
     border: 1px solid var(--ao-border);
     background: var(--ao-surface);
     box-shadow: var(--ao-shadow);
+    pointer-events: none;
 }
 
 .toast-success {
@@ -1839,6 +1959,10 @@ tbody tr:hover td {
     .auth-stage {
         min-height: 52vh;
     }
+
+    .editorial-page .editorial-hero .image-card {
+        min-height: 320px;
+    }
 }
 
 @media (max-width: 720px) {
@@ -1858,6 +1982,49 @@ tbody tr:hover td {
         padding-bottom: 3.5rem;
     }
 
+    .logo-text {
+        font-size: 1.55rem;
+    }
+
+    .logo-text span {
+        font-size: 0.78rem;
+        letter-spacing: 0.1em;
+    }
+
+    .navbar-inner {
+        gap: 0.8rem;
+    }
+
+    .nav-links {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.55rem;
+        overflow: visible;
+        width: 100%;
+        padding-bottom: 0;
+    }
+
+    .nav-links li {
+        width: 100%;
+    }
+
+    .nav-links a {
+        width: 100%;
+        justify-content: flex-start;
+        padding: 0.6rem 0.72rem;
+        font-size: 0.84rem;
+    }
+
+    .nav-icon {
+        display: none;
+    }
+
+    .nav-user {
+        width: 100%;
+        justify-content: flex-start;
+        font-size: 0.82rem;
+    }
+
     .editorial-hero,
     .landing-hero,
     .surface-panel,
@@ -1871,6 +2038,19 @@ tbody tr:hover td {
     .tutorial-card {
         border-radius: 24px;
         padding: 1.15rem;
+    }
+
+    .editorial-page .editorial-hero .image-card {
+        display: none;
+    }
+
+    .workspace-grid,
+    .review-grid,
+    .finder-grid,
+    .detail-layout,
+    .settings-grid,
+    .admin-grid {
+        gap: 1rem;
     }
 
     .page-title,
@@ -1892,13 +2072,11 @@ tbody tr:hover td {
     }
 
     .help-fab {
-        left: 1rem;
-        bottom: 1rem;
+        display: none;
     }
 
     .chat-widget {
-        right: 1rem;
-        bottom: 1rem;
+        display: none;
     }
 
     .chat-panel {

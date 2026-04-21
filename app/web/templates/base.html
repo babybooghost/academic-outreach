@@ -34,7 +34,7 @@
                 <li><a href="{{ url_for('settings_page') }}" {% if request.endpoint == 'settings_page' %}class="active"{% endif %}><span class="nav-icon">&#9881;</span> Setup</a></li>
             </ul>
             <div class="nav-user">
-                <button class="theme-toggle" onclick="cycleTheme()" title="Toggle theme" aria-label="Toggle theme">
+                <button type="button" class="theme-toggle" onclick="cycleTheme()" title="Toggle theme" aria-label="Toggle theme">
                     <span id="theme-icon">&#9790;</span>
                 </button>
                 <span class="nav-user-dot"></span>
@@ -74,10 +74,61 @@
                 <span>Academic Outreach v{{ app_version }}</span>
             </div>
             <div>Private workspace for research-led faculty outreach.</div>
+            <div class="app-footer-tools">
+                <button type="button" class="footer-link-btn" onclick="startTutorial()">Quick tour</button>
+                <div class="chat-widget" id="chat-widget">
+                    <button type="button" class="chat-fab" id="chat-fab" onclick="toggleChat()" title="Support">
+                        <span id="chat-fab-icon">&#128172;</span>
+                        <span>Support</span>
+                    </button>
+                    <div class="chat-panel" id="chat-panel">
+                        <div class="chat-header">
+                            <div style="display:flex; align-items:center; gap:0.55rem;">
+                                <span style="font-size:1.05rem;">&#128172;</span>
+                                <strong>Support</strong>
+                            </div>
+                            <button type="button" class="chat-close" onclick="toggleChat()" title="Close">&times;</button>
+                        </div>
+                        <div class="chat-body" id="chat-body">
+                            <div class="chat-msg chat-msg-bot">
+                                <div class="chat-msg-content">Need a quick hand? I can walk through search, drafts, delivery, or setup.</div>
+                            </div>
+                            <div class="chat-prompts" id="chat-prompts">
+                                <button type="button" class="chat-prompt-btn" onclick="sendPrompt('how_to_start')">How do I get started?</button>
+                                <button type="button" class="chat-prompt-btn" onclick="sendPrompt('find_professors')">How do I find professors?</button>
+                                <button type="button" class="chat-prompt-btn" onclick="sendPrompt('find_ml_professors')">How do I find ML labs?</button>
+                                <button type="button" class="chat-prompt-btn" onclick="sendPrompt('generate_emails')">How do I generate emails?</button>
+                                <button type="button" class="chat-prompt-btn" onclick="sendPrompt('send_emails')">How does sending work?</button>
+                                <button type="button" class="chat-prompt-btn" onclick="sendPrompt('quality_scores')">What are quality scores?</button>
+                                <button type="button" class="chat-prompt-btn" onclick="sendPrompt('tutorial')">Show me the tutorial</button>
+                                <button type="button" class="chat-prompt-btn chat-prompt-bug" onclick="showBugForm()">Report a bug</button>
+                            </div>
+                        </div>
+                        <div class="chat-bug-form" id="chat-bug-form" style="display:none;">
+                            <div style="padding:0.9rem 1rem; font-weight:700; font-size:0.86rem; border-bottom:1px solid var(--ao-border);">Report a bug</div>
+                            <div style="padding:0.9rem; display:flex; flex-direction:column; gap:0.55rem;">
+                                <input type="text" id="bug-title" placeholder="Short description">
+                                <textarea id="bug-details" placeholder="Steps to reproduce, what you expected, what happened instead..." rows="4" style="resize:vertical;"></textarea>
+                                <select id="bug-severity">
+                                    <option value="low">Low priority</option>
+                                    <option value="medium" selected>Medium priority</option>
+                                    <option value="high">High priority</option>
+                                </select>
+                                <div style="display:flex; gap:0.5rem;">
+                                    <button type="button" class="btn btn-primary btn-sm" onclick="submitBug()" style="flex:1;">Submit report</button>
+                                    <button type="button" class="btn btn-outline btn-sm" onclick="hideBugForm()">Cancel</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="chat-input-area" id="chat-input-area">
+                            <input type="text" id="chat-input" placeholder="Ask about the workflow..." onkeydown="if(event.key==='Enter')sendMessage()">
+                            <button type="button" class="chat-send-btn" onclick="sendMessage()" title="Send">&#10148;</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </footer>
-
-    <button class="help-fab" onclick="startTutorial()" title="Quick tour">?</button>
 
     <div class="tutorial-overlay" id="tutorial-overlay">
         <div class="tutorial-card" id="tutorial-card">
@@ -86,61 +137,11 @@
             <div class="tutorial-title" id="tutorial-title"></div>
             <div class="tutorial-body" id="tutorial-body"></div>
             <div class="tutorial-nav">
-                <button class="tutorial-skip" onclick="closeTutorial()">Skip Tour</button>
+                <button type="button" class="tutorial-skip" onclick="closeTutorial()">Skip Tour</button>
                 <div style="display:flex; gap:0.5rem;">
-                    <button class="btn btn-outline btn-sm" id="tutorial-prev" onclick="tutorialPrev()">Back</button>
-                    <button class="btn btn-primary btn-sm" id="tutorial-next" onclick="tutorialNext()" style="min-width:110px;">Next</button>
+                    <button type="button" class="btn btn-outline btn-sm" id="tutorial-prev" onclick="tutorialPrev()">Back</button>
+                    <button type="button" class="btn btn-primary btn-sm" id="tutorial-next" onclick="tutorialNext()" style="min-width:110px;">Next</button>
                 </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="chat-widget" id="chat-widget">
-        <button class="chat-fab" id="chat-fab" onclick="toggleChat()" title="Support chat">
-            <span id="chat-fab-icon">&#128172;</span>
-        </button>
-        <div class="chat-panel" id="chat-panel">
-            <div class="chat-header">
-                <div style="display:flex; align-items:center; gap:0.55rem;">
-                    <span style="font-size:1.05rem;">&#128172;</span>
-                    <strong>Support</strong>
-                </div>
-                <button class="chat-close" onclick="toggleChat()" title="Close">&times;</button>
-            </div>
-            <div class="chat-body" id="chat-body">
-                <div class="chat-msg chat-msg-bot">
-                    <div class="chat-msg-content">Need a quick hand? I can walk through search, drafts, delivery, or setup.</div>
-                </div>
-                <div class="chat-prompts" id="chat-prompts">
-                    <button class="chat-prompt-btn" onclick="sendPrompt('how_to_start')">How do I get started?</button>
-                    <button class="chat-prompt-btn" onclick="sendPrompt('find_professors')">How do I find professors?</button>
-                    <button class="chat-prompt-btn" onclick="sendPrompt('find_ml_professors')">How do I find ML labs?</button>
-                    <button class="chat-prompt-btn" onclick="sendPrompt('generate_emails')">How do I generate emails?</button>
-                    <button class="chat-prompt-btn" onclick="sendPrompt('send_emails')">How does sending work?</button>
-                    <button class="chat-prompt-btn" onclick="sendPrompt('quality_scores')">What are quality scores?</button>
-                    <button class="chat-prompt-btn" onclick="sendPrompt('tutorial')">Show me the tutorial</button>
-                    <button class="chat-prompt-btn chat-prompt-bug" onclick="showBugForm()">Report a bug</button>
-                </div>
-            </div>
-            <div class="chat-bug-form" id="chat-bug-form" style="display:none;">
-                <div style="padding:0.9rem 1rem; font-weight:700; font-size:0.86rem; border-bottom:1px solid var(--ao-border);">Report a bug</div>
-                <div style="padding:0.9rem; display:flex; flex-direction:column; gap:0.55rem;">
-                    <input type="text" id="bug-title" placeholder="Short description">
-                    <textarea id="bug-details" placeholder="Steps to reproduce, what you expected, what happened instead..." rows="4" style="resize:vertical;"></textarea>
-                    <select id="bug-severity">
-                        <option value="low">Low priority</option>
-                        <option value="medium" selected>Medium priority</option>
-                        <option value="high">High priority</option>
-                    </select>
-                    <div style="display:flex; gap:0.5rem;">
-                        <button class="btn btn-primary btn-sm" onclick="submitBug()" style="flex:1;">Submit report</button>
-                        <button class="btn btn-outline btn-sm" onclick="hideBugForm()">Cancel</button>
-                    </div>
-                </div>
-            </div>
-            <div class="chat-input-area" id="chat-input-area">
-                <input type="text" id="chat-input" placeholder="Ask about the workflow..." onkeydown="if(event.key==='Enter')sendMessage()">
-                <button class="chat-send-btn" onclick="sendMessage()" title="Send">&#10148;</button>
             </div>
         </div>
     </div>
@@ -262,8 +263,6 @@
         document.getElementById('tutorial-prev').style.display = tutorialStep === 0 ? 'none' : '';
         document.getElementById('tutorial-next').textContent = tutorialStep === TUTORIAL_STEPS.length - 1 ? 'Get Started' : 'Next';
     }
-
-    if (!localStorage.getItem('ao_tutorial_seen')) setTimeout(startTutorial, 800);
 
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && tutorialActive) closeTutorial();

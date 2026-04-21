@@ -113,8 +113,8 @@
                         <p>SMTP is the most reliable hosted path. Gmail modes require Gmail API credentials and local OAuth setup.</p>
                     </div>
                     <div class="hero-actions">
-                        <button class="btn btn-primary" onclick="triggerSend(false)">Run delivery</button>
-                        <button class="btn btn-outline" onclick="triggerSend(true)">Preview run</button>
+                        <button type="button" class="btn btn-primary" onclick="triggerSend(false)">Run delivery</button>
+                        <button type="button" class="btn btn-outline" onclick="triggerSend(true)">Preview run</button>
                     </div>
                 </div>
             </article>
@@ -127,6 +127,8 @@
         <p>No approved drafts are waiting in delivery. Approve drafts first.</p>
     </div>
     {% endif %}
+</div>
+{% endblock %}
 
 {% block scripts %}
 <script>
@@ -151,5 +153,4 @@ async function triggerSend(dryRun) {
     }
 }
 </script>
-{% endblock %}
 {% endblock %}
