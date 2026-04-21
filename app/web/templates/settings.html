@@ -5,20 +5,20 @@
 <div class="editorial-page workspace-page">
     <section class="workspace-header animate-in">
         <div class="workspace-header-top">
-            <div>
+            <div class="workspace-header-copy">
                 <div class="eyebrow">Workspace setup</div>
-                <h1 class="workspace-title">Control how drafts are written and how approved email leaves the queue.</h1>
-                <p class="workspace-summary">These settings define the sender identity, model behavior, and delivery path behind the workspace.</p>
+                <h1 class="workspace-title">Set the model, sender identity, and delivery path.</h1>
+                <p class="workspace-summary">These controls define how the workspace writes drafts and which mail path handles approved sends.</p>
             </div>
         </div>
         <div class="workspace-stats">
             <div class="workspace-stat">
-                <span>Sender email</span>
-                <strong>{{ effective.sender_email or 'Unset' }}</strong>
+                <span>Sender identity</span>
+                <strong>{{ 'Configured' if effective.sender_email else 'Unset' }}</strong>
             </div>
             <div class="workspace-stat">
                 <span>Delivery mode</span>
-                <strong>{{ effective.email_provider or 'Unset' }}</strong>
+                <strong>{{ email_providers.get(effective.email_provider, 'Unset') }}</strong>
             </div>
             <div class="workspace-stat">
                 <span>Profiles saved</span>

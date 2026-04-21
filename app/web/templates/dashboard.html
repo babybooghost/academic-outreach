@@ -5,15 +5,15 @@
 <div class="editorial-page workspace-page">
     <section class="workspace-header animate-in">
         <div class="workspace-header-top">
-            <div>
+            <div class="workspace-header-copy">
                 <div class="eyebrow">Workspace desk</div>
-                <h1 class="workspace-title">Academic outreach, one careful batch at a time.</h1>
-                <p class="workspace-summary">Keep the faculty list narrow, the draft queue honest, and the delivery workflow readable from first search through final send.</p>
+                <h1 class="workspace-title">Run a smaller, cleaner outreach queue.</h1>
+                <p class="workspace-summary">Track the faculty list, the draft queue, and the final send path without turning the workspace into a wall of chrome.</p>
             </div>
             <div class="workspace-actions">
                 <a href="{{ url_for('finder_page') }}" class="btn btn-primary">Search for faculty</a>
-                <a href="{{ url_for('drafts_list', status='generated') }}" class="btn btn-outline">Review fresh drafts</a>
-                <a href="{{ url_for('send_page') }}" class="btn btn-outline">Open delivery queue</a>
+                <a href="{{ url_for('drafts_list', status='generated') }}" class="btn btn-outline">Review drafts</a>
+                <a href="{{ url_for('send_page') }}" class="btn btn-outline">Open queue</a>
             </div>
         </div>
         <div class="workspace-stats">
