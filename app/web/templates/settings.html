@@ -96,6 +96,32 @@
                     <input type="password" id="smtp_password" name="smtp_password" value="{{ effective.smtp_password }}" placeholder="App password">
                     <div class="form-hint">For Gmail, use a Google app password; your normal account password will usually fail.</div>
                 </div>
+                <div class="form-group">
+                    <label class="checkbox-row" for="auto_send_enabled">
+                        <input type="checkbox" id="auto_send_enabled" name="auto_send_enabled" value="1" {% if effective.auto_send_enabled %}checked{% endif %}>
+                        Enable automatic delivery for approved drafts
+                    </label>
+                    <div class="form-hint">The hosted cron job will only process this workspace when this is enabled.</div>
+                </div>
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label for="auto_send_method">Auto Method</label>
+                        <select id="auto_send_method" name="auto_send_method">
+                            <option value="smtp" {% if effective.auto_send_method == 'smtp' %}selected{% endif %}>SMTP</option>
+                            <option value="gmail_draft" {% if effective.auto_send_method == 'gmail_draft' %}selected{% endif %}>Gmail Draft</option>
+                            <option value="gmail_send" {% if effective.auto_send_method == 'gmail_send' %}selected{% endif %}>Gmail Send</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="auto_send_limit">Auto Batch Limit</label>
+                        <input type="number" id="auto_send_limit" name="auto_send_limit" min="1" max="20" value="{{ effective.auto_send_limit }}">
+                    </div>
+                </div>
+                {% if effective.auto_send_last_run %}
+                <div class="auth-note">
+                    <p>Last automatic run: <strong>{{ effective.auto_send_last_status or 'unknown' }}</strong> at {{ effective.auto_send_last_run }}</p>
+                </div>
+                {% endif %}
             </div>
         </article>
 

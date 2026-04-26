@@ -1151,6 +1151,20 @@ label {
     line-height: 1.6;
 }
 
+.checkbox-row {
+    align-items: center;
+    cursor: pointer;
+    display: flex;
+    gap: 0.7rem;
+    line-height: 1.35;
+}
+
+.checkbox-row input[type="checkbox"] {
+    height: 1rem;
+    margin: 0;
+    width: 1rem;
+}
+
 .toolbar,
 .filter-bar,
 .bulk-actions {

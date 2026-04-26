@@ -11,7 +11,6 @@ import json
 import os
 import secrets
 import traceback
-from dataclasses import replace
 from datetime import datetime
 from functools import wraps
 from pathlib import Path
@@ -29,7 +28,7 @@ from flask import (
     url_for,
 )
 
-from app.config import email_provider_smtp_defaults, load_config
+from app.config import load_config
 from app.database import (
     create_access_key,
     delete_access_key,
@@ -57,6 +56,14 @@ from app.database import (
 from app.logger import get_logger
 from app.models import Draft, Professor, SenderProfile
 from app.generation_service import run_generation_pipeline
+from app.delivery import (
+    SEND_METHODS,
+    parse_bool,
+    run_auto_send_for_workspaces,
+    send_ready_queue,
+    workspace_config as build_workspace_config,
+    workspace_db_path as build_workspace_db_path,
+)
 
 # ---------------------------------------------------------------------------
 # App factory
@@ -65,12 +72,6 @@ from app.generation_service import run_generation_pipeline
 logger = get_logger(__name__)
 
 _APP_VERSION = "1.0.0"
-_SEND_METHODS: set[str] = {"smtp", "gmail_draft", "gmail_send"}
-
-
-def _is_placeholder_email(value: str | None) -> bool:
-    email = (value or "").strip().lower()
-    return not email or email.endswith(".placeholder")
 
 
 def create_app() -> Flask:
@@ -130,10 +131,7 @@ def create_app() -> Flask:
         if override_path:
             return str(override_path)
 
-        base_db = Path(cfg.db_path)
-        workspace_root = base_db.parent / "workspaces"
-        workspace_root.mkdir(parents=True, exist_ok=True)
-        return str(workspace_root / f"workspace_{workspace_key_id}.db")
+        return build_workspace_db_path(cfg, workspace_key_id)
 
     def _ensure_workspace_db(key_id: Optional[int] = None) -> str:
         workspace_path = _workspace_db_path(key_id=key_id)
@@ -156,31 +154,7 @@ def create_app() -> Flask:
         if base_cfg is None:
             raise RuntimeError("Application config not loaded")
 
-        saved = get_all_settings(conn)
-        llm_provider = saved.get("llm_provider", base_cfg.llm_provider or "").strip() or None
-        saved_provider = saved.get("email_provider")
-        email_provider = (saved_provider or base_cfg.email_provider or "gmail").strip().lower()
-        provider_smtp_host, provider_smtp_port = email_provider_smtp_defaults(email_provider)
-        smtp_host = provider_smtp_host if saved_provider is not None else (base_cfg.smtp_host or provider_smtp_host)
-        smtp_port = provider_smtp_port if saved_provider is not None else (base_cfg.smtp_port or provider_smtp_port)
-        smtp_user = saved.get("smtp_user", base_cfg.smtp_user).strip()
-        smtp_password = saved.get("smtp_password", base_cfg.smtp_password).strip()
-        sender_email = saved.get("sender_email", base_cfg.sender_email).strip()
-
-        if _is_placeholder_email(sender_email) and smtp_user:
-            sender_email = smtp_user
-
-        return replace(
-            base_cfg,
-            sender_email=sender_email,
-            llm_provider=llm_provider,
-            llm_model=saved.get("llm_model", base_cfg.llm_model),
-            email_provider=email_provider,
-            smtp_host=smtp_host,
-            smtp_port=smtp_port,
-            smtp_user=smtp_user,
-            smtp_password=smtp_password,
-        )
+        return build_workspace_config(base_cfg, conn)
 
     def _storage_status() -> dict[str, Any]:
         cfg = app.config.get("APP_CFG")
@@ -533,6 +507,56 @@ def create_app() -> Flask:
             "storage": storage,
         })
 
+    def _cron_authorized() -> bool:
+        cron_secret = os.environ.get("CRON_SECRET", "").strip()
+        if cron_secret:
+            return request.headers.get("Authorization", "") == f"Bearer {cron_secret}"
+        return bool(app.config.get("TESTING") or session.get("admin_authenticated"))
+
+    @app.route("/api/cron/auto-send", methods=["GET", "POST"])
+    def auto_send_cron():
+        if not _cron_authorized():
+            return jsonify({
+                "success": False,
+                "error": "Unauthorized cron request.",
+            }), 401
+
+        cfg = app.config.get("APP_CFG")
+        if cfg is None:
+            return jsonify({
+                "success": False,
+                "error": "Application config not loaded.",
+            }), 503
+
+        workspace_id_raw = request.args.get("workspace_id")
+        workspace_id = None
+        if workspace_id_raw:
+            try:
+                workspace_id = int(workspace_id_raw)
+            except ValueError:
+                return jsonify({
+                    "success": False,
+                    "error": "workspace_id must be an integer.",
+                }), 400
+
+        summary = run_auto_send_for_workspaces(
+            cfg,
+            workspace_id=workspace_id,
+            dry_run=parse_bool(request.args.get("dry_run"), default=False),
+        )
+        _log_activity(
+            "auto_send_cron",
+            category="send",
+            details={
+                "workspace_count": summary.get("workspace_count"),
+                "processed": summary.get("processed"),
+                "sent": summary.get("sent"),
+                "failed": summary.get("failed"),
+                "dry_run": summary.get("dry_run"),
+            },
+        )
+        return jsonify(summary), 200 if summary.get("success") else 207
+
     # ------------------------------------------------------------------
     # Dashboard
     # ------------------------------------------------------------------
@@ -854,9 +878,9 @@ def create_app() -> Flask:
         try:
             data = request.get_json(silent=True) or {}
             raw_dry_run = data.get("dry_run", True)
-            dry_run = raw_dry_run if isinstance(raw_dry_run, bool) else str(raw_dry_run).lower() in {"1", "true", "yes"}
+            dry_run = parse_bool(raw_dry_run, default=True)
             method = str(data.get("method", "smtp")).strip()
-            if method not in _SEND_METHODS:
+            if method not in SEND_METHODS:
                 return jsonify({
                     "success": False,
                     "error": f"Unknown send method: {method}",
@@ -867,76 +891,32 @@ def create_app() -> Flask:
                 requested_limit = 10
             limit = max(1, min(requested_limit, 50))
 
-            approved = get_drafts(conn, status="approved")
-            edited = get_drafts(conn, status="edited")
-            send_queue = (approved + edited)[:limit]
-
-            if not send_queue:
-                return jsonify({
-                    "success": False,
-                    "error": "No approved or edited drafts are ready to send.",
-                }), 400
-
-            if dry_run:
-                results = []
-                for draft in send_queue:
-                    professor = get_professor(conn, draft.professor_id)
-                    results.append({
-                        "draft_id": draft.id,
-                        "professor": professor.name if professor else "Unknown",
-                        "email": professor.email if professor else "Unknown",
-                        "subject": draft.subject_lines_list[0] if draft.subject_lines_list else "(no subject)",
-                        "method": method,
-                        "status": "dry_run",
-                    })
-                _log_activity("send_dry_run", category="send",
-                              details={"count": len(results), "method": method})
-                return jsonify({
-                    "success": True,
-                    "dry_run": True,
-                    "count": len(results),
-                    "sent": 0,
-                    "failed": 0,
-                    "results": results,
-                })
-
             try:
-                from app.sender import SafeSender
                 cfg = _workspace_config(conn)
                 if not cfg:
                     return jsonify({"success": False, "error": "Config not loaded."}), 500
 
-                sender = SafeSender(cfg, method=method)
-                config_errors = sender.validate_configuration(method=method)
-                if config_errors:
-                    return jsonify({
-                        "success": False,
-                        "error": "Email setup is incomplete. Fix Settings before running delivery.",
-                        "errors": config_errors,
-                    }), 400
-                results = sender.send_many(
-                    send_queue,
-                    conn=conn,
+                result = send_ready_queue(
+                    conn,
+                    cfg,
                     method=method,
-                    dry_run=False,
+                    limit=limit,
+                    dry_run=dry_run,
                     cooldown=False,
                 )
-                sent_count = sum(1 for result in results if result["status"] == "sent")
-                failed_count = sum(1 for result in results if result["status"] == "failed")
-                _log_activity("send_execute", category="send",
-                              details={"count": len(results), "method": method,
-                                       "sent": sent_count,
-                                       "failed": failed_count})
-                success = failed_count == 0
-                return jsonify({
-                    "success": success,
-                    "dry_run": False,
-                    "count": len(results),
-                    "sent": sent_count,
-                    "failed": failed_count,
-                    "error": None if success else f"{failed_count} of {len(results)} emails failed.",
-                    "results": results,
-                })
+                _log_activity(
+                    "send_dry_run" if dry_run else "send_execute",
+                    category="send",
+                    details={
+                        "count": result.get("count", 0),
+                        "method": method,
+                        "sent": result.get("sent", 0),
+                        "failed": result.get("failed", 0),
+                        "status": result.get("status"),
+                    },
+                )
+                status_code = 200 if result.get("success") or result.get("results") else 400
+                return jsonify(result), status_code
             except ImportError:
                 return jsonify({"success": False, "error": "Sender module not available"}), 500
         except Exception as exc:
@@ -1015,6 +995,7 @@ def create_app() -> Flask:
             cfg = _workspace_config(conn)
             profiles = get_sender_profiles(conn)
             suppression = get_suppression_list(conn)
+            saved = get_all_settings(conn)
 
             effective: dict[str, Any] = {
                 "sender_email": cfg.sender_email if cfg else "",
@@ -1024,6 +1005,11 @@ def create_app() -> Flask:
                 "email_provider": cfg.email_provider if cfg else "gmail",
                 "smtp_user": cfg.smtp_user if cfg else "",
                 "smtp_password": cfg.smtp_password if cfg else "",
+                "auto_send_enabled": parse_bool(saved.get("auto_send_enabled"), default=False),
+                "auto_send_method": saved.get("auto_send_method", "smtp"),
+                "auto_send_limit": saved.get("auto_send_limit", "5"),
+                "auto_send_last_run": saved.get("auto_send_last_run", ""),
+                "auto_send_last_status": saved.get("auto_send_last_status", ""),
             }
 
             return render_template(
@@ -1041,9 +1027,11 @@ def create_app() -> Flask:
         try:
             new_settings: dict[str, str] = {}
             for key in ("sender_email", "llm_provider", "llm_model",
-                        "email_provider", "smtp_user", "smtp_password"):
+                        "email_provider", "smtp_user", "smtp_password",
+                        "auto_send_method", "auto_send_limit"):
                 val = request.form.get(key, "").strip()
                 new_settings[key] = val
+            new_settings["auto_send_enabled"] = "1" if request.form.get("auto_send_enabled") else "0"
 
             set_settings_bulk(conn, new_settings)
 

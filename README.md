@@ -77,6 +77,8 @@ Edit `.env` with your settings. At minimum, set:
 
 For Gmail draft creation, you'll also need `credentials.json` from Google Cloud Console (see `.env.example` for instructions).
 
+For hosted automatic delivery on Vercel, set `CRON_SECRET` in the Vercel environment. The scheduled endpoint `/api/cron/auto-send` rejects unauthenticated requests and only processes workspaces that enabled automatic delivery in Setup.
+
 ### 4. Create Your Profile
 
 ```bash
