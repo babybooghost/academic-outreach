@@ -34,7 +34,7 @@
 
     <section class="workspace-grid">
         <div class="workspace-main">
-            {% if not total_professors and not total_drafts and not recent_sends and not recent_activity %}
+            {% if not total_professors and not total_drafts and not recent_sends %}
             <article class="surface-panel animate-in animate-in-1">
                 <div class="surface-panel-header">
                     <div>
@@ -108,45 +108,6 @@
             </article>
             {% endif %}
 
-            {% if recent_activity %}
-            <article class="surface-panel animate-in animate-in-2">
-                <div class="surface-panel-header">
-                    <div>
-                        <div class="panel-kicker">Workspace activity</div>
-                        <div class="panel-title">The latest changes across the desk.</div>
-                    </div>
-                </div>
-                {% if recent_activity %}
-                <div class="table-wrap">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Time</th>
-                                <th>Action</th>
-                                <th>Entity</th>
-                                <th>Details</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for entry in recent_activity %}
-                            <tr>
-                                <td>{{ entry.timestamp }}</td>
-                                <td>{{ entry.action }}</td>
-                                <td>{{ entry.entity_type }} #{{ entry.entity_id }}</td>
-                                <td>{{ entry.details[:100] }}{% if entry.details|length > 100 %}...{% endif %}</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {% else %}
-                <div class="empty-state">
-                    <div class="empty-icon">&#128196;</div>
-                    <p>No workspace activity recorded yet.</p>
-                </div>
-                {% endif %}
-            </article>
-            {% endif %}
         </div>
 
         <aside class="workspace-side">

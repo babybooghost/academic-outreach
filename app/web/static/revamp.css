@@ -2323,3 +2323,605 @@ tbody tr:hover td {
         background: white;
     }
 }
+
+/* App clarity pass: keep the authenticated workspace calm and task-focused. */
+body.app-shell {
+    --ao-bg: #f6f8fb;
+    --ao-bg-alt: #eef2f7;
+    --ao-surface: #ffffff;
+    --ao-surface-2: #f2f5f9;
+    --ao-surface-3: #e8edf4;
+    --ao-panel: #ffffff;
+    --ao-panel-soft: #f2f5f9;
+    --ao-border: #d8e0eb;
+    --ao-border-light: #c7d2e1;
+    --ao-text: #111827;
+    --ao-text-muted: #4b5563;
+    --ao-text-dim: #6b7280;
+    --ao-primary: #2563eb;
+    --ao-primary-light: #1d4ed8;
+    --ao-primary-dark: #1e40af;
+    --ao-primary-glow: rgba(37, 99, 235, 0.10);
+    --ao-accent: #0f766e;
+    --ao-accent-glow: rgba(15, 118, 110, 0.10);
+    --ao-success: #15803d;
+    --ao-success-bg: rgba(21, 128, 61, 0.10);
+    --ao-warning: #b45309;
+    --ao-warning-bg: rgba(180, 83, 9, 0.10);
+    --ao-danger: #b91c1c;
+    --ao-danger-bg: rgba(185, 28, 28, 0.10);
+    --ao-info: #0369a1;
+    --ao-info-bg: rgba(3, 105, 161, 0.10);
+    --ao-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+    --ao-shadow-lg: 0 10px 30px rgba(15, 23, 42, 0.08);
+    background: var(--ao-bg);
+    color: var(--ao-text);
+    color-scheme: light;
+    letter-spacing: 0;
+}
+
+html[data-theme="dark"] body.app-shell {
+    --ao-bg: #0f172a;
+    --ao-bg-alt: #111827;
+    --ao-surface: #111827;
+    --ao-surface-2: #172033;
+    --ao-surface-3: #1f2937;
+    --ao-panel: #111827;
+    --ao-panel-soft: #172033;
+    --ao-border: #263244;
+    --ao-border-light: #334155;
+    --ao-text: #f8fafc;
+    --ao-text-muted: #cbd5e1;
+    --ao-text-dim: #94a3b8;
+    --ao-shadow: 0 1px 2px rgba(0, 0, 0, 0.20);
+    --ao-shadow-lg: 0 12px 34px rgba(0, 0, 0, 0.28);
+    background: var(--ao-bg);
+    color-scheme: dark;
+}
+
+body.app-shell::before,
+.app-shell .app-footer {
+    display: none !important;
+}
+
+.app-shell h1,
+.app-shell h2,
+.app-shell h3,
+.app-shell h4,
+.app-shell .page-title,
+.app-shell .panel-title,
+.app-shell .workspace-title,
+.app-shell .logo-text,
+.app-shell .stat-number {
+    font-family: 'Manrope', 'Segoe UI', sans-serif;
+    letter-spacing: 0;
+}
+
+.app-shell p {
+    line-height: 1.65;
+}
+
+.app-shell .container {
+    max-width: 1220px;
+    padding-left: 2rem;
+    padding-right: 2rem;
+}
+
+.app-shell .page-content {
+    padding-top: 2rem;
+    padding-bottom: 4rem;
+}
+
+.app-shell .navbar {
+    background: var(--ao-surface);
+    border-color: var(--ao-border);
+    box-shadow: none;
+    backdrop-filter: none;
+}
+
+.app-shell .navbar-inner {
+    max-width: none;
+}
+
+.app-shell .logo-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 8px;
+    background: #111827;
+    box-shadow: none;
+    font-family: 'Manrope', 'Segoe UI', sans-serif;
+    font-size: 0.85rem;
+    letter-spacing: 0;
+}
+
+html[data-theme="dark"] .app-shell .logo-icon {
+    background: #f8fafc;
+    color: #0f172a;
+}
+
+.app-shell .logo-text {
+    font-size: 1rem;
+    font-weight: 800;
+    line-height: 1.25;
+}
+
+.app-shell .nav-links {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.app-shell .nav-links a {
+    border-radius: 8px;
+    border: 0;
+    color: var(--ao-text-muted);
+    font-size: 0.9rem;
+    font-weight: 700;
+    letter-spacing: 0;
+    padding: 0.72rem 0.8rem;
+}
+
+.app-shell .nav-links a:hover,
+.app-shell .nav-links a.active {
+    background: var(--ao-surface-2);
+    color: var(--ao-text);
+    box-shadow: none;
+}
+
+.app-shell .nav-links a.active {
+    box-shadow: inset 3px 0 0 var(--ao-primary);
+}
+
+.app-shell .nav-user {
+    border-radius: 8px;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    color: var(--ao-text-muted);
+    font-size: 0.88rem;
+    font-weight: 700;
+}
+
+.app-shell .theme-toggle {
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 8px;
+    background: var(--ao-surface-2);
+}
+
+.app-shell .btn {
+    border-radius: 8px;
+    box-shadow: none;
+    letter-spacing: 0;
+    padding: 0.72rem 1rem;
+}
+
+.app-shell .btn:hover {
+    transform: none;
+}
+
+.app-shell .btn:disabled,
+.app-shell .btn[disabled] {
+    background: var(--ao-surface-3);
+    border-color: var(--ao-border);
+    box-shadow: none;
+    color: var(--ao-text-dim);
+    cursor: not-allowed;
+    opacity: 1;
+}
+
+.app-shell .btn-primary {
+    background: var(--ao-primary);
+    color: #ffffff;
+}
+
+.app-shell .btn-primary:hover {
+    background: var(--ao-primary-dark);
+}
+
+.app-shell .btn-outline {
+    background: var(--ao-surface);
+    border-color: var(--ao-border-light);
+}
+
+.app-shell .btn-ghost {
+    border-color: transparent;
+}
+
+.app-shell .editorial-page,
+.app-shell .workspace-page,
+.app-shell .workspace-stack {
+    gap: 1.5rem;
+}
+
+.app-shell .workspace-header {
+    border-bottom: 0;
+    display: grid;
+    gap: 0.85rem;
+    padding: 0;
+}
+
+.app-shell .workspace-header-top {
+    align-items: flex-start;
+    gap: 1rem;
+}
+
+.app-shell .workspace-header-copy {
+    max-width: 720px;
+    gap: 0.35rem;
+}
+
+.app-shell .eyebrow,
+.app-shell .panel-kicker,
+.app-shell .page-kicker {
+    background: transparent;
+    border: 0;
+    color: var(--ao-text-dim);
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    padding: 0;
+}
+
+.app-shell .workspace-title {
+    color: var(--ao-text);
+    font-size: 2rem;
+    font-weight: 800;
+    line-height: 1.15;
+    margin: 0;
+}
+
+.app-shell .workspace-summary {
+    color: var(--ao-text-muted);
+    font-size: 0.98rem;
+    line-height: 1.65;
+    max-width: 62ch;
+}
+
+.app-shell .workspace-stats {
+    display: none;
+}
+
+.app-shell .surface-panel,
+.app-shell .auth-note,
+.app-shell .storage-banner,
+.app-shell .flash-msg,
+.app-shell .table-wrap,
+.app-shell .empty-state,
+.app-shell .step-card,
+.app-shell .toolbar,
+.app-shell .filter-bar,
+.app-shell .bulk-actions,
+.app-shell .subject-option,
+.app-shell .email-preview {
+    background: var(--ao-surface);
+    border: 1px solid var(--ao-border);
+    border-radius: 8px;
+    box-shadow: var(--ao-shadow);
+}
+
+.app-shell .surface-panel {
+    padding: 1.25rem;
+}
+
+.app-shell .surface-panel-header {
+    align-items: flex-start;
+    border-bottom: 1px solid var(--ao-border);
+    gap: 1rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.85rem;
+}
+
+.app-shell .panel-title {
+    font-size: 1.05rem;
+    font-weight: 800;
+    line-height: 1.3;
+}
+
+.app-shell .panel-copy {
+    color: var(--ao-text-muted);
+}
+
+.app-shell .workspace-grid,
+.app-shell .detail-grid,
+.app-shell .review-grid,
+.app-shell .settings-grid,
+.app-shell .finder-grid,
+.app-shell .admin-grid {
+    gap: 1.25rem;
+    grid-template-columns: minmax(0, 1fr) 320px;
+}
+
+.app-shell .grid-2,
+.app-shell .grid-3,
+.app-shell .grid-4,
+.app-shell .grid-5 {
+    gap: 1rem;
+}
+
+.app-shell .status-row {
+    padding: 0.75rem 0;
+}
+
+.app-shell .status-row strong {
+    font-family: 'Manrope', 'Segoe UI', sans-serif;
+    font-size: 1rem;
+    letter-spacing: 0;
+}
+
+.app-shell .step-list {
+    gap: 0.75rem;
+}
+
+.app-shell .step-card {
+    gap: 0.85rem;
+    padding: 0.95rem;
+}
+
+.app-shell .step-number {
+    background: var(--ao-primary-glow);
+    color: var(--ao-primary);
+}
+
+.app-shell input,
+.app-shell select,
+.app-shell textarea {
+    background: var(--ao-surface) !important;
+    border-color: var(--ao-border) !important;
+    border-radius: 8px !important;
+    box-shadow: none;
+    color: var(--ao-text) !important;
+    font-size: 0.94rem !important;
+    padding: 0.78rem 0.85rem !important;
+}
+
+.app-shell input:focus,
+.app-shell select:focus,
+.app-shell textarea:focus {
+    border-color: var(--ao-primary) !important;
+    box-shadow: 0 0 0 3px var(--ao-primary-glow) !important;
+}
+
+.app-shell label {
+    color: var(--ao-text-dim);
+    letter-spacing: 0.06em;
+}
+
+.app-shell .pill-button,
+.app-shell .chip,
+.app-shell .badge,
+.app-shell code,
+.app-shell .score-badge {
+    border-radius: 999px;
+}
+
+.app-shell .pill-button {
+    background: var(--ao-surface);
+    border-color: var(--ao-border);
+    color: var(--ao-text-muted);
+}
+
+.app-shell .pill-button:hover {
+    background: var(--ao-surface-2);
+    border-color: var(--ao-border-light);
+}
+
+.app-shell th,
+.app-shell td {
+    letter-spacing: 0;
+    padding: 0.85rem 0.95rem;
+}
+
+.app-shell th {
+    background: var(--ao-surface-2);
+    color: var(--ao-text-dim);
+    font-size: 0.72rem;
+}
+
+.app-shell td {
+    color: var(--ao-text-muted);
+    font-size: 0.9rem;
+}
+
+.app-shell tbody tr:hover td {
+    background: var(--ao-surface-2);
+}
+
+.app-shell .empty-state {
+    padding: 2rem;
+}
+
+.app-shell .empty-state p {
+    font-style: normal;
+}
+
+.app-shell .empty-icon {
+    display: none;
+}
+
+.app-shell .flash-messages,
+.app-shell .storage-banner {
+    margin-bottom: 1rem;
+}
+
+.app-shell .storage-banner {
+    box-shadow: none;
+}
+
+@media (min-width: 981px) {
+    body.app-shell {
+        padding-left: 264px;
+    }
+
+    .app-shell .navbar {
+        border-bottom: 0;
+        border-right: 1px solid var(--ao-border);
+        height: 100svh;
+        left: 0;
+        padding: 0;
+        position: fixed;
+        top: 0;
+        width: 264px;
+        z-index: 300;
+    }
+
+    .app-shell .navbar-inner {
+        align-items: stretch;
+        display: flex;
+        flex-direction: column;
+        gap: 1.25rem;
+        height: 100%;
+        min-height: 0;
+        padding: 1.25rem 1rem;
+    }
+
+    .app-shell .logo {
+        padding: 0.25rem 0.25rem 1rem;
+    }
+
+    .app-shell .nav-links {
+        align-items: stretch;
+        display: flex;
+        flex-direction: column;
+        gap: 0.2rem;
+        justify-content: flex-start;
+    }
+
+    .app-shell .nav-user {
+        align-items: stretch;
+        display: grid;
+        gap: 0.55rem;
+        margin-top: auto;
+    }
+
+    .app-shell .nav-user-dot {
+        display: none;
+    }
+
+    .app-shell .nav-user-label {
+        color: var(--ao-text);
+        max-width: 100%;
+        padding: 0.2rem 0.1rem;
+    }
+
+    .app-shell .theme-toggle,
+    .app-shell .nav-user .btn {
+        justify-self: start;
+    }
+}
+
+@media (max-width: 1220px) {
+    .app-shell .workspace-grid,
+    .app-shell .detail-layout,
+    .app-shell .review-grid,
+    .app-shell .settings-grid,
+    .app-shell .finder-grid,
+    .app-shell .admin-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 980px) {
+    body.app-shell {
+        padding-left: 0;
+    }
+
+    .app-shell .navbar {
+        position: sticky;
+        top: 0;
+        width: auto;
+    }
+
+    .app-shell .navbar-inner {
+        display: grid;
+        gap: 0.8rem;
+        grid-template-columns: 1fr;
+        min-height: 0;
+        padding: 0.9rem 0;
+    }
+
+    .app-shell .nav-links {
+        display: flex;
+        flex-wrap: nowrap;
+        gap: 0.35rem;
+        justify-content: flex-start;
+        overflow-x: auto;
+        padding-bottom: 0.2rem;
+        width: 100%;
+    }
+
+    .app-shell .nav-links li {
+        width: auto;
+    }
+
+    .app-shell .nav-links a {
+        white-space: nowrap;
+        width: auto;
+    }
+
+    .app-shell .nav-user {
+        display: flex;
+        justify-content: flex-start;
+        width: 100%;
+    }
+}
+
+@media (max-width: 720px) {
+    .app-shell .container,
+    .app-shell .navbar {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+
+    .app-shell .page-content {
+        padding-top: 1rem;
+    }
+
+    .app-shell .nav-links {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 0.35rem;
+        overflow: visible;
+        padding-bottom: 0;
+    }
+
+    .app-shell .nav-links a {
+        justify-content: center;
+        padding: 0.62rem 0.45rem;
+        text-align: center;
+        white-space: normal;
+    }
+
+    .app-shell .nav-user {
+        align-items: center;
+    }
+
+    .app-shell .workspace-title {
+        font-size: 1.6rem;
+    }
+
+    .app-shell .workspace-actions,
+    .app-shell .hero-actions,
+    .app-shell .quick-actions,
+    .app-shell .results-actions {
+        width: 100%;
+    }
+
+    .app-shell .workspace-actions .btn,
+    .app-shell .hero-actions .btn,
+    .app-shell .quick-actions .btn {
+        width: 100%;
+    }
+
+    .app-shell .surface-panel {
+        padding: 1rem;
+    }
+
+    .app-shell .grid-2,
+    .app-shell .grid-3,
+    .app-shell .grid-4,
+    .app-shell .grid-5,
+    .app-shell .stat-grid {
+        grid-template-columns: 1fr;
+    }
+}

@@ -11,7 +11,8 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='revamp.css') }}">
     <script>
     (function() {
-        var t = localStorage.getItem('ao_theme') || 'system';
+        var saved = localStorage.getItem('ao_theme');
+        var t = saved === 'system' ? 'light' : (saved || 'light');
         var p = t === 'system' ? (matchMedia('(prefers-color-scheme:light)').matches ? 'light' : 'dark') : t;
         document.documentElement.setAttribute('data-theme', p);
     })();
@@ -147,25 +148,24 @@
     </div>
 
     <script>
-    function getTheme() { return localStorage.getItem('ao_theme') || 'system'; }
+    function getTheme() {
+        const saved = localStorage.getItem('ao_theme');
+        return saved === 'system' ? 'light' : (saved || 'light');
+    }
     function applyTheme(t) {
-        const pref = t === 'system' ? (matchMedia('(prefers-color-scheme:light)').matches ? 'light' : 'dark') : t;
-        document.documentElement.setAttribute('data-theme', pref);
-        const icons = {'dark':'&#9790;','light':'&#9728;','system':'&#9788;'};
+        document.documentElement.setAttribute('data-theme', t);
+        const icons = {'dark':'&#9790;','light':'&#9728;'};
         const el = document.getElementById('theme-icon');
-        if (el) el.innerHTML = icons[t] || icons.dark;
+        if (el) el.innerHTML = icons[t] || icons.light;
     }
     function cycleTheme() {
-        const order = ['dark', 'light', 'system'];
+        const order = ['light', 'dark'];
         const cur = getTheme();
         const next = order[(order.indexOf(cur) + 1) % order.length];
         localStorage.setItem('ao_theme', next);
         applyTheme(next);
     }
     applyTheme(getTheme());
-    matchMedia('(prefers-color-scheme:light)').addEventListener('change', () => {
-        if (getTheme() === 'system') applyTheme('system');
-    });
 
     document.addEventListener('DOMContentLoaded', () => {
         const obs = new IntersectionObserver((entries) => {
