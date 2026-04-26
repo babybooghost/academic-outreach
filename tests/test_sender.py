@@ -153,6 +153,30 @@ class SafeSenderTests(unittest.TestCase):
         self.assertEqual(updated["status"], "failed")
         self.assertEqual(send_log["c"], 1)
 
+    def test_send_respects_explicit_method_override(self) -> None:
+        sender = SafeSender(self.config, method="gmail_draft")
+        captured: dict[str, bool] = {}
+
+        def fake_smtp_send(_smtp, draft, professor, sender_profile, config):
+            captured["smtp"] = True
+            return SendRecord(
+                draft_id=draft.id or 0,
+                professor_id=professor.id or 0,
+                sent_at="2026-04-19T00:00:00+00:00",
+                method="smtp",
+                status="success",
+            )
+
+        conn = get_connection(self.config.db_path)
+        try:
+            draft = get_draft(conn, self.draft_id)
+            with patch("app.sender.SMTPSender.send", new=fake_smtp_send):
+                sender.send(draft, method="smtp", conn=conn)
+        finally:
+            conn.close()
+
+        self.assertTrue(captured["smtp"])
+
 
 if __name__ == "__main__":
     unittest.main()

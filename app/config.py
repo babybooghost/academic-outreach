@@ -303,8 +303,21 @@ def _default_followup_pools() -> FollowUpPools:
     return FollowUpPools(**f)
 
 
+def email_provider_smtp_defaults(
+    provider: str | None,
+    providers: dict[str, Any] | None = None,
+) -> tuple[str, int]:
+    """Return SMTP host/port defaults for a supported email provider."""
+    providers = providers or DEFAULT_CONFIG_YAML.get("email_providers", {})
+    key = (provider or "gmail").strip().lower()
+    defaults = providers.get(key) or providers.get("gmail") or {}
+    host = str(defaults.get("smtp_host", "smtp.gmail.com"))
+    port = int(defaults.get("smtp_port", 587))
+    return host, port
+
+
 # ---------------------------------------------------------------------------
-# Config‑file I/O
+# Config-file I/O
 # ---------------------------------------------------------------------------
 def _ensure_config_yaml(path: Path) -> Dict[str, Any]:
     """Return parsed config.yaml, creating it with defaults if missing."""
@@ -478,11 +491,12 @@ def load_config(
     gmail_token_path: str = _env("GMAIL_TOKEN_PATH", str(root / "token.json"), db_settings=db_settings)
     # Determine email provider to set SMTP defaults
     _email_provider_raw: str = _env("EMAIL_PROVIDER", "gmail", db_settings=db_settings).lower()
-    _provider_defaults: Dict[str, Any] = merged.get("email_providers", {}).get(
-        _email_provider_raw, {"smtp_host": "smtp.gmail.com", "smtp_port": 587}
+    _default_smtp_host, _default_smtp_port = email_provider_smtp_defaults(
+        _email_provider_raw,
+        merged.get("email_providers", {}),
     )
-    smtp_host: str = _env("SMTP_HOST", _provider_defaults.get("smtp_host", "smtp.gmail.com"), db_settings=db_settings)
-    smtp_port_raw: str = _env("SMTP_PORT", str(_provider_defaults.get("smtp_port", 587)), db_settings=db_settings)
+    smtp_host: str = _env("SMTP_HOST", _default_smtp_host, db_settings=db_settings)
+    smtp_port_raw: str = _env("SMTP_PORT", str(_default_smtp_port), db_settings=db_settings)
     try:
         smtp_port: int = int(smtp_port_raw)
     except ValueError as exc:

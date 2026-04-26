@@ -111,6 +111,15 @@
 
 {% block scripts %}
 <script>
+function escapeHtml(value) {
+    return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+}
+
 async function triggerSend(dryRun) {
     const method = document.getElementById('send-method').value;
     const limit = Number(document.getElementById('send-limit').value || {{ send_queue|length }});
@@ -120,15 +129,23 @@ async function triggerSend(dryRun) {
     });
     const data = await res.json();
     const el = document.getElementById('send-results');
-    if (data.success) {
+    if (data.success || data.results) {
         const title = dryRun
             ? 'Preview run: ' + data.count + ' drafts'
             : 'Processed ' + data.count + ' drafts (' + data.sent + ' sent, ' + data.failed + ' failed)';
-        el.innerHTML = '<div class="surface-panel" style="margin-top:1rem;"><div class="surface-panel-header"><div><div class="panel-kicker">Run summary</div><div class="panel-title">' +
-            title + '</div></div></div>' +
-            '<pre style="margin:0; white-space:pre-wrap; color:var(--ao-text-muted); font-size:0.82rem;">' + JSON.stringify(data.results, null, 2) + '</pre></div>';
+        const resultClass = data.success ? 'surface-panel' : 'surface-panel send-error-panel';
+        const errorText = data.error
+            ? '<div class="flash-msg flash-error" style="margin-bottom:1rem;">' + escapeHtml(data.error) + '</div>'
+            : '';
+        el.innerHTML = '<div class="' + resultClass + '" style="margin-top:1rem;">' + errorText +
+            '<div class="surface-panel-header"><div><div class="panel-kicker">Run summary</div><div class="panel-title">' +
+            escapeHtml(title) + '</div></div></div>' +
+            '<pre style="margin:0; white-space:pre-wrap; color:var(--ao-text-muted); font-size:0.82rem;">' + escapeHtml(JSON.stringify(data.results, null, 2)) + '</pre></div>';
     } else {
-        el.innerHTML = '<div class="flash-msg flash-error" style="margin-top:1rem;">' + (data.error || 'Send failed') + '</div>';
+        const details = Array.isArray(data.errors)
+            ? '<ul style="margin:0.75rem 0 0; padding-left:1.2rem;">' + data.errors.map(err => '<li>' + escapeHtml(err) + '</li>').join('') + '</ul>'
+            : '';
+        el.innerHTML = '<div class="flash-msg flash-error" style="margin-top:1rem;">' + escapeHtml(data.error || 'Send failed') + details + '</div>';
     }
 }
 </script>

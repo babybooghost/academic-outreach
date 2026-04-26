@@ -29,7 +29,7 @@ from flask import (
     url_for,
 )
 
-from app.config import load_config
+from app.config import email_provider_smtp_defaults, load_config
 from app.database import (
     create_access_key,
     delete_access_key,
@@ -65,6 +65,12 @@ from app.generation_service import run_generation_pipeline
 logger = get_logger(__name__)
 
 _APP_VERSION = "1.0.0"
+_SEND_METHODS: set[str] = {"smtp", "gmail_draft", "gmail_send"}
+
+
+def _is_placeholder_email(value: str | None) -> bool:
+    email = (value or "").strip().lower()
+    return not email or email.endswith(".placeholder")
 
 
 def create_app() -> Flask:
@@ -152,15 +158,28 @@ def create_app() -> Flask:
 
         saved = get_all_settings(conn)
         llm_provider = saved.get("llm_provider", base_cfg.llm_provider or "").strip() or None
+        saved_provider = saved.get("email_provider")
+        email_provider = (saved_provider or base_cfg.email_provider or "gmail").strip().lower()
+        provider_smtp_host, provider_smtp_port = email_provider_smtp_defaults(email_provider)
+        smtp_host = provider_smtp_host if saved_provider is not None else (base_cfg.smtp_host or provider_smtp_host)
+        smtp_port = provider_smtp_port if saved_provider is not None else (base_cfg.smtp_port or provider_smtp_port)
+        smtp_user = saved.get("smtp_user", base_cfg.smtp_user).strip()
+        smtp_password = saved.get("smtp_password", base_cfg.smtp_password).strip()
+        sender_email = saved.get("sender_email", base_cfg.sender_email).strip()
+
+        if _is_placeholder_email(sender_email) and smtp_user:
+            sender_email = smtp_user
 
         return replace(
             base_cfg,
-            sender_email=saved.get("sender_email", base_cfg.sender_email),
+            sender_email=sender_email,
             llm_provider=llm_provider,
             llm_model=saved.get("llm_model", base_cfg.llm_model),
-            email_provider=saved.get("email_provider", base_cfg.email_provider),
-            smtp_user=saved.get("smtp_user", base_cfg.smtp_user),
-            smtp_password=saved.get("smtp_password", base_cfg.smtp_password),
+            email_provider=email_provider,
+            smtp_host=smtp_host,
+            smtp_port=smtp_port,
+            smtp_user=smtp_user,
+            smtp_password=smtp_password,
         )
 
     def _storage_status() -> dict[str, Any]:
@@ -834,9 +853,19 @@ def create_app() -> Flask:
         conn = _workspace_conn()
         try:
             data = request.get_json(silent=True) or {}
-            dry_run = data.get("dry_run", True)
-            method = data.get("method", "smtp")
-            limit = min(int(data.get("limit", 10)), 50)
+            raw_dry_run = data.get("dry_run", True)
+            dry_run = raw_dry_run if isinstance(raw_dry_run, bool) else str(raw_dry_run).lower() in {"1", "true", "yes"}
+            method = str(data.get("method", "smtp")).strip()
+            if method not in _SEND_METHODS:
+                return jsonify({
+                    "success": False,
+                    "error": f"Unknown send method: {method}",
+                }), 400
+            try:
+                requested_limit = int(data.get("limit", 10))
+            except (TypeError, ValueError):
+                requested_limit = 10
+            limit = max(1, min(requested_limit, 50))
 
             approved = get_drafts(conn, status="approved")
             edited = get_drafts(conn, status="edited")
@@ -878,6 +907,13 @@ def create_app() -> Flask:
                     return jsonify({"success": False, "error": "Config not loaded."}), 500
 
                 sender = SafeSender(cfg, method=method)
+                config_errors = sender.validate_configuration(method=method)
+                if config_errors:
+                    return jsonify({
+                        "success": False,
+                        "error": "Email setup is incomplete. Fix Settings before running delivery.",
+                        "errors": config_errors,
+                    }), 400
                 results = sender.send_many(
                     send_queue,
                     conn=conn,
@@ -891,16 +927,18 @@ def create_app() -> Flask:
                               details={"count": len(results), "method": method,
                                        "sent": sent_count,
                                        "failed": failed_count})
+                success = failed_count == 0
                 return jsonify({
-                    "success": True,
+                    "success": success,
                     "dry_run": False,
                     "count": len(results),
                     "sent": sent_count,
                     "failed": failed_count,
+                    "error": None if success else f"{failed_count} of {len(results)} emails failed.",
                     "results": results,
                 })
             except ImportError:
-                return jsonify({"error": "Sender module not available"}), 500
+                return jsonify({"success": False, "error": "Sender module not available"}), 500
         except Exception as exc:
             return jsonify({"error": str(exc)}), 500
         finally:
@@ -977,16 +1015,15 @@ def create_app() -> Flask:
             cfg = _workspace_config(conn)
             profiles = get_sender_profiles(conn)
             suppression = get_suppression_list(conn)
-            saved = get_all_settings(conn)
 
             effective: dict[str, Any] = {
-                "sender_email": saved.get("sender_email", cfg.sender_email if cfg else ""),
-                "llm_provider": saved.get("llm_provider", cfg.llm_provider if cfg else ""),
+                "sender_email": cfg.sender_email if cfg else "",
+                "llm_provider": cfg.llm_provider if cfg else "",
                 "llm_api_key_set": bool((cfg.llm_api_key if cfg else "") or os.environ.get("LLM_API_KEY", "")),
-                "llm_model": saved.get("llm_model", cfg.llm_model if cfg else "google/gemini-2.5-flash-preview"),
-                "email_provider": saved.get("email_provider", cfg.email_provider if cfg else "gmail"),
-                "smtp_user": saved.get("smtp_user", cfg.smtp_user if cfg else ""),
-                "smtp_password": saved.get("smtp_password", cfg.smtp_password if cfg else ""),
+                "llm_model": cfg.llm_model if cfg else "google/gemini-2.5-flash-preview",
+                "email_provider": cfg.email_provider if cfg else "gmail",
+                "smtp_user": cfg.smtp_user if cfg else "",
+                "smtp_password": cfg.smtp_password if cfg else "",
             }
 
             return render_template(

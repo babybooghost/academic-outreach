@@ -49,6 +49,11 @@ def _now_iso() -> str:
     return datetime.now(tz=timezone.utc).isoformat()
 
 
+def _is_placeholder_email(value: str | None) -> bool:
+    email = (value or "").strip().lower()
+    return not email or email.endswith(".placeholder")
+
+
 def _build_mime_message(
     draft: Draft,
     professor: Professor,
@@ -373,6 +378,36 @@ class SafeSender:
             return draft_only
         return method == "gmail_draft"
 
+    def validate_configuration(self, method: str | None = None) -> list[str]:
+        """Return user-facing setup errors before attempting a live send."""
+        effective_method = self._resolve_method(method)
+        errors: list[str] = []
+
+        if effective_method not in {"gmail_draft", "gmail_send", "smtp"}:
+            return [f"Unknown send method: {effective_method}"]
+
+        if effective_method == "smtp":
+            if not self._config.smtp_host:
+                errors.append("SMTP host is not configured.")
+            if not self._config.smtp_port:
+                errors.append("SMTP port is not configured.")
+            if not self._config.smtp_user:
+                errors.append("SMTP username is required.")
+            if not self._config.smtp_password:
+                errors.append("SMTP app password is required.")
+            if _is_placeholder_email(self._config.sender_email):
+                errors.append("Sender email must be a real inbox, not a placeholder.")
+            elif "@" not in self._config.sender_email:
+                errors.append("Sender email must be a valid email address.")
+            return errors
+
+        credentials_path = Path(self._config.gmail_credentials_path)
+        if not credentials_path.exists():
+            errors.append(
+                "Gmail API credentials file was not found. Use SMTP for hosted delivery or add Gmail OAuth credentials."
+            )
+        return errors
+
     def _resolve_context(
         self,
         conn: sqlite3.Connection,
@@ -406,17 +441,18 @@ class SafeSender:
 
     def _send_single(
         self,
+        method: str,
         draft: Draft,
         professor: Professor,
         sender: SenderProfile,
         draft_only: bool,
     ) -> SendRecord:
         """Dispatch a single send to the appropriate backend."""
-        if self._method == "gmail_draft" or (self._method == "gmail_send" and draft_only):
+        if method == "gmail_draft" or (method == "gmail_send" and draft_only):
             gmail: GmailAPISender = self._get_gmail_sender()
             record: SendRecord = gmail.create_draft(draft, professor, sender, self._config)
             # If gmail_send and not draft_only, also send it
-            if self._method == "gmail_send" and not draft_only and record.status == "success":
+            if method == "gmail_send" and not draft_only and record.status == "success":
                 send_record: SendRecord = gmail.send_draft(
                     record.gmail_draft_id or "", self._config
                 )
@@ -424,7 +460,7 @@ class SafeSender:
                 send_record.professor_id = professor.id or 0
                 return send_record
             return record
-        elif self._method == "smtp":
+        elif method == "smtp":
             smtp: SMTPSender = self._get_smtp_sender()
             return smtp.send(draft, professor, sender, self._config)
         else:
@@ -432,9 +468,9 @@ class SafeSender:
                 draft_id=draft.id or 0,
                 professor_id=professor.id or 0,
                 sent_at=_now_iso(),
-                method=self._method,
+                method=method,
                 status="failed",
-                error_message=f"Unknown send method: {self._method}",
+                error_message=f"Unknown send method: {method}",
             )
 
     def send(
@@ -461,6 +497,11 @@ class SafeSender:
         active_conn = conn or get_connection(self._config.db_path)
 
         try:
+            if not dry_run:
+                config_errors = self.validate_configuration(effective_method)
+                if config_errors:
+                    raise RuntimeError("; ".join(config_errors))
+
             resolved_professor, resolved_sender = self._resolve_context(
                 active_conn,
                 draft,
@@ -506,6 +547,7 @@ class SafeSender:
             record: SendRecord | None = None
             for attempt in range(2):
                 record = self._send_single(
+                    effective_method,
                     draft,
                     resolved_professor,
                     resolved_sender,
