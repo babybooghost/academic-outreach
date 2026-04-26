@@ -19,8 +19,8 @@ from app.database import (
     insert_sender_profile,
     set_settings_bulk,
 )
-from app.models import SenderProfile
-from app.sender import SafeSender
+from app.models import Draft, Professor, SenderProfile
+from app.sender import SafeSender, SMTPSender
 
 SEND_METHODS: set[str] = {"smtp", "gmail_draft", "gmail_send"}
 
@@ -43,6 +43,16 @@ def _parse_limit(value: object, default: int = 5, maximum: int = 50) -> int:
     except (TypeError, ValueError):
         parsed = default
     return max(1, min(parsed, maximum))
+
+
+def auto_send_preferences(settings: dict[str, str]) -> tuple[bool, str, int]:
+    """Normalize saved automatic delivery settings."""
+    enabled = parse_bool(settings.get("auto_send_enabled"), default=False)
+    method = settings.get("auto_send_method", "smtp").strip() or "smtp"
+    if method not in SEND_METHODS:
+        method = "smtp"
+    limit = _parse_limit(settings.get("auto_send_limit"), default=5, maximum=20)
+    return enabled, method, limit
 
 
 def is_placeholder_email(value: str | None) -> bool:
@@ -149,6 +159,130 @@ def workspace_config(base_cfg: Config, conn: Any) -> Config:
         smtp_user=smtp_user,
         smtp_password=smtp_password,
     )
+
+
+def delivery_setup_diagnostics(config: Config, conn: Any) -> list[dict[str, str]]:
+    """Return setup checks that explain whether delivery can run."""
+    smtp_errors = SafeSender(config, method="smtp").validate_configuration(method="smtp")
+    queue_count = len(ready_send_queue(conn, 50))
+    settings = get_all_settings(conn)
+    auto_enabled, auto_method, auto_limit = auto_send_preferences(settings)
+
+    checks: list[dict[str, str]] = []
+    checks.append({
+        "label": "Sender identity",
+        "status": "ready" if config.sender_email and not is_placeholder_email(config.sender_email) else "blocked",
+        "detail": config.sender_email or "No From email is set.",
+    })
+    checks.append({
+        "label": "Mailbox login",
+        "status": "ready" if config.smtp_user and config.smtp_password else "blocked",
+        "detail": "SMTP credentials are present." if config.smtp_user and config.smtp_password else "SMTP username and app password are required.",
+    })
+    checks.append({
+        "label": "Provider route",
+        "status": "ready" if config.smtp_host and config.smtp_port else "blocked",
+        "detail": f"{config.email_provider}: {config.smtp_host}:{config.smtp_port}",
+    })
+    checks.append({
+        "label": "Approved queue",
+        "status": "ready" if queue_count else "waiting",
+        "detail": f"{queue_count} approved/edited draft(s) ready.",
+    })
+    checks.append({
+        "label": "Automatic delivery",
+        "status": "ready" if auto_enabled and not smtp_errors else ("blocked" if auto_enabled else "waiting"),
+        "detail": (
+            f"Enabled via {auto_method}, up to {auto_limit} per run."
+            if auto_enabled else "Disabled until you opt in."
+        ),
+    })
+    for error in smtp_errors:
+        checks.append({
+            "label": "Setup issue",
+            "status": "blocked",
+            "detail": error,
+        })
+    return checks
+
+
+def persist_auto_send_result(conn: Any, result: dict[str, Any]) -> None:
+    """Store the latest automatic delivery result for the workspace UI."""
+    set_settings_bulk(conn, {
+        "auto_send_last_run": datetime.now(tz=timezone.utc).isoformat(),
+        "auto_send_last_status": str(result.get("status", "unknown")),
+        "auto_send_last_summary": json.dumps({
+            "sent": result.get("sent", 0),
+            "failed": result.get("failed", 0),
+            "count": result.get("count", 0),
+            "status": result.get("status", "unknown"),
+        }),
+    })
+
+
+def send_mailbox_test(
+    config: Config,
+    *,
+    recipient: str | None = None,
+    sender_name: str = "Academic Outreach",
+) -> dict[str, Any]:
+    """Send a one-off SMTP test email to prove the user's mailbox works."""
+    errors = SafeSender(config, method="smtp").validate_configuration(method="smtp")
+    if errors:
+        return {
+            "success": False,
+            "status": "config_error",
+            "error": "Email setup is incomplete.",
+            "errors": errors,
+        }
+
+    target = (recipient or config.sender_email).strip()
+    if "@" not in target:
+        return {
+            "success": False,
+            "status": "invalid_recipient",
+            "error": "Enter a valid test recipient email.",
+        }
+
+    now = datetime.now(tz=timezone.utc).isoformat()
+    draft = Draft(
+        id=0,
+        professor_id=0,
+        sender_profile_id=0,
+        session_id=0,
+        subject_lines=json.dumps(["Academic Outreach mailbox test"]),
+        body=(
+            "This is a test email from your Academic Outreach workspace.\n\n"
+            "If this reached your inbox, the website can send through your configured mailbox.\n\n"
+            f"Sent at: {now}"
+        ),
+        status="approved",
+    )
+    professor = Professor(
+        id=0,
+        name="Mailbox Test",
+        email=target,
+        university="Mailbox check",
+        department="Delivery",
+        field="SMTP",
+    )
+    sender = SenderProfile(
+        id=0,
+        name=sender_name or config.sender_email,
+        school="",
+        grade="",
+        email=config.sender_email,
+        interests="",
+        background="",
+    )
+
+    record = SMTPSender().send(draft, professor, sender, config)
+    return {
+        "success": record.status == "success",
+        "status": "sent" if record.status == "success" else "failed",
+        "recipient": target,
+        "error": record.error_message,
+    }
 
 
 def ready_send_queue(conn: Any, limit: int) -> list[Any]:
@@ -279,10 +413,7 @@ def auto_send_workspace(
                 "count": 0,
             }
 
-        method = settings.get("auto_send_method", settings.get("email_provider", "smtp")).strip() or "smtp"
-        if method not in SEND_METHODS:
-            method = "smtp"
-        limit = _parse_limit(settings.get("auto_send_limit"), default=5, maximum=20)
+        _enabled, method, limit = auto_send_preferences(settings)
         cfg = workspace_config(base_cfg, conn)
         result = send_ready_queue(
             conn,
@@ -301,16 +432,7 @@ def auto_send_workspace(
             "method": method,
             "limit": limit,
         })
-        set_settings_bulk(conn, {
-            "auto_send_last_run": datetime.now(tz=timezone.utc).isoformat(),
-            "auto_send_last_status": str(result.get("status", "unknown")),
-            "auto_send_last_summary": json.dumps({
-                "sent": result.get("sent", 0),
-                "failed": result.get("failed", 0),
-                "count": result.get("count", 0),
-                "status": result.get("status", "unknown"),
-            }),
-        })
+        persist_auto_send_result(conn, result)
         return result
     finally:
         conn.close()

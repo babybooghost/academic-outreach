@@ -179,6 +179,116 @@ class WebSendRouteTests(unittest.TestCase):
         self.assertEqual(captured["smtp_port"], 587)
         self.assertEqual(captured["sender_email"], "sender@example.com")
 
+    def test_settings_page_shows_delivery_diagnostics(self) -> None:
+        self._login()
+
+        response = self.client.get("/settings")
+        body = response.get_data(as_text=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Delivery readiness", body)
+        self.assertIn("Approved queue", body)
+        self.assertIn("1 approved/edited draft(s) ready.", body)
+
+    def test_settings_test_email_uses_workspace_mailbox(self) -> None:
+        self._login()
+        captured: dict[str, str] = {}
+
+        def fake_smtp_send(_smtp, draft, professor, sender_profile, config):
+            captured["recipient"] = professor.email
+            captured["sender"] = config.sender_email
+            captured["subject"] = draft.subject_lines_list[0]
+            return SendRecord(
+                draft_id=0,
+                professor_id=0,
+                sent_at="2026-04-26T00:00:00+00:00",
+                method="smtp",
+                status="success",
+            )
+
+        with patch("app.sender.SMTPSender.send", new=fake_smtp_send):
+            response = self.client.post(
+                "/settings/test-email",
+                data={"test_recipient": ""},
+                follow_redirects=True,
+            )
+
+        body = response.get_data(as_text=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Test email sent", body)
+        self.assertEqual(captured["recipient"], "sender@example.com")
+        self.assertEqual(captured["sender"], "sender@example.com")
+        self.assertEqual(captured["subject"], "Academic Outreach mailbox test")
+
+    def test_settings_auto_preview_does_not_send(self) -> None:
+        self._login()
+
+        with patch("app.sender.SMTPSender.send") as mocked_send:
+            response = self.client.post(
+                "/settings/auto-send/preview",
+                follow_redirects=True,
+            )
+
+        body = response.get_data(as_text=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Auto preview", body)
+        mocked_send.assert_not_called()
+
+    def test_settings_auto_run_requires_opt_in(self) -> None:
+        self._login()
+
+        with patch("app.sender.SMTPSender.send") as mocked_send:
+            response = self.client.post(
+                "/settings/auto-send/run",
+                follow_redirects=True,
+            )
+
+        body = response.get_data(as_text=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Enable automatic delivery before running", body)
+        mocked_send.assert_not_called()
+
+    def test_settings_auto_run_sends_when_enabled(self) -> None:
+        self._login()
+        self.client.post(
+            "/settings",
+            data={
+                "sender_email": "sender@example.com",
+                "llm_provider": "",
+                "llm_model": "google/gemini-2.5-flash-preview",
+                "email_provider": "gmail",
+                "smtp_user": "sender@example.com",
+                "smtp_password": "topsecret",
+                "auto_send_enabled": "1",
+                "auto_send_method": "smtp",
+                "auto_send_limit": "5",
+            },
+        )
+        captured: dict[str, str] = {}
+
+        def fake_smtp_send(_smtp, draft, professor, sender_profile, config):
+            captured["recipient"] = professor.email
+            captured["sender"] = config.sender_email
+            return SendRecord(
+                draft_id=draft.id or 0,
+                professor_id=professor.id or 0,
+                sent_at="2026-04-26T00:00:00+00:00",
+                method="smtp",
+                status="success",
+            )
+
+        with patch("app.sender.SMTPSender.send", new=fake_smtp_send):
+            response = self.client.post(
+                "/settings/auto-send/run",
+                follow_redirects=True,
+            )
+
+        body = response.get_data(as_text=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Auto delivery", body)
+        self.assertEqual(captured["recipient"], "route@example.edu")
+        self.assertEqual(captured["sender"], "sender@example.com")
+
 
 if __name__ == "__main__":
     unittest.main()

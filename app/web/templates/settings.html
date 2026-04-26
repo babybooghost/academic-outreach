@@ -139,6 +139,45 @@
     <section class="surface-panel animate-in animate-in-3">
         <div class="surface-panel-header">
             <div>
+                <div class="panel-kicker">Delivery readiness</div>
+                <div class="panel-title">Prove the mailbox before automation runs</div>
+            </div>
+        </div>
+        <div class="diagnostic-grid">
+            {% for check in delivery_checks %}
+            <div class="diagnostic-card diagnostic-{{ check.status }}">
+                <span>{{ check.label }}</span>
+                <strong>{{ check.status|capitalize }}</strong>
+                <p>{{ check.detail }}</p>
+            </div>
+            {% endfor %}
+        </div>
+        <div class="grid-2" style="margin-top:1.2rem;">
+            <form method="POST" action="{{ url_for('settings_test_email') }}" class="page-block">
+                <div class="form-group">
+                    <label for="test_recipient">Send test email</label>
+                    <input type="email" id="test_recipient" name="test_recipient" value="{{ effective.sender_email }}" placeholder="you@gmail.com">
+                    <div class="form-hint">Sends one mailbox test to this address using the current SMTP settings.</div>
+                </div>
+                <button type="submit" class="btn btn-outline">Send test email</button>
+            </form>
+            <div class="page-block">
+                <p>Use these buttons to exercise the exact auto-send settings before waiting for the Vercel schedule.</p>
+                <div class="hero-actions">
+                    <form method="POST" action="{{ url_for('settings_auto_send_action', action='preview') }}">
+                        <button type="submit" class="btn btn-outline">Preview auto queue</button>
+                    </form>
+                    <form method="POST" action="{{ url_for('settings_auto_send_action', action='run') }}">
+                        <button type="submit" class="btn btn-primary">Run auto delivery now</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="surface-panel animate-in animate-in-5">
+        <div class="surface-panel-header">
+            <div>
                 <div class="panel-kicker">Sender profiles</div>
                 <div class="panel-title">Who the outreach is coming from</div>
             </div>

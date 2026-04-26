@@ -58,9 +58,13 @@ from app.models import Draft, Professor, SenderProfile
 from app.generation_service import run_generation_pipeline
 from app.delivery import (
     SEND_METHODS,
+    auto_send_preferences,
+    delivery_setup_diagnostics,
     parse_bool,
+    persist_auto_send_result,
     run_auto_send_for_workspaces,
     send_ready_queue,
+    send_mailbox_test,
     seed_person_workspace_identity,
     workspace_config as build_workspace_config,
     workspace_db_path as build_workspace_db_path,
@@ -1043,11 +1047,13 @@ def create_app() -> Flask:
                 "workspace_owner_email": saved.get("workspace_owner_email", ""),
                 "workspace_owner_name": saved.get("workspace_owner_name", session.get("key_label", "")),
             }
+            delivery_checks = delivery_setup_diagnostics(cfg, conn) if cfg else []
 
             return render_template(
                 "settings.html", effective=effective,
                 llm_models=_LLM_MODELS, email_providers=_EMAIL_PROVIDERS,
                 profiles=profiles, suppression=suppression,
+                delivery_checks=delivery_checks,
             )
         finally:
             conn.close()
@@ -1073,6 +1079,94 @@ def create_app() -> Flask:
             return redirect(url_for("settings_page"))
         except Exception as exc:
             flash(f"Failed to save settings: {exc}", "error")
+            return redirect(url_for("settings_page"))
+        finally:
+            conn.close()
+
+    @app.route("/settings/test-email", methods=["POST"])
+    @login_required
+    def settings_test_email():
+        conn = _workspace_conn()
+        try:
+            cfg = _workspace_config(conn)
+            saved = get_all_settings(conn)
+            recipient = request.form.get("test_recipient", "").strip() or cfg.sender_email
+            result = send_mailbox_test(
+                cfg,
+                recipient=recipient,
+                sender_name=saved.get("workspace_owner_name", session.get("key_label", "")),
+            )
+            _log_activity(
+                "mailbox_test",
+                category="settings",
+                details={
+                    "recipient": recipient,
+                    "status": result.get("status"),
+                    "success": result.get("success"),
+                },
+            )
+            if result.get("success"):
+                flash(f"Test email sent to {result.get('recipient')}.", "success")
+            else:
+                details = "; ".join(result.get("errors", [])) if result.get("errors") else result.get("error", "Unknown error")
+                flash(f"Test email failed: {details}", "error")
+            return redirect(url_for("settings_page"))
+        except Exception as exc:
+            flash(f"Test email failed: {exc}", "error")
+            return redirect(url_for("settings_page"))
+        finally:
+            conn.close()
+
+    @app.route("/settings/auto-send/<action>", methods=["POST"])
+    @login_required
+    def settings_auto_send_action(action: str):
+        if action not in {"preview", "run"}:
+            flash("Unknown automatic delivery action.", "error")
+            return redirect(url_for("settings_page"))
+
+        conn = _workspace_conn()
+        try:
+            cfg = _workspace_config(conn)
+            saved = get_all_settings(conn)
+            enabled, method, limit = auto_send_preferences(saved)
+            if action == "run" and not enabled:
+                flash("Enable automatic delivery before running the auto queue.", "error")
+                return redirect(url_for("settings_page"))
+
+            result = send_ready_queue(
+                conn,
+                cfg,
+                method=method,
+                limit=limit,
+                dry_run=action == "preview",
+                cooldown=False,
+            )
+            persist_auto_send_result(conn, result)
+            _log_activity(
+                "auto_send_preview" if action == "preview" else "auto_send_run_now",
+                category="send",
+                details={
+                    "method": method,
+                    "limit": limit,
+                    "status": result.get("status"),
+                    "sent": result.get("sent", 0),
+                    "failed": result.get("failed", 0),
+                    "count": result.get("count", 0),
+                },
+            )
+            summary = (
+                f"Auto {'preview' if action == 'preview' else 'delivery'}: "
+                f"{result.get('count', 0)} draft(s), "
+                f"{result.get('sent', 0)} sent, {result.get('failed', 0)} failed."
+            )
+            if result.get("success"):
+                flash(summary, "success")
+            else:
+                errors = "; ".join(result.get("errors", [])) if result.get("errors") else result.get("error", "No runnable auto-delivery queue.")
+                flash(f"{summary} {errors}", "error")
+            return redirect(url_for("settings_page"))
+        except Exception as exc:
+            flash(f"Automatic delivery failed: {exc}", "error")
             return redirect(url_for("settings_page"))
         finally:
             conn.close()
