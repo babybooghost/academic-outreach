@@ -61,6 +61,7 @@ from app.delivery import (
     parse_bool,
     run_auto_send_for_workspaces,
     send_ready_queue,
+    seed_person_workspace_identity,
     workspace_config as build_workspace_config,
     workspace_db_path as build_workspace_db_path,
 )
@@ -137,6 +138,25 @@ def create_app() -> Flask:
         workspace_path = _workspace_db_path(key_id=key_id)
         init_db(workspace_path)
         return workspace_path
+
+    def _seed_workspace_identity(
+        key_id: int,
+        *,
+        email: str,
+        display_name: str,
+    ) -> None:
+        workspace_path = _ensure_workspace_db(key_id)
+        workspace_conn = get_connection(workspace_path)
+        try:
+            base_cfg = app.config.get("APP_CFG")
+            seed_person_workspace_identity(
+                workspace_conn,
+                email=email,
+                display_name=display_name,
+                default_provider=base_cfg.email_provider if base_cfg else "gmail",
+            )
+        finally:
+            workspace_conn.close()
 
     def _workspace_conn():
         return get_connection(_ensure_workspace_db())
@@ -319,6 +339,12 @@ def create_app() -> Flask:
                             )
                         else:
                             _ensure_workspace_db(key_data["id"])
+                            if str(key_data.get("created_by", "")).startswith("signup:"):
+                                _seed_workspace_identity(
+                                    key_data["id"],
+                                    email=str(key_data.get("created_by", "")).split("signup:", 1)[1],
+                                    display_name=key_data.get("label", ""),
+                                )
                             session["authenticated"] = True
                             session["key_id"] = key_data["id"]
                             session["key_label"] = key_data["label"]
@@ -392,7 +418,11 @@ def create_app() -> Flask:
                             conn, key_value, display_name, "user",
                             created_by=f"signup:{email}",
                         )
-                        _ensure_workspace_db(key_id)
+                        _seed_workspace_identity(
+                            key_id,
+                            email=email,
+                            display_name=display_name,
+                        )
 
                         # Log signup in admin activity
                         ip = request.headers.get("X-Forwarded-For", request.remote_addr)
@@ -1010,6 +1040,8 @@ def create_app() -> Flask:
                 "auto_send_limit": saved.get("auto_send_limit", "5"),
                 "auto_send_last_run": saved.get("auto_send_last_run", ""),
                 "auto_send_last_status": saved.get("auto_send_last_status", ""),
+                "workspace_owner_email": saved.get("workspace_owner_email", ""),
+                "workspace_owner_name": saved.get("workspace_owner_name", session.get("key_label", "")),
             }
 
             return render_template(

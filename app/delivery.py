@@ -14,9 +14,12 @@ from app.database import (
     get_connection,
     get_drafts,
     get_professor,
+    get_sender_profiles,
     init_db,
+    insert_sender_profile,
     set_settings_bulk,
 )
+from app.models import SenderProfile
 from app.sender import SafeSender
 
 SEND_METHODS: set[str] = {"smtp", "gmail_draft", "gmail_send"}
@@ -47,6 +50,62 @@ def is_placeholder_email(value: str | None) -> bool:
     return not email or email.endswith(".placeholder")
 
 
+def infer_email_provider(email: str, default: str = "gmail") -> str:
+    """Infer a reasonable provider default from the account email domain."""
+    domain = email.rsplit("@", 1)[-1].strip().lower() if "@" in email else ""
+    if domain in {"outlook.com", "hotmail.com", "live.com", "msn.com"}:
+        return "outlook"
+    if domain in {"gmail.com", "googlemail.com"}:
+        return "gmail"
+    return default
+
+
+def seed_person_workspace_identity(
+    conn: Any,
+    *,
+    email: str,
+    display_name: str,
+    default_provider: str = "gmail",
+) -> None:
+    """Seed a new workspace so sending belongs to the signed-up person."""
+    user_email = email.strip()
+    user_name = display_name.strip()
+    if not user_email:
+        return
+
+    saved = get_all_settings(conn)
+    provider = infer_email_provider(user_email, default=default_provider)
+    settings: dict[str, str] = {}
+    for key, value in {
+        "workspace_owner_email": user_email,
+        "workspace_owner_name": user_name,
+        "sender_email": user_email,
+        "smtp_user": user_email,
+        "email_provider": provider,
+        "auto_send_enabled": "0",
+        "auto_send_method": "smtp",
+        "auto_send_limit": "5",
+    }.items():
+        if not saved.get(key):
+            settings[key] = value
+    if settings:
+        set_settings_bulk(conn, settings)
+
+    existing_profiles = get_sender_profiles(conn)
+    if not any(profile.email.lower() == user_email.lower() for profile in existing_profiles):
+        insert_sender_profile(
+            conn,
+            SenderProfile(
+                name=user_name or user_email.split("@", 1)[0],
+                school="",
+                grade="",
+                email=user_email,
+                interests="",
+                background="",
+            ),
+        )
+
+
 def workspace_db_path(config: Config, key_id: int | str, *, create_root: bool = True) -> str:
     """Return the per-access-key workspace database path."""
     workspace_key = str(key_id).strip()
@@ -72,9 +131,12 @@ def workspace_config(base_cfg: Config, conn: Any) -> Config:
     smtp_user = saved.get("smtp_user", base_cfg.smtp_user).strip()
     smtp_password = saved.get("smtp_password", base_cfg.smtp_password).strip()
     sender_email = saved.get("sender_email", base_cfg.sender_email).strip()
+    workspace_owner_email = saved.get("workspace_owner_email", "").strip()
 
     if is_placeholder_email(sender_email) and smtp_user:
         sender_email = smtp_user
+    if is_placeholder_email(sender_email) and workspace_owner_email:
+        sender_email = workspace_owner_email
 
     return replace(
         base_cfg,

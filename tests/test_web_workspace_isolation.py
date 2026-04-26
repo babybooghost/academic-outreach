@@ -106,15 +106,18 @@ class WebWorkspaceIsolationTests(unittest.TestCase):
         self.assertIn("user-one@example.com", settings_one)
         self.assertIn("Prof Workspace One", professors_one)
 
+        user_two_email = f"user-two-{int(time.time())}@example.com"
         self._signup_and_login(
             client_two,
-            f"user-two-{int(time.time())}@example.com",
+            user_two_email,
             "User Two",
         )
 
         settings_two = client_two.get("/settings").get_data(as_text=True)
         professors_two = client_two.get("/professors").get_data(as_text=True)
 
+        self.assertIn(user_two_email, settings_two)
+        self.assertIn("This workspace sends for", settings_two)
         self.assertNotIn("user-one@example.com", settings_two)
         self.assertNotIn("workspace-one-secret", settings_two)
         self.assertNotIn("Prof Workspace One", professors_two)

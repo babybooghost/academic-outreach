@@ -74,10 +74,15 @@
                 </div>
             </div>
             <div class="page-block">
+                {% if effective.workspace_owner_email %}
+                <div class="auth-note">
+                    <p>This workspace sends for <strong>{{ effective.workspace_owner_name or 'this user' }}</strong> at {{ effective.workspace_owner_email }}.</p>
+                </div>
+                {% endif %}
                 <div class="form-group">
-                    <label for="sender_email">Sender Email</label>
+                    <label for="sender_email">From Email</label>
                     <input type="email" id="sender_email" name="sender_email" value="{{ effective.sender_email }}" placeholder="you@gmail.com">
-                    <div class="form-hint">This must be the inbox that can actually send. If left blank, SMTP username is used.</div>
+                    <div class="form-hint">This should be the logged-in person's inbox. If left blank, the app falls back to their SMTP username or signup email.</div>
                 </div>
                 <div class="form-group">
                     <label for="email_provider">Provider</label>
@@ -89,7 +94,8 @@
                 </div>
                 <div class="form-group">
                     <label for="smtp_user">SMTP Username</label>
-                    <input type="text" id="smtp_user" name="smtp_user" value="{{ effective.smtp_user }}" placeholder="Optional">
+                    <input type="text" id="smtp_user" name="smtp_user" value="{{ effective.smtp_user }}" placeholder="you@gmail.com">
+                    <div class="form-hint">The website sends through this user's mailbox, not a shared app mailbox.</div>
                 </div>
                 <div class="form-group">
                     <label for="smtp_password">SMTP Password</label>
