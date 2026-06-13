@@ -264,54 +264,10 @@ class LLMSummarizer:
     # -- provider dispatch ---------------------------------------------------
 
     def _call_llm(self, prompt: str) -> str:
-        """Dispatch to the correct provider and return the raw text response."""
-        if self._provider == "openai":
-            return self._call_openai(prompt)
-        elif self._provider == "anthropic":
-            return self._call_anthropic(prompt)
-        elif self._provider == "openrouter":
+        """Dispatch to the configured provider and return the raw text response."""
+        if self._provider == "openrouter":
             return self._call_openrouter(prompt)
-        else:
-            raise ValueError(f"Unsupported LLM provider: {self._provider}")
-
-    def _call_openai(self, prompt: str) -> str:
-        """Call OpenAI's chat completions API."""
-        try:
-            import openai  # type: ignore[import-untyped]
-
-            client = openai.OpenAI(api_key=self._api_key)
-            response = client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.3,
-                max_tokens=500,
-            )
-            return response.choices[0].message.content or ""
-        except ImportError:
-            raise RuntimeError(
-                "openai package is not installed. "
-                "Install it with: pip install openai"
-            )
-
-    def _call_anthropic(self, prompt: str) -> str:
-        """Call Anthropic's messages API."""
-        try:
-            import anthropic  # type: ignore[import-untyped]
-
-            client = anthropic.Anthropic(api_key=self._api_key)
-            response = client.messages.create(
-                model="claude-sonnet-4-20250514",
-                max_tokens=500,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            if response.content and len(response.content) > 0:
-                return response.content[0].text
-            return ""
-        except ImportError:
-            raise RuntimeError(
-                "anthropic package is not installed. "
-                "Install it with: pip install anthropic"
-            )
+        raise ValueError(f"Unsupported LLM provider: {self._provider}")
 
     def _call_openrouter(self, prompt: str) -> str:
         """Call OpenRouter's chat completions API via requests."""
@@ -389,7 +345,9 @@ def get_summarizer(config: Config) -> SummarizerStrategy:
         return LLMSummarizer(
             provider=config.llm_provider,
             api_key=config.llm_api_key,
-            model=config.llm_model,
+            # Parsing/summarizing uses the cheaper model when one is set;
+            # the premium model is reserved for writing the actual emails.
+            model=config.llm_model_parse or config.llm_model,
         )
     logger.info("Using keyword-based summarizer (no LLM configured)")
     return KeywordSummarizer()

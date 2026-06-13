@@ -1458,12 +1458,15 @@ def create_app() -> Flask:
     # ------------------------------------------------------------------
     # Settings
     # ------------------------------------------------------------------
+    # Slugs verified against the live OpenRouter catalog. Ordered cheap -> premium
+    # so the parsing-model dropdown reads top-down from most economical.
     _LLM_MODELS: dict[str, str] = {
-        "google/gemini-2.5-flash": "Gemini 2.5 Flash",
+        "google/gemini-2.5-flash": "Gemini 2.5 Flash (cheapest)",
+        "google/gemini-3.5-flash": "Gemini 3.5 Flash",
         "google/gemini-2.5-pro": "Gemini 2.5 Pro",
         "anthropic/claude-haiku-4.5": "Claude Haiku 4.5",
         "anthropic/claude-sonnet-4.6": "Claude Sonnet 4.6",
-        "anthropic/claude-opus-4.6": "Claude Opus 4.6",
+        "anthropic/claude-opus-4.8": "Claude Opus 4.8 (best)",
     }
 
     _EMAIL_PROVIDERS: dict[str, str] = {
@@ -1487,6 +1490,7 @@ def create_app() -> Flask:
                 "llm_provider": cfg.llm_provider if cfg else "",
                 "llm_api_key_set": bool((cfg.llm_api_key if cfg else "") or os.environ.get("LLM_API_KEY", "")),
                 "llm_model": cfg.llm_model if cfg else "google/gemini-2.5-flash",
+                "llm_model_parse": (cfg.llm_model_parse if cfg else "") or "",
                 "email_provider": cfg.email_provider if cfg else "gmail",
                 "smtp_user": cfg.smtp_user if cfg else "",
                 "smtp_password": cfg.smtp_password if cfg else "",
@@ -1520,7 +1524,7 @@ def create_app() -> Flask:
         conn = _workspace_conn()
         try:
             new_settings: dict[str, str] = {}
-            for key in ("sender_email", "llm_provider", "llm_model",
+            for key in ("sender_email", "llm_provider", "llm_model", "llm_model_parse",
                         "email_provider", "smtp_user", "smtp_password",
                         "auto_send_method", "auto_send_limit",
                         "auto_followup_days", "auto_followup_limit"):

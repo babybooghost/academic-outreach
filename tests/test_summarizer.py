@@ -8,9 +8,9 @@ from app.summarizer import LLMSummarizer
 class LLMSummarizerTests(unittest.TestCase):
     def test_prompt_template_escapes_literal_json_braces(self) -> None:
         summarizer = LLMSummarizer(
-            provider="openai",
+            provider="openrouter",
             api_key="test-key",
-            model="gpt-test",
+            model="google/gemini-2.5-flash",
         )
         professor = Professor(name="Prof Prompt", field="AI")
 

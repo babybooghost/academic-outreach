@@ -41,18 +41,27 @@
                     <select id="llm_provider" name="llm_provider">
                         <option value="" {% if not effective.llm_provider %}selected{% endif %}>(None, keyword mode)</option>
                         <option value="openrouter" {% if effective.llm_provider == 'openrouter' %}selected{% endif %}>OpenRouter</option>
-                        <option value="openai" {% if effective.llm_provider == 'openai' %}selected{% endif %}>OpenAI</option>
-                        <option value="anthropic" {% if effective.llm_provider == 'anthropic' %}selected{% endif %}>Anthropic</option>
                     </select>
+                    <div class="form-hint">OpenRouter reaches every model below (Claude, Gemini) through one key.</div>
                 </div>
                 <div class="form-group">
-                    <label for="llm_model">Model</label>
+                    <label for="llm_model">Writing model</label>
                     <select id="llm_model" name="llm_model">
                         {% for model_id, model_name in llm_models.items() %}
                         <option value="{{ model_id }}" {% if effective.llm_model == model_id %}selected{% endif %}>{{ model_name }}</option>
                         {% endfor %}
                     </select>
-                    <div class="form-hint">Choose the writing engine that best matches the level of variation and cost you want in draft generation.</div>
+                    <div class="form-hint">Writes the actual emails — use your best model here.</div>
+                </div>
+                <div class="form-group">
+                    <label for="llm_model_parse">Parsing model</label>
+                    <select id="llm_model_parse" name="llm_model_parse">
+                        <option value="" {% if not effective.llm_model_parse %}selected{% endif %}>Same as writing model</option>
+                        {% for model_id, model_name in llm_models.items() %}
+                        <option value="{{ model_id }}" {% if effective.llm_model_parse == model_id %}selected{% endif %}>{{ model_name }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="form-hint">Only reads and summarizes professor pages. Pick a cheaper model (e.g. Gemini Flash) here to cut cost — it never writes emails.</div>
                 </div>
                 <div class="auth-note">
                     <p>API Key:

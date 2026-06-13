@@ -125,7 +125,13 @@ def seed_person_workspace_identity(
 def workspace_config(base_cfg: Config, conn: Any) -> Config:
     """Apply per-workspace settings to the immutable base config."""
     saved = get_all_settings(conn)
-    llm_provider = saved.get("llm_provider", base_cfg.llm_provider or "").strip() or None
+    provider = (saved.get("llm_provider", base_cfg.llm_provider or "") or "").strip().lower()
+    # Direct OpenAI/Anthropic providers were removed in favour of OpenRouter
+    # (one key, every model). Route any legacy saved value through OpenRouter —
+    # the model slugs and the server-side API key are already OpenRouter's.
+    if provider in ("openai", "anthropic"):
+        provider = "openrouter"
+    llm_provider = provider or None
     saved_provider = saved.get("email_provider")
     email_provider = (saved_provider or base_cfg.email_provider or "gmail").strip().lower()
     provider_smtp_host, provider_smtp_port = email_provider_smtp_defaults(email_provider)
@@ -146,6 +152,7 @@ def workspace_config(base_cfg: Config, conn: Any) -> Config:
         sender_email=sender_email,
         llm_provider=llm_provider,
         llm_model=saved.get("llm_model", base_cfg.llm_model),
+        llm_model_parse=saved.get("llm_model_parse", "").strip(),
         email_provider=email_provider,
         smtp_host=smtp_host,
         smtp_port=smtp_port,
