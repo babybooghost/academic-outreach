@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Something went wrong | Academic Outreach</title>
+    <title>{% if code == 404 %}Page not found{% else %}Something went wrong{% endif %} | Academic Outreach</title>
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='revamp.css') }}">
@@ -19,11 +19,13 @@
     <main style="min-height:80vh; display:flex; align-items:center; justify-content:center; padding:2rem;">
         <div class="card" style="max-width:480px; text-align:center;">
             <div class="logo-icon" style="margin:0 auto 1rem; width:48px; height:48px; font-size:1.3rem; border-radius:14px;">AO</div>
-            <h1 style="margin:0 0 0.5rem;">Something went wrong</h1>
+            <h1 style="margin:0 0 0.5rem;">{% if code == 404 %}Page not found{% elif code and code != 500 %}Error {{ code }}{% else %}Something went wrong{% endif %}</h1>
             <p style="color:var(--ao-text-muted, #888); margin:0 0 1.5rem;">
-                An unexpected error occurred while handling your request. The issue has been
-                logged. Please try again, and if it keeps happening, report it from the support
-                widget.
+                {% if code == 404 %}
+                That page doesn't exist or may have moved.
+                {% else %}
+                {{ message or "An unexpected error occurred while handling your request. The issue has been logged. Please try again, and if it keeps happening, report it from the support widget." }}
+                {% endif %}
             </p>
             <a href="{{ url_for('homepage') }}" class="btn btn-primary">Back to home</a>
         </div>
