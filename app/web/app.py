@@ -63,6 +63,7 @@ from app.delivery import (
     delivery_setup_diagnostics,
     parse_bool,
     persist_auto_send_result,
+    run_auto_followup_for_workspaces,
     run_auto_send_for_workspaces,
     send_ready_queue,
     send_mailbox_test,
@@ -664,11 +665,18 @@ def create_app() -> Flask:
                     "error": "workspace_id must be an integer.",
                 }), 400
 
+        dry_run = parse_bool(request.args.get("dry_run"), default=False)
         summary = run_auto_send_for_workspaces(
-            cfg,
-            workspace_id=workspace_id,
-            dry_run=parse_bool(request.args.get("dry_run"), default=False),
+            cfg, workspace_id=workspace_id, dry_run=dry_run,
         )
+        # Same daily run also generates and sends due 7-10 day follow-ups for
+        # any workspace that opted in (separate toggle from first-contact send).
+        followups = run_auto_followup_for_workspaces(
+            cfg, workspace_id=workspace_id, dry_run=dry_run,
+        )
+        summary["followups"] = followups
+        summary["success"] = summary.get("success", False) and followups.get("success", False)
+
         _log_activity(
             "auto_send_cron",
             category="send",
@@ -677,6 +685,8 @@ def create_app() -> Flask:
                 "processed": summary.get("processed"),
                 "sent": summary.get("sent"),
                 "failed": summary.get("failed"),
+                "followups_sent": followups.get("sent"),
+                "followups_generated": followups.get("generated"),
                 "dry_run": summary.get("dry_run"),
             },
         )
@@ -813,7 +823,16 @@ def create_app() -> Flask:
             ).fetchall()
             draft_objs = [Draft.from_row(r) for r in drafts]
 
-            return render_template("professor_detail.html", professor=prof, drafts=draft_objs)
+            send_history = [dict(r) for r in conn.execute(
+                "SELECT sent_at, method, status, error_message FROM send_log "
+                "WHERE professor_id = ? AND workspace_id = ? ORDER BY id DESC",
+                (prof_id, conn.workspace_id),
+            ).fetchall()]
+
+            return render_template(
+                "professor_detail.html", professor=prof,
+                drafts=draft_objs, send_history=send_history,
+            )
         finally:
             conn.close()
 
@@ -1026,6 +1045,65 @@ def create_app() -> Flask:
             message += f" {len(summary.warnings)} warning(s) were recorded during generation."
         flash(message, "success")
         return redirect(url_for("drafts_list", session=summary.session_id))
+
+    @app.route("/drafts/sample", methods=["POST"])
+    @login_required
+    def sample_draft_route():
+        """Generate a single draft so the user can eyeball tone before a batch."""
+        conn = _workspace_conn()
+        try:
+            sender_profile_id = request.form.get("sender_profile_id", type=int)
+            variant = request.form.get("variant", "").strip() or None
+            if not sender_profile_id:
+                flash("Choose a sender profile before generating a sample.", "error")
+                return redirect(url_for("drafts_list"))
+            # Prefer a professor who has no draft yet; otherwise just the first.
+            wid = conn.workspace_id
+            row = conn.execute(
+                "SELECT id FROM professors WHERE workspace_id = ? AND id NOT IN "
+                "(SELECT professor_id FROM drafts WHERE workspace_id = ?) ORDER BY id LIMIT 1",
+                (wid, wid),
+            ).fetchone() or conn.execute(
+                "SELECT id FROM professors WHERE workspace_id = ? ORDER BY id LIMIT 1",
+                (wid,),
+            ).fetchone()
+            if not row:
+                flash("Save at least one professor before generating a sample.", "warning")
+                return redirect(url_for("finder_page"))
+            target_id = int(row["id"])
+            cfg = _workspace_config(conn)
+        finally:
+            conn.close()
+
+        try:
+            summary = run_generation_pipeline(
+                db_path=cfg.db_path, config=cfg,
+                sender_profile_id=sender_profile_id, professor_ids=[target_id],
+                variant=variant, workspace_id=_workspace_id(),
+            )
+        except Exception as exc:
+            flash(f"Sample generation failed: {exc}", "error")
+            return redirect(url_for("drafts_list"))
+
+        _log_activity("draft_sample", category="drafts",
+                      target_type="professor", target_id=str(target_id),
+                      details={"created": summary.created})
+
+        conn = _workspace_conn()
+        try:
+            made = conn.execute(
+                "SELECT id FROM drafts WHERE workspace_id = ? AND session_id = ? "
+                "AND professor_id = ? ORDER BY id DESC LIMIT 1",
+                (conn.workspace_id, summary.session_id, target_id),
+            ).fetchone()
+        finally:
+            conn.close()
+        if made:
+            flash("Sample draft ready — check the tone and specificity before a full batch.", "success")
+            return redirect(url_for("draft_detail", draft_id=int(made["id"])))
+        warning = summary.warnings[0] if summary.warnings else "the professor may need a richer research summary."
+        flash(f"No sample draft was created — {warning}", "warning")
+        return redirect(url_for("drafts_list"))
 
     @app.route("/drafts/<int:draft_id>")
     @login_required
@@ -1417,8 +1495,13 @@ def create_app() -> Flask:
                 "auto_send_limit": saved.get("auto_send_limit", "5"),
                 "auto_send_last_run": saved.get("auto_send_last_run", ""),
                 "auto_send_last_status": saved.get("auto_send_last_status", ""),
+                "auto_followup_enabled": parse_bool(saved.get("auto_followup_enabled"), default=False),
+                "auto_followup_days": saved.get("auto_followup_days", "7"),
+                "auto_followup_limit": saved.get("auto_followup_limit", "5"),
+                "auto_followup_last_run": saved.get("auto_followup_last_run", ""),
                 "workspace_owner_email": saved.get("workspace_owner_email", ""),
                 "workspace_owner_name": saved.get("workspace_owner_name", session.get("key_label", "")),
+                "attachment_filename": saved.get("attachment_filename", ""),
             }
             delivery_checks = delivery_setup_diagnostics(cfg, conn) if cfg else []
 
@@ -1439,10 +1522,12 @@ def create_app() -> Flask:
             new_settings: dict[str, str] = {}
             for key in ("sender_email", "llm_provider", "llm_model",
                         "email_provider", "smtp_user", "smtp_password",
-                        "auto_send_method", "auto_send_limit"):
+                        "auto_send_method", "auto_send_limit",
+                        "auto_followup_days", "auto_followup_limit"):
                 val = request.form.get(key, "").strip()
                 new_settings[key] = val
             new_settings["auto_send_enabled"] = "1" if request.form.get("auto_send_enabled") else "0"
+            new_settings["auto_followup_enabled"] = "1" if request.form.get("auto_followup_enabled") else "0"
 
             set_settings_bulk(conn, new_settings)
 
@@ -1455,6 +1540,54 @@ def create_app() -> Flask:
             return redirect(url_for("settings_page"))
         finally:
             conn.close()
+
+    @app.route("/settings/attachment", methods=["POST"])
+    @login_required
+    def settings_attachment_upload():
+        """Store a single outgoing attachment (e.g. a CV PDF) for this workspace."""
+        upload = request.files.get("attachment")
+        if not upload or not upload.filename:
+            flash("Choose a file to attach.", "error")
+            return redirect(url_for("settings_page"))
+        raw = upload.read()
+        if not raw:
+            flash("That file was empty.", "error")
+            return redirect(url_for("settings_page"))
+        if len(raw) > 3 * 1024 * 1024:
+            flash("Attachments must be 3 MB or smaller (most CVs are well under 1 MB).", "error")
+            return redirect(url_for("settings_page"))
+
+        import base64 as _b64
+        filename = os.path.basename(upload.filename)[:160]
+        conn = _workspace_conn()
+        try:
+            set_settings_bulk(conn, {
+                "attachment_filename": filename,
+                "attachment_mimetype": upload.mimetype or "application/octet-stream",
+                "attachment_b64": _b64.b64encode(raw).decode("ascii"),
+            })
+        finally:
+            conn.close()
+        _log_activity("attachment_upload", category="settings",
+                      details={"filename": filename, "bytes": len(raw)})
+        flash(f"Attached “{filename}” — it will be included on every email you send.", "success")
+        return redirect(url_for("settings_page"))
+
+    @app.route("/settings/attachment/remove", methods=["POST"])
+    @login_required
+    def settings_attachment_remove():
+        conn = _workspace_conn()
+        try:
+            set_settings_bulk(conn, {
+                "attachment_filename": "",
+                "attachment_mimetype": "",
+                "attachment_b64": "",
+            })
+        finally:
+            conn.close()
+        _log_activity("attachment_remove", category="settings")
+        flash("Attachment removed. Emails will send without a file.", "success")
+        return redirect(url_for("settings_page"))
 
     @app.route("/settings/test-email", methods=["POST"])
     @login_required

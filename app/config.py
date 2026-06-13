@@ -271,6 +271,13 @@ class Config:
     followup_pools: FollowUpPools = field(default_factory=lambda: _default_followup_pools())
     fields: List[str] = field(default_factory=lambda: list(DEFAULT_CONFIG_YAML["fields"]))
 
+    # --- optional outgoing attachment (e.g. a CV/resume PDF), per workspace ---
+    # Stored base64-encoded so it round-trips through the settings table on a
+    # serverless host where the filesystem is ephemeral. Empty = no attachment.
+    attachment_filename: str = ""
+    attachment_mimetype: str = ""
+    attachment_b64: str = ""
+
 
 # ---------------------------------------------------------------------------
 # Helpers to build defaults from DEFAULT_CONFIG_YAML
