@@ -91,6 +91,63 @@ def _row_to_professor(row: dict[str, str]) -> Professor:
 # Public API
 # ---------------------------------------------------------------------------
 
+def import_professor_rows(
+    conn: Any,
+    rows: list[dict[str, str]],
+) -> tuple[int, int, list[str]]:
+    """Validate and upsert already-parsed CSV rows using *conn*.
+
+    Used by the web uploader so the import is scoped to the caller's workspace
+    (the connection carries the workspace_id). Returns
+    (imported, skipped, warnings). No address is fabricated; rows missing a
+    valid email are skipped with a warning.
+    """
+    imported = 0
+    skipped = 0
+    warnings: list[str] = []
+
+    if not rows:
+        return 0, 0, ["The file had no data rows."]
+
+    missing_required = set(REQUIRED_COLUMNS) - set(rows[0].keys())
+    if missing_required:
+        return 0, 0, [
+            f"CSV is missing required column(s): {', '.join(sorted(missing_required))}. "
+            f"Required headers: {', '.join(REQUIRED_COLUMNS)}."
+        ]
+
+    for row_num, row in enumerate(rows, start=2):  # row 1 is the header
+        name = (row.get("name") or "").strip()
+        email = (row.get("email") or "").strip().lower()
+        if not name:
+            skipped += 1
+            warnings.append(f"Row {row_num}: missing name — skipped")
+            continue
+        if not email:
+            skipped += 1
+            warnings.append(f"Row {row_num}: missing email for '{name}' — skipped")
+            continue
+        if not _validate_email(email):
+            skipped += 1
+            warnings.append(f"Row {row_num}: invalid email '{email}' — skipped")
+            continue
+        try:
+            if is_suppressed(conn, email):
+                skipped += 1
+                warnings.append(f"Row {row_num}: '{email}' is on the suppression list — skipped")
+                continue
+        except Exception:
+            pass
+        try:
+            upsert_professor(conn, _row_to_professor(row))
+            imported += 1
+        except Exception as exc:
+            skipped += 1
+            warnings.append(f"Row {row_num}: save failed for '{email}': {exc}")
+
+    return imported, skipped, warnings
+
+
 def load_csv(
     csv_path: str,
     db_path: str,

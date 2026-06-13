@@ -90,6 +90,23 @@
                 </ul>
             </article>
             {% endif %}
+
+            {% if spam_flags %}
+            <article class="surface-panel warnings-panel animate-in animate-in-3">
+                <div class="surface-panel-header">
+                    <div>
+                        <div class="panel-kicker">Spam risk</div>
+                        <div class="panel-title">Why this could land in spam</div>
+                    </div>
+                </div>
+                <ul class="warnings-list">
+                    {% for f in spam_flags %}
+                    <li class="warning-item">{{ f }}</li>
+                    {% endfor %}
+                </ul>
+                <div class="form-hint">Edit the draft to remove these before sending — they hurt deliverability for cold email.</div>
+            </article>
+            {% endif %}
         </aside>
 
         <div class="draft-content-panel">

@@ -209,10 +209,20 @@ class LLMSummarizer:
     """
 
     _PROMPT_TEMPLATE: str = (
-        "Given text from a professor's research page, extract 5-8 research "
-        "keywords and write a 2-sentence summary. Return JSON: "
-        '{{"keywords": [...], "summary": "..."}}. '
-        "Text: {text}"
+        "You are analyzing a faculty member's research page to support a "
+        "student's genuine, specific outreach. From the text below, identify "
+        "the professor's ACTUAL research focus: concrete topics, methods, "
+        "problems, and applications they work on. Use only what the text "
+        "supports — never invent papers, results, or details.\n\n"
+        "Return ONLY JSON in exactly this shape:\n"
+        '{{"keywords": ["specific topic", "specific method", ...], '
+        '"summary": "..."}}\n\n'
+        "Rules:\n"
+        "- 5-8 keywords, each SPECIFIC (e.g. 'graph neural networks', "
+        "'cryo-EM', 'mechanism design' — not 'computer science' or 'research').\n"
+        "- summary: 2-3 factual sentences naming concrete topics/methods the "
+        "professor works on. No flattery, no filler, no 'renowned/leading'.\n\n"
+        "Text:\n{text}"
     )
     _MAX_TEXT_FOR_LLM: int = 3000
     _FALLBACK: KeywordSummarizer = KeywordSummarizer()

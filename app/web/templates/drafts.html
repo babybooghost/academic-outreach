@@ -108,6 +108,24 @@
                 <div class="panel-kicker">Draft queue</div>
                 <div class="panel-title">Review the current session</div>
             </div>
+            {% if drafts %}
+            <div class="hero-actions">
+                <form method="POST" action="{{ url_for('bulk_draft_action') }}"
+                      onsubmit="return confirm('Approve all {{ drafts|length }} draft(s) in this view? You can still edit or reject individually afterward.');">
+                    <input type="hidden" name="action" value="approve">
+                    <input type="hidden" name="session" value="{{ current_session }}">
+                    <input type="hidden" name="status" value="{{ current_status }}">
+                    <button type="submit" class="btn btn-primary btn-sm">Approve all in view</button>
+                </form>
+                <form method="POST" action="{{ url_for('bulk_draft_action') }}"
+                      onsubmit="return confirm('Reject all {{ drafts|length }} draft(s) in this view?');">
+                    <input type="hidden" name="action" value="reject">
+                    <input type="hidden" name="session" value="{{ current_session }}">
+                    <input type="hidden" name="status" value="{{ current_status }}">
+                    <button type="submit" class="btn btn-outline btn-sm">Reject all in view</button>
+                </form>
+            </div>
+            {% endif %}
         </div>
         {% if drafts %}
         <div class="table-wrap">

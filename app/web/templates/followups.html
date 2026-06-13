@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Follow-ups{% endblock %}
+
+{% block content %}
+<div class="editorial-page workspace-page">
+    <section class="workspace-header animate-in">
+        <div class="workspace-header-top">
+            <div class="workspace-header-copy">
+                <div class="eyebrow">Follow-ups</div>
+                <h1 class="workspace-title">Send one polite nudge, 7–10 days later.</h1>
+                <p class="workspace-summary">A single, softer follow-up after a week or so is good practice. More than one is not. This page shows what is due and drafts the nudge for you.</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="surface-panel animate-in animate-in-1">
+        <div class="surface-panel-header">
+            <div>
+                <div class="panel-kicker">Generate</div>
+                <div class="panel-title">Draft follow-ups for what is due</div>
+            </div>
+        </div>
+        <form method="POST" action="{{ url_for('followups_generate') }}" class="grid-2">
+            <div class="form-group">
+                <label for="days_since">Days since the original send</label>
+                <input type="number" id="days_since" name="days_since" min="1" max="60" value="{{ days_since }}">
+                <div class="form-hint">Drafts you sent at least this many days ago, with no follow-up yet, become eligible. 7–10 is the sweet spot.</div>
+            </div>
+            <div class="form-group" style="align-self:end;">
+                <button type="submit" class="btn btn-primary">Generate due follow-ups ({{ eligible|length }})</button>
+            </div>
+        </form>
+    </section>
+
+    <section class="surface-panel animate-in animate-in-2">
+        <div class="surface-panel-header">
+            <div>
+                <div class="panel-kicker">Due now</div>
+                <div class="panel-title">Sent drafts awaiting a follow-up</div>
+            </div>
+        </div>
+        {% if eligible %}
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Draft</th><th>Professor</th><th>Sent</th></tr></thead>
+                <tbody>
+                    {% for d in eligible %}
+                    {% set prof = prof_map.get(d.professor_id) %}
+                    <tr>
+                        <td><a href="{{ url_for('draft_detail', draft_id=d.id) }}">#{{ d.id }}</a></td>
+                        <td>{{ prof.name if prof else 'Unknown' }}</td>
+                        <td>{{ (d.reviewed_at or d.created_at)[:10] }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">&#9203;</div>
+            <p>Nothing is due. Follow-ups appear here once a draft has been sent and is at least {{ days_since }} day(s) old.</p>
+        </div>
+        {% endif %}
+    </section>
+
+    <section class="surface-panel animate-in animate-in-3">
+        <div class="surface-panel-header">
+            <div>
+                <div class="panel-kicker">Drafted</div>
+                <div class="panel-title">Follow-up messages ready to copy</div>
+            </div>
+        </div>
+        {% if followups %}
+        {% for f in followups %}
+        {% set prof = prof_map.get(f.professor_id) %}
+        <article class="page-block" style="border:1px solid var(--ao-border); border-radius:16px; padding:1.1rem 1.2rem; margin-bottom:1rem;">
+            <div style="display:flex; justify-content:space-between; gap:1rem; flex-wrap:wrap;">
+                <strong>{{ prof.name if prof else 'Professor' }}{% if prof and prof.email %} &lt;{{ prof.email }}&gt;{% endif %}</strong>
+                <span class="badge badge-{{ f.status }}">{{ f.status }}</span>
+            </div>
+            <div style="margin-top:0.5rem; color:var(--ao-text-muted);"><strong>Subject:</strong> {{ f.subject }}</div>
+            <div class="email-preview" style="margin-top:0.6rem; white-space:pre-wrap;">{{ f.body }}</div>
+        </article>
+        {% endfor %}
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">&#9993;</div>
+            <p>No follow-ups drafted yet. Generate them above once some are due.</p>
+        </div>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

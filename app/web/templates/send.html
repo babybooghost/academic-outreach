@@ -28,6 +28,18 @@
     </section>
 
     {% if send_queue %}
+    {% if caps %}
+    <div class="storage-banner {% if caps.over_cap %}storage-banner-warning{% endif %}" style="margin-bottom:1rem;">
+        <strong>Daily sending: {{ caps.sent_today }} sent today · {{ caps.remaining }} of {{ caps.cap }} left</strong>
+        <span>
+            {% if caps.over_cap %}
+            Sending all {{ caps.queued }} now would exceed the recommended {{ caps.cap }}/day for a personal mailbox — split it across days to protect deliverability.
+            {% else %}
+            Keep cold batches small and spaced out so a personal Gmail/Outlook account stays in good standing.
+            {% endif %}
+        </span>
+    </div>
+    {% endif %}
     <section class="surface-panel animate-in animate-in-1">
         <div class="surface-panel-header">
             <div>
@@ -77,6 +89,7 @@
                         <th>Email</th>
                         <th>Subject</th>
                         <th>Score</th>
+                        <th>Spam risk</th>
                         <th>Status</th>
                     </tr>
                 </thead>
@@ -91,6 +104,13 @@
                         <td>
                             {% set sc = d.overall_score %}
                             <span class="score-badge {% if sc >= 7.5 %}score-high{% elif sc >= 4.0 %}score-mid{% else %}score-low{% endif %}">{{ "%.1f"|format(sc) }}</span>
+                        </td>
+                        <td>
+                            {% if spam_flags and spam_flags.get(d.id) %}
+                            <span class="badge badge-needs_email" title="{{ spam_flags.get(d.id)|join('; ') }}">{{ spam_flags.get(d.id)|length }} flag(s)</span>
+                            {% else %}
+                            <span style="color:var(--ao-success);">clean</span>
+                            {% endif %}
                         </td>
                         <td><span class="badge badge-{{ d.status }}">{{ d.status }}</span></td>
                     </tr>

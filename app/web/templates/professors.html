@@ -30,6 +30,25 @@
     <section class="surface-panel animate-in animate-in-1">
         <div class="surface-panel-header">
             <div>
+                <div class="panel-kicker">Import</div>
+                <div class="panel-title">Add faculty from a CSV</div>
+            </div>
+        </div>
+        <form method="POST" action="{{ url_for('professors_import') }}" enctype="multipart/form-data" class="grid-2">
+            <div class="form-group">
+                <label for="csv_file">CSV file</label>
+                <input type="file" id="csv_file" name="csv_file" accept=".csv,text/csv" required>
+                <div class="form-hint">Required columns: <code>name</code>, <code>email</code>. Optional: university, department, field, title, lab_name, profile_url, research_summary, recent_work, notes. Rows without a valid email are skipped (never guessed).</div>
+            </div>
+            <div class="form-group" style="align-self:end;">
+                <button type="submit" class="btn btn-primary">Import CSV</button>
+            </div>
+        </form>
+    </section>
+
+    <section class="surface-panel animate-in animate-in-1">
+        <div class="surface-panel-header">
+            <div>
                 <div class="panel-kicker">Filters</div>
                 <div class="panel-title">Focus the list</div>
             </div>
