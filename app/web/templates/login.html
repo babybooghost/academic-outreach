@@ -41,6 +41,10 @@
                     <div class="flash-msg flash-error">{{ error }}</div>
                     {% endif %}
 
+                    {% if google_enabled %}
+                    <a href="{{ url_for('google_login') }}" class="btn btn-outline" style="width:100%;">Sign in with Google</a>
+                    <div class="form-hint" style="text-align:center; margin:0.6rem 0;">— or use your access key —</div>
+                    {% endif %}
                     <form method="POST" action="{{ url_for('login') }}" class="auth-form-stack">
                         <div class="form-group">
                             <label for="access_key">Access Key</label>

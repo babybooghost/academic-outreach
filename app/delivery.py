@@ -288,6 +288,48 @@ def send_mailbox_test(
     }
 
 
+def system_mailbox_ready(config: Config) -> bool:
+    """True if the app-level (not per-workspace) mailbox can send mail."""
+    return bool(
+        config.smtp_host and config.smtp_port
+        and config.smtp_user and config.smtp_password
+        and config.sender_email and not is_placeholder_email(config.sender_email)
+    )
+
+
+def send_verification_email(config: Config, recipient: str, code: str) -> bool:
+    """Send a signup verification code from the system mailbox. Returns success."""
+    if not system_mailbox_ready(config):
+        return False
+    now = datetime.now(tz=timezone.utc).isoformat()
+    draft = Draft(
+        id=0, professor_id=0, sender_profile_id=0, session_id=0,
+        subject_lines=json.dumps([f"Your Academic Outreach code: {code}"]),
+        body=(
+            "Welcome to Academic Outreach.\n\n"
+            f"Your verification code is: {code}\n\n"
+            "Enter it on the signup page to finish creating your workspace. "
+            "The code expires in 15 minutes.\n\n"
+            "If you didn't request this, you can ignore this email."
+        ),
+        status="approved",
+    )
+    professor = Professor(
+        id=0, name="New user", email=recipient,
+        university="Signup", department="Verification", field="Auth",
+    )
+    sender = SenderProfile(
+        id=0, name="Academic Outreach", school="", grade="",
+        email=config.sender_email, interests="", background="",
+    )
+    try:
+        record = SMTPSender().send(draft, professor, sender, config)
+        return record.status == "success"
+    except Exception as exc:
+        logger.warning("Verification email to %s failed: %s", recipient, exc)
+        return False
+
+
 def ready_send_queue(conn: Any, limit: int) -> list[Any]:
     """Return approved/edited drafts in send order."""
     approved = get_drafts(conn, status="approved")

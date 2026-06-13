@@ -568,6 +568,19 @@ CREATE TABLE IF NOT EXISTS user_signups (
     key_value      TEXT    NOT NULL,
     created_at     TEXT    NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS email_verifications (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    email          TEXT    NOT NULL,
+    code_hash      TEXT    NOT NULL,
+    display_name   TEXT    NOT NULL DEFAULT '',
+    password_hash  TEXT    NOT NULL DEFAULT '',
+    key_value      TEXT    NOT NULL DEFAULT '',
+    purpose        TEXT    NOT NULL DEFAULT 'signup',
+    attempts       INTEGER NOT NULL DEFAULT 0,
+    expires_at     TEXT    NOT NULL,
+    created_at     TEXT    NOT NULL DEFAULT (datetime('now'))
+);
 """
 
 
@@ -577,6 +590,92 @@ CREATE TABLE IF NOT EXISTS user_signups (
 
 def _now_iso() -> str:
     return datetime.utcnow().isoformat()
+
+
+# ---------------------------------------------------------------------------
+# Email verification codes (signup)
+# ---------------------------------------------------------------------------
+
+def create_email_verification(
+    conn: Any,
+    *,
+    email: str,
+    code_hash: str,
+    display_name: str,
+    password_hash: str,
+    key_value: str,
+    expires_at: str,
+    purpose: str = "signup",
+) -> int:
+    """Replace any pending verification for *email* and store a fresh one."""
+    try:
+        conn.execute("DELETE FROM email_verifications WHERE email = ?", (email,))
+        cursor = conn.execute(
+            """INSERT INTO email_verifications
+               (email, code_hash, display_name, password_hash, key_value,
+                purpose, attempts, expires_at, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)""",
+            (email, code_hash, display_name, password_hash, key_value,
+             purpose, expires_at, _now_iso()),
+        )
+        conn.commit()
+        return cursor.lastrowid or 0
+    except sqlite3.Error as exc:
+        logger.error("create_email_verification failed: %s", exc)
+        conn.rollback()
+        raise
+
+
+def get_email_verification(conn: Any, email: str) -> Optional[dict[str, Any]]:
+    """Return the pending verification row for *email*, or None."""
+    try:
+        row = conn.execute(
+            "SELECT * FROM email_verifications WHERE email = ? ORDER BY id DESC LIMIT 1",
+            (email,),
+        ).fetchone()
+        return dict(row) if row else None
+    except sqlite3.Error as exc:
+        logger.error("get_email_verification failed: %s", exc)
+        raise
+
+
+def bump_verification_attempts(conn: Any, verification_id: int) -> None:
+    try:
+        conn.execute(
+            "UPDATE email_verifications SET attempts = attempts + 1 WHERE id = ?",
+            (verification_id,),
+        )
+        conn.commit()
+    except sqlite3.Error as exc:
+        logger.error("bump_verification_attempts failed: %s", exc)
+
+
+def delete_email_verification(conn: Any, email: str) -> None:
+    try:
+        conn.execute("DELETE FROM email_verifications WHERE email = ?", (email,))
+        conn.commit()
+    except sqlite3.Error as exc:
+        logger.error("delete_email_verification failed: %s", exc)
+
+
+def find_workspace_by_owner_email(conn: Any, email: str) -> Optional[dict[str, Any]]:
+    """Return the active access-key row whose workspace is owned by *email*."""
+    try:
+        row = conn.execute(
+            "SELECT workspace_id FROM app_settings "
+            "WHERE key = 'workspace_owner_email' AND value = ? LIMIT 1",
+            (email,),
+        ).fetchone()
+        if not row:
+            return None
+        key_row = conn.execute(
+            "SELECT * FROM access_keys WHERE id = ? AND is_active = 1",
+            (row["workspace_id"],),
+        ).fetchone()
+        return dict(key_row) if key_row else None
+    except sqlite3.Error as exc:
+        logger.error("find_workspace_by_owner_email failed: %s", exc)
+        raise
 
 
 # ---------------------------------------------------------------------------
