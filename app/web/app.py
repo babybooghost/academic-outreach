@@ -41,6 +41,7 @@ from app.database import (
     get_drafts,
     get_professor,
     get_professors,
+    get_professors_by_ids,
     get_sender_profiles,
     get_setting,
     get_suppression_list,
@@ -137,11 +138,42 @@ def create_app() -> Flask:
     # Admin password from env (for initial admin creation)
     app.config["ADMIN_PASSWORD"] = os.environ.get("ADMIN_PASSWORD", "")
 
+    # Persistence guard: on a serverless host the local filesystem is ephemeral
+    # (Vercel wipes /tmp between deploys/invocations), so without Turso every
+    # redeploy would silently lose all data. Fail loudly rather than quietly.
+    _is_serverless = bool(
+        os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
+    )
+    _has_turso = bool(
+        os.environ.get("TURSO_DATABASE_URL", "").strip()
+        and os.environ.get("TURSO_AUTH_TOKEN", "").strip()
+    )
+    if _is_serverless and not _has_turso:
+        logger.critical(
+            "EPHEMERAL STORAGE: running on a serverless host without TURSO_DATABASE_URL/"
+            "TURSO_AUTH_TOKEN. Data will be LOST on every redeploy. Set the Turso env vars."
+        )
+
     # Ensure database exists
     if cfg:
         init_db(cfg.db_path)
         # Auto-create default admin key if none exist
         _ensure_default_admin_key(cfg.db_path)
+
+    # Jinja filter: render stored ISO timestamps as a clean, readable date/time
+    # instead of leaking raw "2026-06-13T14:32:11.123456" strings into the UI.
+    def _pretty_dt(value: Any, with_time: bool = True) -> str:
+        if not value:
+            return "—"
+        text = str(value)
+        try:
+            dt = datetime.fromisoformat(text.replace("Z", "+00:00"))
+        except ValueError:
+            return text[:16].replace("T", " ")
+        return dt.strftime("%b %-d, %Y %H:%M" if with_time else "%b %-d, %Y")
+
+    app.jinja_env.filters["prettydt"] = _pretty_dt
+    app.jinja_env.filters["prettydate"] = lambda v: _pretty_dt(v, with_time=False)
 
     # Context processor
     @app.context_processor
@@ -657,7 +689,6 @@ def create_app() -> Flask:
     @login_required
     def dashboard():
         workspace_conn = _workspace_conn()
-        auth_conn = _auth_conn()
         try:
             wid = workspace_conn.workspace_id
             prof_rows = workspace_conn.execute(
@@ -683,15 +714,6 @@ def create_app() -> Flask:
                 (wid,),
             ).fetchall()
 
-            recent_activity = auth_conn.execute(
-                """SELECT timestamp, action, target_type AS entity_type,
-                          target_id AS entity_id, details
-                   FROM admin_activity_log
-                   WHERE actor_key_id = ?
-                   ORDER BY id DESC LIMIT 15""",
-                (session.get("key_id"),),
-            ).fetchall()
-
             return render_template(
                 "dashboard.html",
                 prof_counts=prof_counts,
@@ -699,11 +721,9 @@ def create_app() -> Flask:
                 draft_counts=draft_counts,
                 total_drafts=total_drafts,
                 recent_sends=[dict(r) for r in recent_sends],
-                recent_activity=[dict(r) for r in recent_activity],
             )
         finally:
             workspace_conn.close()
-            auth_conn.close()
 
     # ------------------------------------------------------------------
     # Professors
@@ -896,16 +916,28 @@ def create_app() -> Flask:
             drafts = get_drafts(conn, session_id=session_filter,
                                 status=status_filter if status_filter else None)
 
-            prof_ids = {d.professor_id for d in drafts}
-            prof_map: dict[int, str] = {}
-            for pid in prof_ids:
-                p = get_professor(conn, pid)
-                if p:
-                    prof_map[pid] = p.name
+            prof_map: dict[int, str] = {
+                pid: p.name
+                for pid, p in get_professors_by_ids(
+                    conn, {d.professor_id for d in drafts}
+                ).items()
+            }
 
-            all_drafts = get_drafts(conn)
-            sessions = sorted({d.session_id for d in all_drafts})
-            statuses = sorted({d.status for d in all_drafts})
+            # Lightweight DISTINCT lookups for the filter dropdowns — far cheaper
+            # than re-fetching every draft (with full bodies) just for two lists.
+            wid = conn.workspace_id
+            sessions = sorted(
+                r["session_id"] for r in conn.execute(
+                    "SELECT DISTINCT session_id FROM drafts WHERE workspace_id = ?",
+                    (wid,),
+                ).fetchall()
+            )
+            statuses = sorted(
+                r["status"] for r in conn.execute(
+                    "SELECT DISTINCT status FROM drafts WHERE workspace_id = ?",
+                    (wid,),
+                ).fetchall()
+            )
             profiles = get_sender_profiles(conn)
             cfg = _workspace_config(conn)
             variants = list(cfg.generation.template_variants)
@@ -1135,12 +1167,9 @@ def create_app() -> Flask:
             edited = get_drafts(conn, status="edited")
             send_queue = approved + edited
 
-            prof_map: dict[int, Professor] = {}
-            for d in send_queue:
-                if d.professor_id not in prof_map:
-                    p = get_professor(conn, d.professor_id)
-                    if p:
-                        prof_map[d.professor_id] = p
+            prof_map: dict[int, Professor] = get_professors_by_ids(
+                conn, {d.professor_id for d in send_queue}
+            )
 
             # Deliverability guardrails: daily cap + per-draft spam-risk flags.
             from app.deliverability import scan_spam, daily_send_count, cap_status
@@ -1250,11 +1279,10 @@ def create_app() -> Flask:
         try:
             days_since = request.args.get("days_since", default=7, type=int)
             followups, eligible = _followup_overview(conn, days_since)
-            prof_map: dict[int, Professor] = {}
-            for pid in {f.professor_id for f in followups} | {d.professor_id for d in eligible}:
-                p = get_professor(conn, pid)
-                if p:
-                    prof_map[pid] = p
+            prof_map: dict[int, Professor] = get_professors_by_ids(
+                conn,
+                {f.professor_id for f in followups} | {d.professor_id for d in eligible},
+            )
             return render_template(
                 "followups.html", followups=followups, eligible=eligible,
                 prof_map=prof_map, days_since=days_since,
