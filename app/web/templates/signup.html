@@ -64,7 +64,31 @@
                         <a href="{{ url_for('login') }}">Go to login</a>
                         <a href="{{ url_for('homepage') }}">&larr; Back to home</a>
                     </div>
+                    {% elif verify_email %}
+                    <div class="auth-note">
+                        <p>We emailed a 6-digit code to <strong>{{ verify_email }}</strong>. Enter it to finish creating your workspace — it expires in 15 minutes.</p>
+                    </div>
+                    <form method="POST" action="{{ url_for('signup_verify') }}" class="auth-form-stack">
+                        <input type="hidden" name="email" value="{{ verify_email }}">
+                        <div class="form-group">
+                            <label for="code">Verification code</label>
+                            <input type="text" id="code" name="code" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="123456" required autofocus autocomplete="one-time-code">
+                        </div>
+                        <button type="submit" class="btn btn-primary" style="width:100%;">Verify &amp; create account</button>
+                    </form>
+                    <div class="auth-links">
+                        <span><a href="{{ url_for('signup') }}">&larr; Start over</a></span>
+                    </div>
                     {% else %}
+                    {% if google_enabled and not pending_google %}
+                    <a href="{{ url_for('google_login') }}" class="btn btn-outline" style="width:100%;">Sign in with Google</a>
+                    <div class="form-hint" style="text-align:center; margin:0.6rem 0;">— or sign up with email —</div>
+                    {% endif %}
+                    {% if pending_google %}
+                    <div class="auth-note">
+                        <p><strong>{{ pending_google.email }}</strong> is verified via Google. Add the invite code and your name to finish — no password needed.</p>
+                    </div>
+                    {% endif %}
                     <form method="POST" action="{{ url_for('signup') }}" id="signup-form" class="auth-form-stack">
                         {% if invite_required %}
                         <div class="form-group">
@@ -73,15 +97,18 @@
                             <div class="form-hint">Sign-ups are limited to people with the current invite code.</div>
                         </div>
                         {% endif %}
+                        {% if not pending_google %}
                         <div class="form-group">
                             <label for="email">Email Address</label>
                             <input type="email" id="email" name="email" placeholder="you@school.edu" required autofocus autocomplete="email" value="{{ request.form.get('email', '') }}">
                             <div class="form-hint">Used for your account record and recovery requests.</div>
                         </div>
+                        {% endif %}
                         <div class="form-group">
                             <label for="display_name">Display Name</label>
-                            <input type="text" id="display_name" name="display_name" placeholder="How your name should appear inside the workspace" required autocomplete="name" value="{{ request.form.get('display_name', '') }}">
+                            <input type="text" id="display_name" name="display_name" placeholder="How your name should appear inside the workspace" required autocomplete="name" value="{{ request.form.get('display_name', '') or (pending_google.name if pending_google else '') }}">
                         </div>
+                        {% if not pending_google %}
                         <div class="grid-2">
                             <div class="form-group">
                                 <label for="password">Password</label>
@@ -92,7 +119,8 @@
                                 <input type="password" id="password_confirm" name="password_confirm" placeholder="Re-enter password" required minlength="6" autocomplete="new-password">
                             </div>
                         </div>
-                        <button type="submit" class="btn btn-primary" style="width:100%;" id="signup-btn">Create account</button>
+                        {% endif %}
+                        <button type="submit" class="btn btn-primary" style="width:100%;" id="signup-btn">{% if pending_google %}Finish signup{% else %}Create account{% endif %}</button>
                     </form>
 
                     <div class="auth-links">
@@ -142,9 +170,10 @@
     }
 
     const form = document.getElementById('signup-form');
-    if (form) {
+    const pwField = document.getElementById('password');
+    if (form && pwField) {
         form.addEventListener('submit', (e) => {
-            const pw = document.getElementById('password').value;
+            const pw = pwField.value;
             const pw2 = document.getElementById('password_confirm').value;
             if (pw !== pw2) {
                 e.preventDefault();

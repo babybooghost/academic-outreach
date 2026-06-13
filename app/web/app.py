@@ -6,14 +6,18 @@ admin hub, and dark-themed dashboard.
 
 from __future__ import annotations
 
+import base64
 import json
 import os
 import secrets
 import traceback
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import wraps
 from pathlib import Path
 from typing import Any, Optional
+from urllib.parse import urlencode
+
+import requests
 
 from flask import (
     Flask,
@@ -26,12 +30,16 @@ from flask import (
     session,
     url_for,
 )
-from werkzeug.security import generate_password_hash
+from werkzeug.security import check_password_hash, generate_password_hash
 
 from app.config import load_config
 from app.database import (
+    bump_verification_attempts,
     create_access_key,
+    create_email_verification,
     delete_access_key,
+    delete_email_verification,
+    find_workspace_by_owner_email,
     get_access_keys,
     get_admin_activity_log,
     get_admin_activity_stats,
@@ -39,6 +47,7 @@ from app.database import (
     get_connection,
     get_draft,
     get_drafts,
+    get_email_verification,
     get_professor,
     get_professors,
     get_professors_by_ids,
@@ -67,7 +76,9 @@ from app.delivery import (
     run_auto_send_for_workspaces,
     send_ready_queue,
     send_mailbox_test,
+    send_verification_email,
     seed_person_workspace_identity,
+    system_mailbox_ready,
     workspace_config as build_workspace_config,
 )
 
@@ -183,6 +194,7 @@ def create_app() -> Flask:
             "app_version": _APP_VERSION,
             "now": datetime.utcnow(),
             "storage_status": _storage_status(),
+            "google_enabled": _google_enabled(),
         }
 
     # ------------------------------------------------------------------
@@ -397,6 +409,94 @@ def create_app() -> Flask:
     # ------------------------------------------------------------------
     # Auth routes
     # ------------------------------------------------------------------
+    # ------------------------------------------------------------------
+    # Google OAuth + signup helpers
+    # ------------------------------------------------------------------
+    def _google_enabled() -> bool:
+        return bool(
+            os.environ.get("GOOGLE_CLIENT_ID", "").strip()
+            and os.environ.get("GOOGLE_CLIENT_SECRET", "").strip()
+        )
+
+    def _google_redirect_uri() -> str:
+        override = os.environ.get("GOOGLE_REDIRECT_URI", "").strip()
+        if override:
+            return override
+        host = request.host
+        scheme = "http" if host.startswith(("localhost", "127.0.0.1")) else "https"
+        return f"{scheme}://{host}{url_for('google_callback')}"
+
+    def _google_exchange(code: str) -> tuple[str, str, bool]:
+        """Exchange an auth code for the user's (email, name, email_verified)."""
+        client_id = os.environ.get("GOOGLE_CLIENT_ID", "").strip()
+        token_resp = requests.post(
+            "https://oauth2.googleapis.com/token",
+            data={
+                "code": code,
+                "client_id": client_id,
+                "client_secret": os.environ.get("GOOGLE_CLIENT_SECRET", "").strip(),
+                "redirect_uri": _google_redirect_uri(),
+                "grant_type": "authorization_code",
+            },
+            timeout=20,
+        )
+        token_resp.raise_for_status()
+        id_token = token_resp.json().get("id_token", "")
+        parts = id_token.split(".")
+        if len(parts) != 3:
+            raise ValueError("malformed id_token")
+        # The token came directly from Google's HTTPS token endpoint, so parsing
+        # the payload (not user-supplied) is safe; we still check the audience.
+        payload = parts[1] + "=" * (-len(parts[1]) % 4)
+        claims = json.loads(base64.urlsafe_b64decode(payload))
+        if claims.get("aud") != client_id:
+            raise ValueError("audience mismatch")
+        email = (claims.get("email") or "").strip().lower()
+        name = (claims.get("name") or (email.split("@", 1)[0] if email else "")).strip()
+        verified = bool(claims.get("email_verified"))
+        return email, name, verified
+
+    def _complete_user_login(key_row: dict[str, Any]) -> None:
+        """Set the session for a normal (non-admin) user workspace."""
+        session["authenticated"] = True
+        session["key_id"] = key_row["id"]
+        session["key_label"] = key_row.get("label", "")
+        session["role"] = key_row.get("role", "user")
+
+    def _create_signup_account(
+        conn: Any, email: str, display_name: str,
+        *, password_hash: Optional[str] = None, key_value: Optional[str] = None,
+    ) -> tuple[str, int]:
+        """Create the user_signups row + access key + workspace identity."""
+        if password_hash is None:  # Google users never set a password (login is by key)
+            password_hash = generate_password_hash(
+                "ao_" + secrets.token_hex(16), method="pbkdf2:sha256")
+        if key_value is None:
+            key_value = "ao_" + secrets.token_hex(24)
+        conn.execute(
+            """INSERT INTO user_signups
+               (email, display_name, password_hash, key_value, created_at)
+               VALUES (?, ?, ?, ?, ?)""",
+            (email, display_name, password_hash, key_value, datetime.utcnow().isoformat()),
+        )
+        conn.commit()
+        key_id = create_access_key(
+            conn, key_value, display_name, "user", created_by=f"signup:{email}")
+        _seed_workspace_identity(key_id, email=email, display_name=display_name)
+        ip = request.headers.get("X-Forwarded-For", request.remote_addr)
+        if ip and "," in ip:
+            ip = ip.split(",")[0].strip()
+        log_admin_activity(
+            conn, actor_key_id=None, actor_label=display_name, actor_role="user",
+            action="user_signup", category="auth", target_type="access_key",
+            target_id=None, details={"email": email, "display_name": display_name},
+            ip_address=ip, user_agent=request.headers.get("User-Agent", "")[:500],
+            request_method=request.method, request_path=request.path,
+            session_id=None, response_code=None,
+        )
+        logger.info("New signup: %s (%s)", display_name, email)
+        return key_value, key_id
+
     @app.route("/login", methods=["GET", "POST"])
     def login():
         if session.get("authenticated"):
@@ -452,98 +552,83 @@ def create_app() -> Flask:
 
         error = None
         access_key = None
+        cfg = app.config.get("APP_CFG")
+        pending_google = session.get("pending_google")
 
         # Optional invite gate so only people with the shared code can register
         # (signups consume the workspace owner's LLM API key).
         required_invite = os.environ.get("SIGNUP_INVITE_CODE", "").strip()
 
         if request.method == "POST":
-            email = request.form.get("email", "").strip()
+            invite_code = request.form.get("invite_code", "").strip()
             display_name = request.form.get("display_name", "").strip()
+            # Google-verified signups carry their email in the session, not the form.
+            if pending_google:
+                email = (pending_google.get("email") or "").strip()
+            else:
+                email = request.form.get("email", "").strip()
             password = request.form.get("password", "")
             password_confirm = request.form.get("password_confirm", "")
-            invite_code = request.form.get("invite_code", "").strip()
 
             if required_invite and not secrets.compare_digest(invite_code, required_invite):
                 error = "That invite code is not valid. Ask the workspace owner for the current code."
-                _log_activity(
-                    "signup_invalid_invite", category="auth",
-                    details={"email": email[:80]},
-                )
+                _log_activity("signup_invalid_invite", category="auth", details={"email": email[:80]})
             elif not email or not display_name:
                 error = "Email and display name are required."
-            elif len(password) < 6:
+            elif not pending_google and len(password) < 6:
                 error = "Password must be at least 6 characters."
-            elif password != password_confirm:
+            elif not pending_google and password != password_confirm:
                 error = "Passwords do not match."
             else:
                 conn = _auth_conn()
                 try:
-                    # Check if email already registered
                     existing = conn.execute(
                         "SELECT id FROM user_signups WHERE email = ?", (email,)
                     ).fetchone()
                     if existing:
                         error = "This email is already registered. Use your existing key to log in."
+                    elif pending_google:
+                        # Google already proved the email — create the account and
+                        # sign in immediately (no password, no email code needed).
+                        _, key_id = _create_signup_account(conn, email, display_name)
+                        session.pop("pending_google", None)
+                        key_row = conn.execute(
+                            "SELECT * FROM access_keys WHERE id = ?", (key_id,)
+                        ).fetchone()
+                        _complete_user_login(dict(key_row))
+                        _log_activity("user_signup", category="auth",
+                                      details={"email": email, "via": "google"})
+                        return redirect(url_for("dashboard"))
                     else:
-                        # Salted, slow password hash. pbkdf2:sha256 is portable
-                        # (Werkzeug's newer scrypt default needs OpenSSL 1.1+,
-                        # which some runtimes lack). Replaces the old SHA-256.
-                        pw_hash = generate_password_hash(
-                            password, method="pbkdf2:sha256"
-                        )
-
-                        # Generate access key
+                        pw_hash = generate_password_hash(password, method="pbkdf2:sha256")
                         key_value = "ao_" + secrets.token_hex(24)
-
-                        # Store signup record
-                        conn.execute(
-                            """INSERT INTO user_signups
-                               (email, display_name, password_hash, key_value, created_at)
-                               VALUES (?, ?, ?, ?, ?)""",
-                            (email, display_name, pw_hash, key_value,
-                             datetime.utcnow().isoformat()),
-                        )
-                        conn.commit()
-
-                        # Create the actual access key
-                        key_id = create_access_key(
-                            conn, key_value, display_name, "user",
-                            created_by=f"signup:{email}",
-                        )
-                        _seed_workspace_identity(
-                            key_id,
-                            email=email,
-                            display_name=display_name,
-                        )
-
-                        # Log signup in admin activity
-                        ip = request.headers.get("X-Forwarded-For", request.remote_addr)
-                        if ip and "," in ip:
-                            ip = ip.split(",")[0].strip()
-                        log_admin_activity(
-                            conn,
-                            actor_key_id=None,
-                            actor_label=display_name,
-                            actor_role="user",
-                            action="user_signup",
-                            category="auth",
-                            target_type="access_key",
-                            target_id=None,
-                            details={
-                                "email": email,
-                                "display_name": display_name,
-                            },
-                            ip_address=ip,
-                            user_agent=request.headers.get("User-Agent", "")[:500],
-                            request_method=request.method,
-                            request_path=request.path,
-                            session_id=None,
-                            response_code=None,
-                        )
-
-                        access_key = key_value
-                        logger.info("New signup: %s (%s)", display_name, email)
+                        verify_on = parse_bool(
+                            os.environ.get("SIGNUP_EMAIL_VERIFICATION"), default=False)
+                        if cfg and verify_on and system_mailbox_ready(cfg):
+                            # Email-verification phase: stash the pending signup and
+                            # mail a 6-digit code; the account is created on /verify.
+                            verify_code = f"{secrets.randbelow(900000) + 100000}"
+                            create_email_verification(
+                                conn, email=email,
+                                code_hash=generate_password_hash(verify_code, method="pbkdf2:sha256"),
+                                display_name=display_name, password_hash=pw_hash,
+                                key_value=key_value,
+                                expires_at=(datetime.utcnow() + timedelta(minutes=15)).isoformat(),
+                            )
+                            if send_verification_email(cfg, email, verify_code):
+                                _log_activity("signup_code_sent", category="auth",
+                                              details={"email": email[:80]})
+                                return render_template(
+                                    "signup.html", verify_email=email,
+                                    invite_required=bool(required_invite),
+                                )
+                            delete_email_verification(conn, email)
+                            error = "Could not send the verification email. Try again in a moment."
+                        else:
+                            # No system mailbox configured — create directly (fallback).
+                            _create_signup_account(conn, email, display_name,
+                                                   password_hash=pw_hash, key_value=key_value)
+                            access_key = key_value
                 except Exception as exc:
                     logger.exception("Signup failed")
                     error = f"Signup failed: {exc}"
@@ -552,8 +637,113 @@ def create_app() -> Flask:
 
         return render_template(
             "signup.html", error=error, access_key=access_key,
-            invite_required=bool(required_invite),
+            invite_required=bool(required_invite), pending_google=pending_google,
         )
+
+    @app.route("/signup/verify", methods=["POST"])
+    def signup_verify():
+        if session.get("authenticated"):
+            return redirect(url_for("dashboard"))
+        required_invite = os.environ.get("SIGNUP_INVITE_CODE", "").strip()
+        email = request.form.get("email", "").strip()
+        code = request.form.get("code", "").strip()
+        error = None
+        access_key = None
+        conn = _auth_conn()
+        try:
+            record = get_email_verification(conn, email)
+            if not record:
+                error = "No pending verification for that email. Start signup again."
+            elif record["expires_at"] < datetime.utcnow().isoformat():
+                delete_email_verification(conn, email)
+                error = "That code expired. Start signup again."
+            elif int(record["attempts"]) >= 5:
+                delete_email_verification(conn, email)
+                error = "Too many incorrect attempts. Start signup again."
+            elif not code or not check_password_hash(record["code_hash"], code):
+                bump_verification_attempts(conn, int(record["id"]))
+                error = "Incorrect code. Check the email and try again."
+            else:
+                _create_signup_account(
+                    conn, email, record["display_name"],
+                    password_hash=record["password_hash"], key_value=record["key_value"],
+                )
+                delete_email_verification(conn, email)
+                access_key = record["key_value"]
+                _log_activity("signup_verified", category="auth", details={"email": email[:80]})
+        except Exception as exc:
+            logger.exception("Signup verification failed")
+            error = f"Verification failed: {exc}"
+        finally:
+            conn.close()
+
+        if access_key:
+            return render_template("signup.html", access_key=access_key,
+                                   invite_required=bool(required_invite))
+        return render_template("signup.html", verify_email=email, error=error,
+                               invite_required=bool(required_invite))
+
+    @app.route("/auth/google/login")
+    def google_login():
+        if not _google_enabled():
+            flash("Google sign-in is not configured.", "error")
+            return redirect(url_for("login"))
+        state = secrets.token_urlsafe(24)
+        session["oauth_state"] = state
+        params = {
+            "client_id": os.environ.get("GOOGLE_CLIENT_ID", "").strip(),
+            "redirect_uri": _google_redirect_uri(),
+            "response_type": "code",
+            "scope": "openid email profile",
+            "state": state,
+            "access_type": "online",
+            "prompt": "select_account",
+        }
+        return redirect("https://accounts.google.com/o/oauth2/v2/auth?" + urlencode(params))
+
+    @app.route("/auth/google/callback")
+    def google_callback():
+        if not _google_enabled():
+            return redirect(url_for("login"))
+        if request.args.get("error"):
+            flash("Google sign-in was cancelled.", "error")
+            return redirect(url_for("login"))
+        state = request.args.get("state", "")
+        if not state or state != session.pop("oauth_state", None):
+            flash("Sign-in session expired. Please try again.", "error")
+            return redirect(url_for("login"))
+        code = request.args.get("code", "")
+        if not code:
+            return redirect(url_for("login"))
+        try:
+            email, name, verified = _google_exchange(code)
+        except Exception as exc:
+            logger.warning("Google token exchange failed: %s", exc)
+            flash("Could not complete Google sign-in. Please try again.", "error")
+            return redirect(url_for("login"))
+        if not email or not verified:
+            flash("Your Google account email isn't verified.", "error")
+            return redirect(url_for("login"))
+
+        conn = _auth_conn()
+        try:
+            key_row = find_workspace_by_owner_email(conn, email)
+        finally:
+            conn.close()
+
+        if key_row:
+            if key_row.get("role") == "admin":
+                flash("Admin accounts must use the admin login.", "error")
+                return redirect(url_for("login"))
+            _complete_user_login(key_row)
+            _log_activity("user_login", category="auth",
+                          details={"label": key_row.get("label", ""), "via": "google"})
+            return redirect(url_for("dashboard"))
+
+        # New email → invite-gated signup with the address pre-verified by Google.
+        session["pending_google"] = {"email": email, "name": name}
+        flash("Google verified your email — enter the invite code to finish creating your workspace.", "success")
+        return redirect(url_for("signup"))
 
     @app.route("/logout")
     def logout():
