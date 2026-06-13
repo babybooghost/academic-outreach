@@ -9,6 +9,6 @@ flask>=3.0.0
 requests>=2.31.0
 beautifulsoup4>=4.12.0
 
-# Persistent cloud storage on Vercel (Turso / libsql). Linux wheels install
-# cleanly on Vercel; only the local Windows dev install skips it.
-libsql-experimental>=0.0.37
+# Persistent cloud storage (Turso) is reached over its HTTP pipeline API in
+# app/database.py — pure stdlib, no native driver needed. Set
+# TURSO_DATABASE_URL + TURSO_AUTH_TOKEN to enable it.

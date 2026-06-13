@@ -39,8 +39,18 @@ from app.models import (
 logger: logging.Logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Turso / libsql support
+# Turso support (pure-Python HTTP adapter)
 # ---------------------------------------------------------------------------
+# We talk to Turso over its HTTP "pipeline" API instead of the native
+# ``libsql_experimental`` driver. The native driver is a Rust extension with
+# patchy wheel coverage that fails to install on many serverless builders;
+# the HTTP path needs no native dependency and is a drop-in for the small
+# sqlite3 surface this app uses (``execute`` + ``fetchone/fetchall`` +
+# ``lastrowid`` + ``commit``). Statements autocommit per call.
+
+import base64 as _base64
+import json as _json
+import urllib.request as _urllib_request
 
 _TURSO_URL: str = os.environ.get("TURSO_DATABASE_URL", "")
 _TURSO_TOKEN: str = os.environ.get("TURSO_AUTH_TOKEN", "")
@@ -51,21 +61,144 @@ def _is_turso_configured() -> bool:
     return bool(_TURSO_URL and _TURSO_TOKEN)
 
 
+def _turso_http_endpoint() -> str:
+    """Convert a libsql:// database URL into its https pipeline endpoint."""
+    url = _TURSO_URL.strip()
+    if url.startswith("libsql://"):
+        url = "https://" + url[len("libsql://"):]
+    elif url.startswith("wss://"):
+        url = "https://" + url[len("wss://"):]
+    elif url.startswith("ws://"):
+        url = "http://" + url[len("ws://"):]
+    return url.rstrip("/") + "/v2/pipeline"
+
+
+class _TursoRow:
+    """sqlite3.Row-like: supports row["col"], row[idx], dict(row)."""
+
+    __slots__ = ("_cols", "_vals")
+
+    def __init__(self, cols: list[str], vals: list[Any]) -> None:
+        self._cols = cols
+        self._vals = vals
+
+    def __getitem__(self, key: Any) -> Any:
+        if isinstance(key, int):
+            return self._vals[key]
+        return self._vals[self._cols.index(key)]
+
+    def keys(self) -> list[str]:
+        return list(self._cols)
+
+    def __iter__(self):
+        return iter(self._vals)
+
+    def __len__(self) -> int:
+        return len(self._vals)
+
+
+class _TursoCursor:
+    def __init__(self, rows: list[_TursoRow], lastrowid: Optional[int], rowcount: int) -> None:
+        self._rows = rows
+        self.lastrowid = lastrowid
+        self.rowcount = rowcount
+
+    def fetchone(self) -> Optional[_TursoRow]:
+        return self._rows[0] if self._rows else None
+
+    def fetchall(self) -> list[_TursoRow]:
+        return list(self._rows)
+
+    def __iter__(self):
+        return iter(self._rows)
+
+
+def _to_arg(value: Any) -> dict[str, Any]:
+    """Encode a Python value as a Turso pipeline argument."""
+    if value is None:
+        return {"type": "null", "value": None}
+    if isinstance(value, bool):
+        return {"type": "integer", "value": str(int(value))}
+    if isinstance(value, int):
+        return {"type": "integer", "value": str(value)}
+    if isinstance(value, float):
+        return {"type": "float", "value": value}
+    if isinstance(value, (bytes, bytearray)):
+        return {"type": "blob", "base64": _base64.b64encode(bytes(value)).decode()}
+    return {"type": "text", "value": str(value)}
+
+
+def _from_cell(cell: dict[str, Any]) -> Any:
+    """Decode a Turso pipeline result cell into a Python value."""
+    t = cell.get("type")
+    v = cell.get("value")
+    if t == "null":
+        return None
+    if t == "integer":
+        return int(v)
+    if t == "float":
+        return float(v)
+    if t == "blob":
+        return _base64.b64decode(cell.get("base64", ""))
+    return v
+
+
+class _TursoHTTPConnection:
+    """Minimal sqlite3-compatible connection backed by Turso's HTTP API."""
+
+    def __init__(self) -> None:
+        self._endpoint = _turso_http_endpoint()
+        self.row_factory = None  # accepted for compatibility; rows are Row-like
+
+    def _pipeline(self, statements: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        requests_list = [{"type": "execute", "stmt": s} for s in statements]
+        requests_list.append({"type": "close"})
+        payload = _json.dumps({"requests": requests_list}).encode()
+        req = _urllib_request.Request(
+            self._endpoint, data=payload,
+            headers={"Authorization": f"Bearer {_TURSO_TOKEN}",
+                     "Content-Type": "application/json"},
+        )
+        with _urllib_request.urlopen(req, timeout=30) as resp:
+            data = _json.load(resp)
+        results = data.get("results", [])
+        for item in results:
+            if item.get("type") == "error":
+                msg = item.get("error", {}).get("message", "Turso error")
+                raise sqlite3.OperationalError(msg)
+        return results
+
+    def execute(self, sql: str, params: Any = ()) -> _TursoCursor:
+        stmt: dict[str, Any] = {"sql": sql}
+        if params:
+            stmt["args"] = [_to_arg(p) for p in params]
+        results = self._pipeline([stmt])
+        result = results[0]["response"]["result"]
+        cols = [c.get("name") for c in result.get("cols", [])]
+        rows = [_TursoRow(cols, [_from_cell(c) for c in r]) for r in result.get("rows", [])]
+        last = result.get("last_insert_rowid")
+        lastrowid = int(last) if last not in (None, "") else None
+        return _TursoCursor(rows, lastrowid, int(result.get("affected_row_count", 0) or 0))
+
+    def executescript_batch(self, statements: list[str]) -> None:
+        """Run many statements in a single round trip (used for schema setup)."""
+        self._pipeline([{"sql": s} for s in statements if s and s.strip()])
+
+    def commit(self) -> None:
+        # Each execute autocommits over the pipeline API; nothing to flush.
+        pass
+
+    def rollback(self) -> None:
+        pass
+
+    def close(self) -> None:
+        pass
+
+
 def _get_turso_connection() -> Any:
-    """Return a libsql connection to Turso (API-compatible with sqlite3)."""
+    """Return an HTTP-backed Turso connection (sqlite3-compatible subset)."""
     try:
-        import libsql_experimental as libsql  # type: ignore[import-untyped]
-        conn = libsql.connect(
-            database=_TURSO_URL,
-            auth_token=_TURSO_TOKEN,
-        )
-        conn.row_factory = sqlite3.Row
-        return conn
-    except ImportError:
-        raise RuntimeError(
-            "libsql_experimental is not installed. "
-            "Install with: pip install libsql-experimental"
-        )
+        return _TursoHTTPConnection()
     except Exception as exc:
         logger.error("Failed to connect to Turso: %s", exc)
         raise
@@ -210,13 +343,13 @@ def init_db(db_path: str) -> None:
     """Create all tables (idempotent), migrate, and enable WAL journal mode."""
     conn = get_connection(db_path)
     try:
-        if not _is_turso_configured():
+        statements = [s.strip() for s in _SCHEMA_SQL.strip().split(";") if s.strip()]
+        if _is_turso_configured():
+            # One round trip for all CREATE TABLE statements (fast cold start).
+            conn.executescript_batch(statements)
+        else:
             conn.execute("PRAGMA journal_mode = WAL")
-
-        # Execute each CREATE TABLE separately for libsql compatibility
-        for statement in _SCHEMA_SQL.strip().split(";"):
-            statement = statement.strip()
-            if statement:
+            for statement in statements:
                 conn.execute(statement)
         conn.commit()
         _migrate_schema(conn)
