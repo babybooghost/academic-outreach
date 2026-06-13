@@ -1165,11 +1165,11 @@ def create_app() -> Flask:
     # Settings
     # ------------------------------------------------------------------
     _LLM_MODELS: dict[str, str] = {
-        "google/gemini-2.5-flash-preview": "Gemini 2.5 Flash",
-        "google/gemini-2.5-pro-preview": "Gemini 2.5 Pro",
-        "anthropic/claude-haiku-4-5-20251001": "Claude Haiku",
-        "anthropic/claude-sonnet-4-6": "Claude Sonnet",
-        "anthropic/claude-opus-4-6": "Claude Opus",
+        "google/gemini-2.5-flash": "Gemini 2.5 Flash",
+        "google/gemini-2.5-pro": "Gemini 2.5 Pro",
+        "anthropic/claude-haiku-4.5": "Claude Haiku 4.5",
+        "anthropic/claude-sonnet-4.6": "Claude Sonnet 4.6",
+        "anthropic/claude-opus-4.6": "Claude Opus 4.6",
     }
 
     _EMAIL_PROVIDERS: dict[str, str] = {
@@ -1192,7 +1192,7 @@ def create_app() -> Flask:
                 "sender_email": cfg.sender_email if cfg else "",
                 "llm_provider": cfg.llm_provider if cfg else "",
                 "llm_api_key_set": bool((cfg.llm_api_key if cfg else "") or os.environ.get("LLM_API_KEY", "")),
-                "llm_model": cfg.llm_model if cfg else "google/gemini-2.5-flash-preview",
+                "llm_model": cfg.llm_model if cfg else "google/gemini-2.5-flash",
                 "email_provider": cfg.email_provider if cfg else "gmail",
                 "smtp_user": cfg.smtp_user if cfg else "",
                 "smtp_password": cfg.smtp_password if cfg else "",
