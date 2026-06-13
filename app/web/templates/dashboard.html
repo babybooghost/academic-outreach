@@ -93,7 +93,7 @@
                                 <td>{{ send.professor_name }}</td>
                                 <td><code>{{ send.method }}</code></td>
                                 <td><span class="badge badge-{{ send.status }}">{{ send.status }}</span></td>
-                                <td>{{ send.sent_at }}</td>
+                                <td>{{ send.sent_at | prettydt }}</td>
                             </tr>
                             {% endfor %}
                         </tbody>

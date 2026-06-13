@@ -49,8 +49,10 @@ logger: logging.Logger = logging.getLogger(__name__)
 # ``lastrowid`` + ``commit``). Statements autocommit per call.
 
 import base64 as _base64
+import http.client as _http_client
 import json as _json
 import urllib.request as _urllib_request
+from urllib.parse import urlparse as _urlparse
 
 _TURSO_URL: str = os.environ.get("TURSO_DATABASE_URL", "")
 _TURSO_TOKEN: str = os.environ.get("TURSO_AUTH_TOKEN", "")
@@ -148,19 +150,63 @@ class _TursoHTTPConnection:
 
     def __init__(self) -> None:
         self._endpoint = _turso_http_endpoint()
+        parsed = _urlparse(self._endpoint)
+        self._host = parsed.hostname or ""
+        self._port = parsed.port or 443
+        self._path = parsed.path or "/v2/pipeline"
+        # One persistent HTTPS socket reused across every execute() on this
+        # connection. Turso queries are individual round trips, so without
+        # keep-alive each one pays a fresh TCP + TLS handshake; a page that
+        # runs several queries would handshake several times. We open the
+        # socket lazily and transparently reconnect if it goes stale.
+        self._http: Optional[_http_client.HTTPSConnection] = None
         self.row_factory = None  # accepted for compatibility; rows are Row-like
+
+    def _http_conn(self) -> _http_client.HTTPSConnection:
+        if self._http is None:
+            self._http = _http_client.HTTPSConnection(
+                self._host, self._port, timeout=30
+            )
+        return self._http
+
+    def _drop_http(self) -> None:
+        if self._http is not None:
+            try:
+                self._http.close()
+            except Exception:
+                pass
+            self._http = None
 
     def _pipeline(self, statements: list[dict[str, Any]]) -> list[dict[str, Any]]:
         requests_list = [{"type": "execute", "stmt": s} for s in statements]
         requests_list.append({"type": "close"})
         payload = _json.dumps({"requests": requests_list}).encode()
-        req = _urllib_request.Request(
-            self._endpoint, data=payload,
-            headers={"Authorization": f"Bearer {_TURSO_TOKEN}",
-                     "Content-Type": "application/json"},
-        )
-        with _urllib_request.urlopen(req, timeout=30) as resp:
-            data = _json.load(resp)
+        headers = {
+            "Authorization": f"Bearer {_TURSO_TOKEN}",
+            "Content-Type": "application/json",
+        }
+        # Try the live socket; on a stale/closed keep-alive connection retry
+        # once with a fresh one before giving up.
+        last_exc: Optional[Exception] = None
+        for attempt in (1, 2):
+            try:
+                conn = self._http_conn()
+                conn.request("POST", self._path, body=payload, headers=headers)
+                resp = conn.getresponse()
+                body = resp.read()
+                if resp.status >= 400:
+                    raise sqlite3.OperationalError(
+                        f"Turso HTTP {resp.status}: {body[:300].decode('utf-8', 'replace')}"
+                    )
+                data = _json.loads(body)
+                break
+            except sqlite3.OperationalError:
+                raise
+            except (OSError, _http_client.HTTPException) as exc:
+                last_exc = exc
+                self._drop_http()  # stale socket — reconnect on the next pass
+        else:
+            raise sqlite3.OperationalError(f"Turso request failed: {last_exc}")
         results = data.get("results", [])
         for item in results:
             if item.get("type") == "error":
@@ -192,7 +238,7 @@ class _TursoHTTPConnection:
         pass
 
     def close(self) -> None:
-        pass
+        self._drop_http()
 
 
 def _get_turso_connection() -> Any:
@@ -629,6 +675,33 @@ def get_professors(
         return [Professor.from_row(r) for r in rows]
     except sqlite3.Error as exc:
         logger.error("get_professors failed: %s", exc)
+        raise
+
+
+def get_professors_by_ids(conn: Any, ids: Any) -> dict[int, Professor]:
+    """Fetch many professors by id in a single query, keyed by id.
+
+    Replaces per-row ``get_professor`` loops (each of which is a network round
+    trip on Turso) with one ``IN (...)`` lookup. Returns only ids that exist in
+    the active workspace.
+    """
+    id_list = [int(i) for i in {i for i in ids if i is not None}]
+    if not id_list:
+        return {}
+    try:
+        placeholders = ",".join("?" for _ in id_list)
+        rows = conn.execute(
+            f"SELECT * FROM professors WHERE workspace_id = ? AND id IN ({placeholders})",
+            [_ws(conn), *id_list],
+        ).fetchall()
+        result: dict[int, Professor] = {}
+        for r in rows:
+            prof = Professor.from_row(r)
+            if prof and prof.id is not None:
+                result[prof.id] = prof
+        return result
+    except sqlite3.Error as exc:
+        logger.error("get_professors_by_ids failed: %s", exc)
         raise
 
 
