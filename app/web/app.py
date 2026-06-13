@@ -1274,6 +1274,55 @@ def create_app() -> Flask:
         finally:
             conn.close()
 
+    @app.route("/settings/test-ai", methods=["POST"])
+    @login_required
+    def settings_test_ai():
+        """Prove the configured AI provider/model/key can actually generate.
+
+        Runs one tiny completion so a bad key or a retired model slug surfaces
+        here instead of silently breaking draft generation later.
+        """
+        conn = _workspace_conn()
+        try:
+            cfg = _workspace_config(conn)
+            provider = (cfg.llm_provider or "").strip()
+            api_key = (cfg.llm_api_key or os.environ.get("LLM_API_KEY", "")).strip()
+            model = cfg.llm_model
+            if not provider or not api_key:
+                flash(
+                    "AI is in keyword-only mode: set an LLM provider and API key "
+                    "(or the LLM_API_KEY env var) to generate personalized drafts.",
+                    "warning",
+                )
+                return redirect(url_for("settings_page"))
+
+            from app.summarizer import LLMSummarizer
+            client = LLMSummarizer(provider=provider, api_key=api_key, model=model)
+            reply = client._call_llm(
+                "Reply with exactly the word: ready"
+            )
+            ok = "ready" in (reply or "").lower()
+            _log_activity(
+                "ai_test", category="settings",
+                details={"provider": provider, "model": model, "ok": ok},
+            )
+            if ok or reply:
+                flash(f"AI is working — {model} responded successfully.", "success")
+            else:
+                flash(f"AI call to {model} returned an empty response.", "error")
+            return redirect(url_for("settings_page"))
+        except Exception as exc:
+            _log_activity("ai_test", category="settings",
+                          details={"model": locals().get("model"), "ok": False, "error": str(exc)[:200]})
+            flash(
+                f"AI test failed for {locals().get('model', 'the configured model')}: "
+                f"{exc}. Check the API key and that the model name is current.",
+                "error",
+            )
+            return redirect(url_for("settings_page"))
+        finally:
+            conn.close()
+
     @app.route("/settings/auto-send/<action>", methods=["POST"])
     @login_required
     def settings_auto_send_action(action: str):
