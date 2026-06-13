@@ -25,8 +25,10 @@ class LLMSummarizerTests(unittest.TestCase):
             )
 
         sent_prompt = mock_call.call_args.args[0]
-        self.assertIn('{"keywords": [...], "summary": "..."}', sent_prompt)
-        self.assertIn("Text: Research text about AI verification", sent_prompt)
+        # Literal JSON braces must survive str.format() (i.e. {{ }} escaping works).
+        self.assertIn('{"keywords":', sent_prompt)
+        self.assertIn('"summary": "..."}', sent_prompt)
+        self.assertIn("Research text about AI verification", sent_prompt)
         self.assertEqual(keywords, ["ai", "verification"])
         self.assertEqual(summary, "Studies trustworthy AI.")
 

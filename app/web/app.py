@@ -733,6 +733,50 @@ def create_app() -> Flask:
         finally:
             conn.close()
 
+    @app.route("/professors/import", methods=["POST"])
+    @login_required
+    def professors_import():
+        """Import professors from an uploaded CSV into this workspace."""
+        upload = request.files.get("csv_file")
+        if not upload or not upload.filename:
+            flash("Choose a CSV file to import.", "error")
+            return redirect(url_for("professors_list"))
+
+        raw = upload.read()
+        if len(raw) > 5 * 1024 * 1024:
+            flash("That file is larger than 5 MB. Split it into smaller batches.", "error")
+            return redirect(url_for("professors_list"))
+
+        import csv as _csv
+        import io as _io
+        try:
+            text = raw.decode("utf-8-sig", errors="replace")
+            rows = list(_csv.DictReader(_io.StringIO(text)))
+        except Exception as exc:
+            flash(f"Could not read that CSV: {exc}", "error")
+            return redirect(url_for("professors_list"))
+
+        from app.csv_loader import import_professor_rows
+        conn = _workspace_conn()
+        try:
+            imported, skipped, warnings = import_professor_rows(conn, rows)
+        finally:
+            conn.close()
+
+        _log_activity(
+            "csv_import", category="professors",
+            details={"imported": imported, "skipped": skipped, "filename": upload.filename[:120]},
+        )
+        if imported:
+            msg = f"Imported {imported} professor(s); skipped {skipped}."
+            if warnings:
+                msg += f" {len(warnings)} row note(s) — e.g. {warnings[0]}"
+            flash(msg, "success")
+        else:
+            detail = warnings[0] if warnings else "No valid rows found."
+            flash(f"Nothing imported. {detail}", "warning")
+        return redirect(url_for("professors_list"))
+
     @app.route("/professors/<int:prof_id>")
     @login_required
     def professor_detail(prof_id: int):
@@ -961,7 +1005,10 @@ def create_app() -> Flask:
                 flash("Draft not found.", "error")
                 return redirect(url_for("drafts_list"))
             prof = get_professor(conn, draft.professor_id)
-            return render_template("draft_detail.html", draft=draft, professor=prof)
+            from app.deliverability import scan_spam
+            subject = draft.subject_lines_list[0] if draft.subject_lines_list else ""
+            spam_flags = scan_spam(f"{subject}\n{draft.body}")
+            return render_template("draft_detail.html", draft=draft, professor=prof, spam_flags=spam_flags)
         finally:
             conn.close()
 
@@ -1002,6 +1049,43 @@ def create_app() -> Flask:
             return jsonify({"error": str(exc)}), 500
         finally:
             conn.close()
+
+    @app.route("/drafts/bulk", methods=["POST"])
+    @login_required
+    def bulk_draft_action():
+        """Approve or reject every draft in the current filtered view at once."""
+        action = request.form.get("action", "")
+        if action not in {"approve", "reject"}:
+            flash("Unknown bulk action.", "error")
+            return redirect(url_for("drafts_list"))
+        session_id = request.form.get("session", type=int)
+        status_filter = request.form.get("status") or None
+        new_status = "approved" if action == "approve" else "rejected"
+
+        conn = _workspace_conn()
+        try:
+            drafts = get_drafts(conn, session_id=session_id, status=status_filter)
+            # Don't touch already-sent drafts; don't re-approve rejected ones in bulk.
+            skip = {"sent", new_status}
+            changed = 0
+            for d in drafts:
+                if d.status in skip:
+                    continue
+                update_draft_status(conn, d.id, new_status)
+                changed += 1
+            _log_activity(
+                "draft_bulk_" + action, category="drafts",
+                details={"changed": changed, "session": session_id, "status_filter": status_filter},
+            )
+            if changed:
+                flash(f"{action.capitalize()}d {changed} draft(s).", "success")
+            else:
+                flash("No drafts matched that bulk action.", "warning")
+        except Exception as exc:
+            flash(f"Bulk action failed: {exc}", "error")
+        finally:
+            conn.close()
+        return redirect(url_for("drafts_list", session=session_id or "", status=status_filter or ""))
 
     @app.route("/drafts/<int:draft_id>/edit", methods=["POST"])
     @login_required
@@ -1058,7 +1142,20 @@ def create_app() -> Flask:
                     if p:
                         prof_map[d.professor_id] = p
 
-            return render_template("send.html", send_queue=send_queue, prof_map=prof_map)
+            # Deliverability guardrails: daily cap + per-draft spam-risk flags.
+            from app.deliverability import scan_spam, daily_send_count, cap_status
+            spam_flags: dict[int, list[str]] = {}
+            for d in send_queue:
+                subject = d.subject_lines_list[0] if d.subject_lines_list else ""
+                flags = scan_spam(f"{subject}\n{d.body}")
+                if flags:
+                    spam_flags[d.id] = flags
+            caps = cap_status(daily_send_count(conn), len(send_queue))
+
+            return render_template(
+                "send.html", send_queue=send_queue, prof_map=prof_map,
+                spam_flags=spam_flags, caps=caps,
+            )
         finally:
             conn.close()
 
@@ -1112,6 +1209,97 @@ def create_app() -> Flask:
                 return jsonify({"success": False, "error": "Sender module not available"}), 500
         except Exception as exc:
             return jsonify({"error": str(exc)}), 500
+        finally:
+            conn.close()
+
+    # ------------------------------------------------------------------
+    # Follow-ups (7-10 day nudge scheduler)
+    # ------------------------------------------------------------------
+    def _followup_overview(conn, days_since: int = 7):
+        """Return (existing_followups, drafts_due_for_followup) for the workspace."""
+        from app.database import get_followups
+        followups = get_followups(conn)
+        already = {f.original_draft_id for f in followups}
+
+        sent_map: dict[int, str] = {}
+        try:
+            for r in conn.execute(
+                "SELECT draft_id, MAX(sent_at) AS s FROM send_log "
+                "WHERE workspace_id = ? AND status = 'success' GROUP BY draft_id",
+                (conn.workspace_id,),
+            ).fetchall():
+                sent_map[r["draft_id"]] = r["s"]
+        except Exception:
+            pass
+
+        from datetime import timedelta as _td
+        cutoff = (datetime.utcnow() - _td(days=max(0, days_since))).isoformat()
+        eligible = []
+        for d in get_drafts(conn, status="sent"):
+            if d.id in already:
+                continue
+            sent_at = sent_map.get(d.id) or d.reviewed_at or d.created_at
+            if sent_at and sent_at <= cutoff:
+                eligible.append(d)
+        return followups, eligible
+
+    @app.route("/followups")
+    @login_required
+    def followups_page():
+        conn = _workspace_conn()
+        try:
+            days_since = request.args.get("days_since", default=7, type=int)
+            followups, eligible = _followup_overview(conn, days_since)
+            prof_map: dict[int, Professor] = {}
+            for pid in {f.professor_id for f in followups} | {d.professor_id for d in eligible}:
+                p = get_professor(conn, pid)
+                if p:
+                    prof_map[pid] = p
+            return render_template(
+                "followups.html", followups=followups, eligible=eligible,
+                prof_map=prof_map, days_since=days_since,
+            )
+        finally:
+            conn.close()
+
+    @app.route("/followups/generate", methods=["POST"])
+    @login_required
+    def followups_generate():
+        from app.database import get_sender_profile, insert_followup
+        from app.template_engine import render_followup
+        days_since = request.form.get("days_since", default=7, type=int)
+        conn = _workspace_conn()
+        try:
+            cfg = _workspace_config(conn)
+            _, eligible = _followup_overview(conn, days_since)
+            generated = 0
+            errors = 0
+            for d in eligible:
+                try:
+                    prof = get_professor(conn, d.professor_id)
+                    sender = get_sender_profile(conn, d.sender_profile_id)
+                    if not prof or not sender:
+                        errors += 1
+                        continue
+                    insert_followup(conn, render_followup(prof, sender, d, cfg))
+                    generated += 1
+                except Exception as exc:
+                    errors += 1
+                    logger.warning("Follow-up generation failed for draft %s: %s", d.id, exc)
+            _log_activity("followup_generate", category="drafts",
+                          details={"generated": generated, "errors": errors, "days_since": days_since})
+            if generated:
+                flash(f"Generated {generated} follow-up(s). Review and copy them below.", "success")
+            else:
+                flash(
+                    f"Nothing due yet — follow-ups appear once a draft has been sent "
+                    f"and is at least {days_since} day(s) old.",
+                    "warning",
+                )
+            return redirect(url_for("followups_page", days_since=days_since))
+        except Exception as exc:
+            flash(f"Follow-up generation failed: {exc}", "error")
+            return redirect(url_for("followups_page"))
         finally:
             conn.close()
 

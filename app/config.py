@@ -144,7 +144,7 @@ DEFAULT_CONFIG_YAML: Dict[str, Any] = {
             "claude-sonnet": "anthropic/claude-sonnet-4.6",
             "claude-opus": "anthropic/claude-opus-4.6",
         },
-        "default_model": "anthropic/claude-opus-4.6",
+        "default_model": "anthropic/claude-sonnet-4.6",
     },
     "email_providers": {
         "gmail": {
@@ -517,7 +517,7 @@ def load_config(
     llm_provider: Optional[str] = llm_provider_raw if llm_provider_raw else None
     llm_api_key_raw: str = _env("LLM_API_KEY", "", db_settings=db_settings)
     llm_api_key: Optional[str] = llm_api_key_raw if llm_api_key_raw else None
-    llm_model: str = _env("LLM_MODEL", merged.get("llm_models", {}).get("default_model", "anthropic/claude-opus-4.6"), db_settings=db_settings)
+    llm_model: str = _env("LLM_MODEL", merged.get("llm_models", {}).get("default_model", "anthropic/claude-sonnet-4.6"), db_settings=db_settings)
     email_provider: str = _env("EMAIL_PROVIDER", "gmail", db_settings=db_settings).lower()
     db_path: str = _env("DB_PATH", str(root / "data" / "outreach.db"), db_settings=db_settings)
     log_dir: str = _env("LOG_DIR", str(root / "logs"), db_settings=db_settings)
