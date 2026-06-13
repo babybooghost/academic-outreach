@@ -56,12 +56,12 @@
                 <div class="form-group">
                     <label for="llm_model_parse">Parsing model</label>
                     <select id="llm_model_parse" name="llm_model_parse">
-                        <option value="" {% if not effective.llm_model_parse %}selected{% endif %}>Same as writing model</option>
+                        <option value="" {% if not effective.llm_model_parse %}selected{% endif %}>Default — Gemini 3.5 Flash</option>
                         {% for model_id, model_name in llm_models.items() %}
                         <option value="{{ model_id }}" {% if effective.llm_model_parse == model_id %}selected{% endif %}>{{ model_name }}</option>
                         {% endfor %}
                     </select>
-                    <div class="form-hint">Only reads and summarizes professor pages. Pick a cheaper model (e.g. Gemini Flash) here to cut cost — it never writes emails.</div>
+                    <div class="form-hint">Only reads and summarizes professor pages — it never writes emails. Defaults to the cheapest model to save cost; override only if you want richer parsing.</div>
                 </div>
                 <div class="auth-note">
                     <p>API Key:

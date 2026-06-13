@@ -331,6 +331,11 @@ class LLMSummarizer:
 # Factory
 # ---------------------------------------------------------------------------
 
+# Cheap, capable model for reading/summarizing professor pages. Used unless a
+# workspace explicitly picks a parsing model in Setup.
+DEFAULT_PARSE_MODEL: str = "google/gemini-3.5-flash"
+
+
 def get_summarizer(config: Config) -> SummarizerStrategy:
     """
     Return the appropriate summarizer strategy based on config.
@@ -345,9 +350,11 @@ def get_summarizer(config: Config) -> SummarizerStrategy:
         return LLMSummarizer(
             provider=config.llm_provider,
             api_key=config.llm_api_key,
-            # Parsing/summarizing uses the cheaper model when one is set;
-            # the premium model is reserved for writing the actual emails.
-            model=config.llm_model_parse or config.llm_model,
+            # Parsing/summarizing professor pages is extraction, not writing, so
+            # it defaults to the cheapest capable model. A workspace can override
+            # this with an explicit parsing model; the premium writing model is
+            # reserved for composing the actual emails.
+            model=config.llm_model_parse or DEFAULT_PARSE_MODEL,
         )
     logger.info("Using keyword-based summarizer (no LLM configured)")
     return KeywordSummarizer()
