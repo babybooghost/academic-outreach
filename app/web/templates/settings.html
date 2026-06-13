@@ -62,6 +62,10 @@
                         <span style="color:var(--ao-danger); font-weight:700;">Not configured</span>
                     {% endif %}
                     </p>
+                    <button type="submit" class="btn btn-outline btn-sm"
+                            formaction="{{ url_for('settings_test_ai') }}" formmethod="post"
+                            style="margin-top:0.6rem;">Test AI connection</button>
+                    <div class="form-hint">Runs one tiny generation to confirm your model and key actually work. Save changes first if you just switched models.</div>
                 </div>
             </div>
         </article>
