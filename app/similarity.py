@@ -212,6 +212,7 @@ def compute_session_similarity(
     db_path: str,
     session_id: int,
     config: Config,
+    workspace_id: int = 0,
 ) -> int:
     """Load all drafts for a session, compute similarity scores, and persist.
 
@@ -233,7 +234,7 @@ def compute_session_similarity(
     flagged_count: int = 0
 
     try:
-        conn = get_connection(db_path)
+        conn = get_connection(db_path, workspace_id=workspace_id)
         drafts: list[Draft] = get_drafts(conn, session_id=session_id)
 
         if len(drafts) < 2:

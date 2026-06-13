@@ -498,16 +498,17 @@ def score_all_drafts(
     db_path: str,
     session_id: int,
     config: Config,
+    workspace_id: int = 0,
 ) -> int:
     """Score all drafts in a session and persist results to the database.
 
     Returns the count of drafts scored.
     """
-    conn: Optional[sqlite3.Connection] = None
+    conn = None
     scored_count: int = 0
 
     try:
-        conn = get_connection(db_path)
+        conn = get_connection(db_path, workspace_id=workspace_id)
         drafts: list[Draft] = get_drafts(conn, session_id=session_id)
 
         if not drafts:

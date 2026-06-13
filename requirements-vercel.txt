@@ -8,3 +8,6 @@ pyyaml>=6.0.0
 flask>=3.0.0
 requests>=2.31.0
 beautifulsoup4>=4.12.0
+
+# Persistent cloud storage (Turso / libsql) for the hosted deployment.
+libsql-experimental>=0.0.37

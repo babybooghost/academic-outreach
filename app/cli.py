@@ -1089,6 +1089,9 @@ def web(port: int) -> None:
         from app.web.app import create_app
 
         app = create_app()
+        # Live-reload templates during local dev so edits show without a restart.
+        app.config["TEMPLATES_AUTO_RELOAD"] = True
+        app.jinja_env.auto_reload = True
         app.run(host="0.0.0.0", port=port, debug=False)
     except ImportError:
         console.print(

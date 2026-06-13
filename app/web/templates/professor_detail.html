@@ -44,7 +44,27 @@
                     </div>
                 </div>
                 <div class="page-block">
+                    {% set needs_email = (not professor.email) or professor.email.endswith('.placeholder') %}
+                    {% if needs_email %}
+                    <div class="chip" style="border-color:var(--ao-warning, #c90); display:block;">
+                        <strong>Email</strong>
+                        <span class="badge badge-needs_email">needs email</span>
+                        <div id="email-tools" style="margin-top:0.6rem; display:flex; flex-direction:column; gap:0.5rem;">
+                            {% if professor.profile_url %}
+                            <button type="button" class="btn btn-outline btn-sm" id="find-email-btn"
+                                    onclick="findEmail({{ professor.id }})">Look up email from profile page</button>
+                            {% endif %}
+                            <form onsubmit="return setEmail(event, {{ professor.id }})" style="display:flex; gap:0.4rem;">
+                                <input type="email" id="manual-email" placeholder="name@university.edu" required
+                                       style="flex:1;">
+                                <button type="submit" class="btn btn-primary btn-sm">Save</button>
+                            </form>
+                            <div id="email-feedback" class="form-hint"></div>
+                        </div>
+                    </div>
+                    {% else %}
                     <div class="chip"><strong>Email</strong> {{ professor.email }}</div>
+                    {% endif %}
                     <div class="chip"><strong>Field</strong> {{ professor.field }}</div>
                     {% if professor.lab_name %}<div class="chip"><strong>Lab</strong> {{ professor.lab_name }}</div>{% endif %}
                     <div class="chip"><strong>Status</strong> <span class="badge badge-{{ professor.status }}">{{ professor.status }}</span></div>
@@ -145,4 +165,57 @@
         </section>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function _emailFeedback(msg, ok) {
+    const el = document.getElementById('email-feedback');
+    if (el) el.innerHTML = '<span style="color:var(--ao-' + (ok ? 'success' : 'warning') + ');">' + msg + '</span>';
+}
+
+function findEmail(profId) {
+    const btn = document.getElementById('find-email-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Looking up…'; }
+    _emailFeedback('Searching the profile page…', true);
+    fetch('/professors/' + profId + '/find-email', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                _emailFeedback('Found ' + data.email + '. Reloading…', true);
+                setTimeout(() => window.location.reload(), 700);
+            } else {
+                _emailFeedback(data.error || 'No email found.', false);
+                if (btn) { btn.disabled = false; btn.textContent = 'Look up email from profile page'; }
+            }
+        })
+        .catch(() => {
+            _emailFeedback('Lookup failed. Try entering the email manually.', false);
+            if (btn) { btn.disabled = false; btn.textContent = 'Look up email from profile page'; }
+        });
+}
+
+function setEmail(event, profId) {
+    event.preventDefault();
+    const input = document.getElementById('manual-email');
+    const email = (input.value || '').trim();
+    if (!email) return false;
+    fetch('/professors/' + profId + '/set-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+    })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                _emailFeedback('Saved ' + data.email + '. Reloading…', true);
+                setTimeout(() => window.location.reload(), 700);
+            } else {
+                _emailFeedback(data.error || 'Could not save email.', false);
+            }
+        })
+        .catch(() => _emailFeedback('Could not save email right now.', false));
+    return false;
+}
+</script>
 {% endblock %}

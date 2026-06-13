@@ -90,7 +90,11 @@
                         <td>{{ prof.department }}</td>
                         <td>{{ prof.field }}</td>
                         <td><span class="badge badge-{{ prof.status }}">{{ prof.status }}</span></td>
+                        {% if (not prof.email) or prof.email.endswith('.placeholder') %}
+                        <td><span class="badge badge-needs_email">needs email</span></td>
+                        {% else %}
                         <td>{{ prof.email }}</td>
+                        {% endif %}
                     </tr>
                     {% endfor %}
                 </tbody>

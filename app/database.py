@@ -1,11 +1,20 @@
 """SQLite database layer for the Academic Outreach Email System.
 
-Every public function in this module accepts an explicit ``sqlite3.Connection``
-so callers control transaction scope.  Use :func:`get_connection` to obtain a
-connection and :func:`init_db` once at startup to ensure tables exist.
+Every public function in this module accepts an explicit connection so callers
+control transaction scope.  Use :func:`get_connection` to obtain a connection
+and :func:`init_db` once at startup to ensure tables exist.
 
 Supports both local SQLite and Turso (cloud SQLite via libsql) connections.
 Set TURSO_DATABASE_URL and TURSO_AUTH_TOKEN env vars to use Turso.
+
+Multi-tenancy
+-------------
+All per-user tables carry a ``workspace_id`` column.  Rather than thread that id
+through every call site, it is *bound to the connection*: :func:`get_connection`
+records the active ``workspace_id`` on the returned object and the per-user
+helpers below read it via :func:`_ws` and scope their SQL accordingly.  Global
+tables (``access_keys``, ``admin_activity_log``, ``user_signups``, ...) are not
+scoped.  ``workspace_id = 0`` is the implicit CLI / single-user workspace.
 """
 
 from __future__ import annotations
@@ -42,7 +51,7 @@ def _is_turso_configured() -> bool:
     return bool(_TURSO_URL and _TURSO_TOKEN)
 
 
-def _get_turso_connection() -> sqlite3.Connection:
+def _get_turso_connection() -> Any:
     """Return a libsql connection to Turso (API-compatible with sqlite3)."""
     try:
         import libsql_experimental as libsql  # type: ignore[import-untyped]
@@ -63,33 +72,143 @@ def _get_turso_connection() -> sqlite3.Connection:
 
 
 # ---------------------------------------------------------------------------
+# Workspace binding
+# ---------------------------------------------------------------------------
+
+# The implicit workspace used by the CLI and any single-user / global context.
+DEFAULT_WORKSPACE_ID: int = 0
+
+
+class _BoundConnection:
+    """Thin proxy around a real DB connection that carries the active workspace.
+
+    All attribute/method access (``execute``, ``commit``, ``close``, ``row_factory``)
+    transparently proxies to the wrapped connection, so existing call sites keep
+    working.  The bound ``workspace_id`` lets per-user helpers scope their SQL
+    without every caller passing it explicitly.
+    """
+
+    __slots__ = ("_raw", "workspace_id")
+
+    def __init__(self, raw: Any, workspace_id: int) -> None:
+        object.__setattr__(self, "_raw", raw)
+        object.__setattr__(self, "workspace_id", int(workspace_id))
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._raw, name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name == "workspace_id":
+            object.__setattr__(self, name, int(value))
+        else:
+            setattr(self._raw, name, value)
+
+
+def _ws(conn: Any) -> int:
+    """Return the workspace_id bound to *conn* (defaults to the CLI workspace)."""
+    return int(getattr(conn, "workspace_id", DEFAULT_WORKSPACE_ID) or DEFAULT_WORKSPACE_ID)
+
+
+# ---------------------------------------------------------------------------
 # Connection / bootstrap
 # ---------------------------------------------------------------------------
 
-def get_connection(db_path: str) -> sqlite3.Connection:
-    """Return a connection with row_factory set to ``sqlite3.Row``.
+def get_connection(db_path: str, workspace_id: int = DEFAULT_WORKSPACE_ID) -> Any:
+    """Return a connection with ``row_factory`` set and a bound ``workspace_id``.
 
-    Uses Turso if TURSO_DATABASE_URL and TURSO_AUTH_TOKEN are set,
-    otherwise uses local SQLite at db_path.
-
-    The caller is responsible for closing the connection.
+    Uses Turso if TURSO_DATABASE_URL and TURSO_AUTH_TOKEN are set, otherwise a
+    local SQLite file at *db_path*.  Per-user helpers in this module read the
+    bound ``workspace_id`` to isolate tenants.  The caller closes the connection.
     """
     if _is_turso_configured():
-        return _get_turso_connection()
+        raw = _get_turso_connection()
+        return _BoundConnection(raw, workspace_id)
 
     try:
-        conn: sqlite3.Connection = sqlite3.connect(db_path)
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA foreign_keys = ON")
-        return conn
+        raw = sqlite3.connect(db_path)
+        raw.row_factory = sqlite3.Row
+        raw.execute("PRAGMA foreign_keys = ON")
+        return _BoundConnection(raw, workspace_id)
     except sqlite3.Error as exc:
         logger.error("Failed to connect to database at %s: %s", db_path, exc)
         raise
 
 
+# Per-user tables that gained a workspace_id column for tenant isolation.
+_WORKSPACE_TABLES: tuple[str, ...] = (
+    "sender_profiles", "professors", "sessions", "drafts", "send_log",
+    "suppression_list", "followups", "audit_log",
+)
+
+
+def _column_names(conn: Any, table: str) -> set[str]:
+    try:
+        rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+    except Exception:
+        return set()
+    names: set[str] = set()
+    for row in rows:
+        try:
+            names.add(row["name"])
+        except Exception:
+            names.add(row[1])
+    return names
+
+
+def _migrate_schema(conn: Any) -> None:
+    """Bring an existing database up to the multi-tenant schema (idempotent).
+
+    Adds the ``workspace_id`` column to per-user tables that predate it and
+    rebuilds ``app_settings`` with a composite ``(workspace_id, key)`` key.
+    Fresh databases already match the schema, so every step is a no-op there.
+    """
+    for table in _WORKSPACE_TABLES:
+        cols = _column_names(conn, table)
+        if cols and "workspace_id" not in cols:
+            try:
+                conn.execute(
+                    f"ALTER TABLE {table} ADD COLUMN workspace_id INTEGER NOT NULL DEFAULT 0"
+                )
+            except Exception as exc:
+                logger.warning("Could not add workspace_id to %s: %s", table, exc)
+
+    # app_settings needs a composite primary key; rebuild if it still has the
+    # legacy single-column (key) primary key.
+    settings_cols = _column_names(conn, "app_settings")
+    if settings_cols and "workspace_id" not in settings_cols:
+        try:
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS app_settings_new (
+                    workspace_id INTEGER NOT NULL DEFAULT 0,
+                    key   TEXT NOT NULL,
+                    value TEXT NOT NULL DEFAULT '',
+                    PRIMARY KEY (workspace_id, key)
+                )"""
+            )
+            conn.execute(
+                "INSERT OR IGNORE INTO app_settings_new (workspace_id, key, value) "
+                "SELECT 0, key, value FROM app_settings"
+            )
+            conn.execute("DROP TABLE app_settings")
+            conn.execute("ALTER TABLE app_settings_new RENAME TO app_settings")
+        except Exception as exc:
+            logger.warning("Could not migrate app_settings: %s", exc)
+
+    # Composite uniqueness for tenant-scoped natural keys.
+    for stmt in (
+        "CREATE UNIQUE INDEX IF NOT EXISTS ux_professors_ws_email ON professors(workspace_id, email)",
+        "CREATE UNIQUE INDEX IF NOT EXISTS ux_suppression_ws_email ON suppression_list(workspace_id, email)",
+    ):
+        try:
+            conn.execute(stmt)
+        except Exception as exc:
+            logger.warning("Could not create index (%s): %s", stmt, exc)
+    conn.commit()
+
+
 def init_db(db_path: str) -> None:
-    """Create all tables (idempotent) and enable WAL journal mode."""
-    conn: sqlite3.Connection = get_connection(db_path)
+    """Create all tables (idempotent), migrate, and enable WAL journal mode."""
+    conn = get_connection(db_path)
     try:
         if not _is_turso_configured():
             conn.execute("PRAGMA journal_mode = WAL")
@@ -100,6 +219,7 @@ def init_db(db_path: str) -> None:
             if statement:
                 conn.execute(statement)
         conn.commit()
+        _migrate_schema(conn)
         logger.info("Database initialised at %s", db_path if not _is_turso_configured() else "Turso")
     except (sqlite3.Error, Exception) as exc:
         logger.error("Database init failed: %s", exc)
@@ -115,6 +235,7 @@ def init_db(db_path: str) -> None:
 _SCHEMA_SQL: str = """
 CREATE TABLE IF NOT EXISTS sender_profiles (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    workspace_id    INTEGER NOT NULL DEFAULT 0,
     name            TEXT    NOT NULL,
     school          TEXT    NOT NULL,
     grade           TEXT    NOT NULL,
@@ -127,9 +248,10 @@ CREATE TABLE IF NOT EXISTS sender_profiles (
 
 CREATE TABLE IF NOT EXISTS professors (
     id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    workspace_id     INTEGER NOT NULL DEFAULT 0,
     name             TEXT NOT NULL,
     title            TEXT,
-    email            TEXT NOT NULL UNIQUE,
+    email            TEXT NOT NULL,
     university       TEXT NOT NULL,
     department       TEXT NOT NULL,
     lab_name         TEXT,
@@ -149,6 +271,7 @@ CREATE TABLE IF NOT EXISTS professors (
 
 CREATE TABLE IF NOT EXISTS sessions (
     id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    workspace_id      INTEGER NOT NULL DEFAULT 0,
     sender_profile_id INTEGER NOT NULL REFERENCES sender_profiles(id),
     created_at        TEXT    NOT NULL DEFAULT (datetime('now')),
     notes             TEXT
@@ -156,6 +279,7 @@ CREATE TABLE IF NOT EXISTS sessions (
 
 CREATE TABLE IF NOT EXISTS drafts (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    workspace_id        INTEGER NOT NULL DEFAULT 0,
     professor_id        INTEGER NOT NULL REFERENCES professors(id),
     sender_profile_id   INTEGER NOT NULL REFERENCES sender_profiles(id),
     session_id          INTEGER NOT NULL REFERENCES sessions(id),
@@ -178,6 +302,7 @@ CREATE TABLE IF NOT EXISTS drafts (
 
 CREATE TABLE IF NOT EXISTS send_log (
     id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    workspace_id   INTEGER NOT NULL DEFAULT 0,
     draft_id       INTEGER NOT NULL REFERENCES drafts(id),
     professor_id   INTEGER NOT NULL REFERENCES professors(id),
     sent_at        TEXT    NOT NULL DEFAULT (datetime('now')),
@@ -189,13 +314,15 @@ CREATE TABLE IF NOT EXISTS send_log (
 );
 
 CREATE TABLE IF NOT EXISTS suppression_list (
-    email    TEXT    NOT NULL UNIQUE,
+    workspace_id INTEGER NOT NULL DEFAULT 0,
+    email    TEXT    NOT NULL,
     reason   TEXT    NOT NULL DEFAULT '',
     added_at TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS followups (
     id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    workspace_id      INTEGER NOT NULL DEFAULT 0,
     original_draft_id INTEGER NOT NULL REFERENCES drafts(id),
     professor_id      INTEGER NOT NULL REFERENCES professors(id),
     sender_profile_id INTEGER NOT NULL REFERENCES sender_profiles(id),
@@ -208,6 +335,7 @@ CREATE TABLE IF NOT EXISTS followups (
 
 CREATE TABLE IF NOT EXISTS audit_log (
     id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    workspace_id     INTEGER NOT NULL DEFAULT 0,
     timestamp        TEXT    NOT NULL DEFAULT (datetime('now')),
     action           TEXT    NOT NULL,
     actor_profile_id INTEGER,
@@ -217,8 +345,10 @@ CREATE TABLE IF NOT EXISTS audit_log (
 );
 
 CREATE TABLE IF NOT EXISTS app_settings (
-    key   TEXT PRIMARY KEY,
-    value TEXT NOT NULL DEFAULT ''
+    workspace_id INTEGER NOT NULL DEFAULT 0,
+    key   TEXT NOT NULL,
+    value TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (workspace_id, key)
 );
 
 CREATE TABLE IF NOT EXISTS access_keys (
@@ -274,37 +404,49 @@ def _now_iso() -> str:
 # Professor CRUD
 # ---------------------------------------------------------------------------
 
-def upsert_professor(conn: sqlite3.Connection, prof: Professor) -> int:
-    """Insert or update a professor by email.  Returns the row id."""
+def upsert_professor(conn: Any, prof: Professor) -> int:
+    """Insert or update a professor by (workspace, email).  Returns the row id."""
+    wid = _ws(conn)
     try:
-        cursor: sqlite3.Cursor = conn.execute(
+        existing = conn.execute(
+            "SELECT id FROM professors WHERE workspace_id = ? AND email = ?",
+            (wid, prof.email),
+        ).fetchone()
+        if existing:
+            row_id = existing["id"]
+            conn.execute(
+                """
+                UPDATE professors SET
+                    name = ?, title = ?, university = ?, department = ?,
+                    lab_name = ?, field = ?, profile_url = ?,
+                    research_summary = ?, recent_work = ?, notes = ?,
+                    enrichment_text = ?, keywords = ?, summary = ?,
+                    talking_points = ?, status = ?, updated_at = ?
+                WHERE id = ? AND workspace_id = ?
+                """,
+                (
+                    prof.name, prof.title, prof.university, prof.department,
+                    prof.lab_name, prof.field, prof.profile_url,
+                    prof.research_summary, prof.recent_work, prof.notes,
+                    prof.enrichment_text, prof.keywords, prof.summary,
+                    prof.talking_points, prof.status, _now_iso(),
+                    row_id, wid,
+                ),
+            )
+            conn.commit()
+            return row_id
+
+        cursor = conn.execute(
             """
             INSERT INTO professors (
-                name, title, email, university, department, lab_name, field,
-                profile_url, research_summary, recent_work, notes,
-                enrichment_text, keywords, summary, talking_points,
+                workspace_id, name, title, email, university, department,
+                lab_name, field, profile_url, research_summary, recent_work,
+                notes, enrichment_text, keywords, summary, talking_points,
                 status, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(email) DO UPDATE SET
-                name             = excluded.name,
-                title            = excluded.title,
-                university       = excluded.university,
-                department       = excluded.department,
-                lab_name         = excluded.lab_name,
-                field            = excluded.field,
-                profile_url      = excluded.profile_url,
-                research_summary = excluded.research_summary,
-                recent_work      = excluded.recent_work,
-                notes            = excluded.notes,
-                enrichment_text  = excluded.enrichment_text,
-                keywords         = excluded.keywords,
-                summary          = excluded.summary,
-                talking_points   = excluded.talking_points,
-                status           = excluded.status,
-                updated_at       = excluded.updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                prof.name, prof.title, prof.email, prof.university,
+                wid, prof.name, prof.title, prof.email, prof.university,
                 prof.department, prof.lab_name, prof.field, prof.profile_url,
                 prof.research_summary, prof.recent_work, prof.notes,
                 prof.enrichment_text, prof.keywords, prof.summary,
@@ -320,11 +462,12 @@ def upsert_professor(conn: sqlite3.Connection, prof: Professor) -> int:
         raise
 
 
-def get_professor(conn: sqlite3.Connection, id: int) -> Optional[Professor]:
-    """Fetch a single professor by id."""
+def get_professor(conn: Any, id: int) -> Optional[Professor]:
+    """Fetch a single professor by id within the active workspace."""
     try:
         row: Optional[sqlite3.Row] = conn.execute(
-            "SELECT * FROM professors WHERE id = ?", (id,)
+            "SELECT * FROM professors WHERE id = ? AND workspace_id = ?",
+            (id, _ws(conn)),
         ).fetchone()
         return Professor.from_row(row) if row else None
     except sqlite3.Error as exc:
@@ -333,14 +476,14 @@ def get_professor(conn: sqlite3.Connection, id: int) -> Optional[Professor]:
 
 
 def get_professors(
-    conn: sqlite3.Connection,
+    conn: Any,
     status: Optional[str] = None,
     field: Optional[str] = None,
 ) -> list[Professor]:
-    """Return professors, optionally filtered by status and/or field."""
+    """Return professors in the active workspace, optionally filtered."""
     try:
-        clauses: list[str] = []
-        params: list[Any] = []
+        clauses: list[str] = ["workspace_id = ?"]
+        params: list[Any] = [_ws(conn)]
         if status is not None:
             clauses.append("status = ?")
             params.append(status)
@@ -348,11 +491,7 @@ def get_professors(
             clauses.append("field = ?")
             params.append(field)
 
-        query: str = "SELECT * FROM professors"
-        if clauses:
-            query += " WHERE " + " AND ".join(clauses)
-        query += " ORDER BY id"
-
+        query: str = "SELECT * FROM professors WHERE " + " AND ".join(clauses) + " ORDER BY id"
         rows: list[sqlite3.Row] = conn.execute(query, params).fetchall()
         return [Professor.from_row(r) for r in rows]
     except sqlite3.Error as exc:
@@ -360,8 +499,8 @@ def get_professors(
         raise
 
 
-def update_professor(conn: sqlite3.Connection, prof: Professor) -> None:
-    """Full update of a professor row (must have id set)."""
+def update_professor(conn: Any, prof: Professor) -> None:
+    """Full update of a professor row (must have id set) within the workspace."""
     if prof.id is None:
         raise ValueError("Cannot update professor without an id")
     try:
@@ -373,14 +512,14 @@ def update_professor(conn: sqlite3.Connection, prof: Professor) -> None:
                 research_summary = ?, recent_work = ?, notes = ?,
                 enrichment_text = ?, keywords = ?, summary = ?,
                 talking_points = ?, status = ?, updated_at = ?
-            WHERE id = ?
+            WHERE id = ? AND workspace_id = ?
             """,
             (
                 prof.name, prof.title, prof.email, prof.university,
                 prof.department, prof.lab_name, prof.field, prof.profile_url,
                 prof.research_summary, prof.recent_work, prof.notes,
                 prof.enrichment_text, prof.keywords, prof.summary,
-                prof.talking_points, prof.status, _now_iso(), prof.id,
+                prof.talking_points, prof.status, _now_iso(), prof.id, _ws(conn),
             ),
         )
         conn.commit()
@@ -394,22 +533,22 @@ def update_professor(conn: sqlite3.Connection, prof: Professor) -> None:
 # Draft CRUD
 # ---------------------------------------------------------------------------
 
-def insert_draft(conn: sqlite3.Connection, draft: Draft) -> int:
-    """Insert a new draft and return its id."""
+def insert_draft(conn: Any, draft: Draft) -> int:
+    """Insert a new draft into the active workspace and return its id."""
     try:
-        cursor: sqlite3.Cursor = conn.execute(
+        cursor = conn.execute(
             """
             INSERT INTO drafts (
-                professor_id, sender_profile_id, session_id,
+                workspace_id, professor_id, sender_profile_id, session_id,
                 subject_lines, body, template_variant,
                 specificity_score, authenticity_score, relevance_score,
                 conciseness_score, completeness_score, overall_score,
                 similarity_score, warnings, status, created_at,
                 reviewed_at, reviewer_notes
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                draft.professor_id, draft.sender_profile_id, draft.session_id,
+                _ws(conn), draft.professor_id, draft.sender_profile_id, draft.session_id,
                 draft.subject_lines, draft.body, draft.template_variant,
                 draft.specificity_score, draft.authenticity_score,
                 draft.relevance_score, draft.conciseness_score,
@@ -426,11 +565,12 @@ def insert_draft(conn: sqlite3.Connection, draft: Draft) -> int:
         raise
 
 
-def get_draft(conn: sqlite3.Connection, id: int) -> Optional[Draft]:
-    """Fetch a single draft by id."""
+def get_draft(conn: Any, id: int) -> Optional[Draft]:
+    """Fetch a single draft by id within the active workspace."""
     try:
         row: Optional[sqlite3.Row] = conn.execute(
-            "SELECT * FROM drafts WHERE id = ?", (id,)
+            "SELECT * FROM drafts WHERE id = ? AND workspace_id = ?",
+            (id, _ws(conn)),
         ).fetchone()
         return Draft.from_row(row) if row else None
     except sqlite3.Error as exc:
@@ -439,14 +579,14 @@ def get_draft(conn: sqlite3.Connection, id: int) -> Optional[Draft]:
 
 
 def get_drafts(
-    conn: sqlite3.Connection,
+    conn: Any,
     session_id: Optional[int] = None,
     status: Optional[str] = None,
 ) -> list[Draft]:
-    """Return drafts, optionally filtered by session_id and/or status."""
+    """Return drafts in the active workspace, optionally filtered."""
     try:
-        clauses: list[str] = []
-        params: list[Any] = []
+        clauses: list[str] = ["workspace_id = ?"]
+        params: list[Any] = [_ws(conn)]
         if session_id is not None:
             clauses.append("session_id = ?")
             params.append(session_id)
@@ -454,11 +594,7 @@ def get_drafts(
             clauses.append("status = ?")
             params.append(status)
 
-        query: str = "SELECT * FROM drafts"
-        if clauses:
-            query += " WHERE " + " AND ".join(clauses)
-        query += " ORDER BY id"
-
+        query: str = "SELECT * FROM drafts WHERE " + " AND ".join(clauses) + " ORDER BY id"
         rows: list[sqlite3.Row] = conn.execute(query, params).fetchall()
         return [Draft.from_row(r) for r in rows]
     except sqlite3.Error as exc:
@@ -466,8 +602,8 @@ def get_drafts(
         raise
 
 
-def update_draft(conn: sqlite3.Connection, draft: Draft) -> None:
-    """Full update of a draft row (must have id set)."""
+def update_draft(conn: Any, draft: Draft) -> None:
+    """Full update of a draft row (must have id set) within the workspace."""
     if draft.id is None:
         raise ValueError("Cannot update draft without an id")
     try:
@@ -481,7 +617,7 @@ def update_draft(conn: sqlite3.Connection, draft: Draft) -> None:
                 completeness_score = ?, overall_score = ?,
                 similarity_score = ?, warnings = ?, status = ?,
                 reviewed_at = ?, reviewer_notes = ?
-            WHERE id = ?
+            WHERE id = ? AND workspace_id = ?
             """,
             (
                 draft.professor_id, draft.sender_profile_id, draft.session_id,
@@ -490,7 +626,7 @@ def update_draft(conn: sqlite3.Connection, draft: Draft) -> None:
                 draft.relevance_score, draft.conciseness_score,
                 draft.completeness_score, draft.overall_score,
                 draft.similarity_score, draft.warnings, draft.status,
-                draft.reviewed_at, draft.reviewer_notes, draft.id,
+                draft.reviewed_at, draft.reviewer_notes, draft.id, _ws(conn),
             ),
         )
         conn.commit()
@@ -501,20 +637,20 @@ def update_draft(conn: sqlite3.Connection, draft: Draft) -> None:
 
 
 def update_draft_status(
-    conn: sqlite3.Connection,
+    conn: Any,
     draft_id: int,
     status: str,
     notes: Optional[str] = None,
 ) -> None:
-    """Lightweight status-only update for a draft."""
+    """Lightweight status-only update for a draft within the workspace."""
     try:
         conn.execute(
             """
             UPDATE drafts
                SET status = ?, reviewed_at = ?, reviewer_notes = ?
-             WHERE id = ?
+             WHERE id = ? AND workspace_id = ?
             """,
-            (status, _now_iso(), notes, draft_id),
+            (status, _now_iso(), notes, draft_id, _ws(conn)),
         )
         conn.commit()
     except sqlite3.Error as exc:
@@ -527,18 +663,18 @@ def update_draft_status(
 # SendRecord
 # ---------------------------------------------------------------------------
 
-def record_send(conn: sqlite3.Connection, record: SendRecord) -> int:
-    """Insert a send-log entry and return its id."""
+def record_send(conn: Any, record: SendRecord) -> int:
+    """Insert a send-log entry into the active workspace and return its id."""
     try:
-        cursor: sqlite3.Cursor = conn.execute(
+        cursor = conn.execute(
             """
             INSERT INTO send_log (
-                draft_id, professor_id, sent_at, method,
+                workspace_id, draft_id, professor_id, sent_at, method,
                 gmail_draft_id, status, error_message, message_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                record.draft_id, record.professor_id, record.sent_at,
+                _ws(conn), record.draft_id, record.professor_id, record.sent_at,
                 record.method, record.gmail_draft_id, record.status,
                 record.error_message, record.message_id,
             ),
@@ -551,12 +687,13 @@ def record_send(conn: sqlite3.Connection, record: SendRecord) -> int:
         raise
 
 
-def is_duplicate_send(conn: sqlite3.Connection, professor_id: int) -> bool:
-    """Return True if any successful send exists for this professor."""
+def is_duplicate_send(conn: Any, professor_id: int) -> bool:
+    """Return True if any successful send exists for this professor in the workspace."""
     try:
         row: Optional[sqlite3.Row] = conn.execute(
-            "SELECT 1 FROM send_log WHERE professor_id = ? AND status = 'success' LIMIT 1",
-            (professor_id,),
+            "SELECT 1 FROM send_log WHERE professor_id = ? AND status = 'success' "
+            "AND workspace_id = ? LIMIT 1",
+            (professor_id, _ws(conn)),
         ).fetchone()
         return row is not None
     except sqlite3.Error as exc:
@@ -568,17 +705,25 @@ def is_duplicate_send(conn: sqlite3.Connection, professor_id: int) -> bool:
 # Suppression list
 # ---------------------------------------------------------------------------
 
-def add_suppression(conn: sqlite3.Connection, email: str, reason: str) -> None:
-    """Add an email to the suppression list (idempotent)."""
+def add_suppression(conn: Any, email: str, reason: str) -> None:
+    """Add an email to the workspace suppression list (idempotent)."""
+    wid = _ws(conn)
     try:
-        conn.execute(
-            """
-            INSERT INTO suppression_list (email, reason, added_at)
-            VALUES (?, ?, ?)
-            ON CONFLICT(email) DO UPDATE SET reason = excluded.reason
-            """,
-            (email, reason, _now_iso()),
-        )
+        existing = conn.execute(
+            "SELECT 1 FROM suppression_list WHERE workspace_id = ? AND email = ? LIMIT 1",
+            (wid, email),
+        ).fetchone()
+        if existing:
+            conn.execute(
+                "UPDATE suppression_list SET reason = ? WHERE workspace_id = ? AND email = ?",
+                (reason, wid, email),
+            )
+        else:
+            conn.execute(
+                "INSERT INTO suppression_list (workspace_id, email, reason, added_at) "
+                "VALUES (?, ?, ?, ?)",
+                (wid, email, reason, _now_iso()),
+            )
         conn.commit()
     except sqlite3.Error as exc:
         logger.error("add_suppression failed for %s: %s", email, exc)
@@ -586,11 +731,12 @@ def add_suppression(conn: sqlite3.Connection, email: str, reason: str) -> None:
         raise
 
 
-def is_suppressed(conn: sqlite3.Connection, email: str) -> bool:
-    """Return True if the email is on the suppression list."""
+def is_suppressed(conn: Any, email: str) -> bool:
+    """Return True if the email is on the workspace suppression list."""
     try:
         row: Optional[sqlite3.Row] = conn.execute(
-            "SELECT 1 FROM suppression_list WHERE email = ? LIMIT 1", (email,)
+            "SELECT 1 FROM suppression_list WHERE email = ? AND workspace_id = ? LIMIT 1",
+            (email, _ws(conn)),
         ).fetchone()
         return row is not None
     except sqlite3.Error as exc:
@@ -598,11 +744,13 @@ def is_suppressed(conn: sqlite3.Connection, email: str) -> bool:
         raise
 
 
-def get_suppression_list(conn: sqlite3.Connection) -> list[dict[str, Any]]:
-    """Return every suppression entry as a plain dict."""
+def get_suppression_list(conn: Any) -> list[dict[str, Any]]:
+    """Return every suppression entry in the workspace as a plain dict."""
     try:
         rows: list[sqlite3.Row] = conn.execute(
-            "SELECT email, reason, added_at FROM suppression_list ORDER BY added_at DESC"
+            "SELECT email, reason, added_at FROM suppression_list "
+            "WHERE workspace_id = ? ORDER BY added_at DESC",
+            (_ws(conn),),
         ).fetchall()
         return [dict(r) for r in rows]
     except sqlite3.Error as exc:
@@ -615,15 +763,16 @@ def get_suppression_list(conn: sqlite3.Connection) -> list[dict[str, Any]]:
 # ---------------------------------------------------------------------------
 
 def create_session(
-    conn: sqlite3.Connection,
+    conn: Any,
     sender_profile_id: int,
     notes: Optional[str] = None,
 ) -> int:
-    """Create a new session and return its id."""
+    """Create a new session in the active workspace and return its id."""
     try:
-        cursor: sqlite3.Cursor = conn.execute(
-            "INSERT INTO sessions (sender_profile_id, created_at, notes) VALUES (?, ?, ?)",
-            (sender_profile_id, _now_iso(), notes),
+        cursor = conn.execute(
+            "INSERT INTO sessions (workspace_id, sender_profile_id, created_at, notes) "
+            "VALUES (?, ?, ?, ?)",
+            (_ws(conn), sender_profile_id, _now_iso(), notes),
         )
         conn.commit()
         return cursor.lastrowid or 0
@@ -633,11 +782,12 @@ def create_session(
         raise
 
 
-def get_session(conn: sqlite3.Connection, session_id: int) -> Optional[Session]:
-    """Fetch a session by id."""
+def get_session(conn: Any, session_id: int) -> Optional[Session]:
+    """Fetch a session by id within the active workspace."""
     try:
         row: Optional[sqlite3.Row] = conn.execute(
-            "SELECT * FROM sessions WHERE id = ?", (session_id,)
+            "SELECT * FROM sessions WHERE id = ? AND workspace_id = ?",
+            (session_id, _ws(conn)),
         ).fetchone()
         return Session.from_row(row) if row else None
     except sqlite3.Error as exc:
@@ -649,18 +799,18 @@ def get_session(conn: sqlite3.Connection, session_id: int) -> Optional[Session]:
 # SenderProfile
 # ---------------------------------------------------------------------------
 
-def insert_sender_profile(conn: sqlite3.Connection, profile: SenderProfile) -> int:
-    """Insert a sender profile and return its id."""
+def insert_sender_profile(conn: Any, profile: SenderProfile) -> int:
+    """Insert a sender profile into the active workspace and return its id."""
     try:
-        cursor: sqlite3.Cursor = conn.execute(
+        cursor = conn.execute(
             """
             INSERT INTO sender_profiles (
-                name, school, grade, email, interests, background,
+                workspace_id, name, school, grade, email, interests, background,
                 graduation_year, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                profile.name, profile.school, profile.grade, profile.email,
+                _ws(conn), profile.name, profile.school, profile.grade, profile.email,
                 profile.interests, profile.background,
                 profile.graduation_year, profile.created_at,
             ),
@@ -673,11 +823,12 @@ def insert_sender_profile(conn: sqlite3.Connection, profile: SenderProfile) -> i
         raise
 
 
-def get_sender_profiles(conn: sqlite3.Connection) -> list[SenderProfile]:
-    """Return all sender profiles."""
+def get_sender_profiles(conn: Any) -> list[SenderProfile]:
+    """Return all sender profiles in the active workspace."""
     try:
         rows: list[sqlite3.Row] = conn.execute(
-            "SELECT * FROM sender_profiles ORDER BY id"
+            "SELECT * FROM sender_profiles WHERE workspace_id = ? ORDER BY id",
+            (_ws(conn),),
         ).fetchall()
         return [SenderProfile.from_row(r) for r in rows]
     except sqlite3.Error as exc:
@@ -685,11 +836,12 @@ def get_sender_profiles(conn: sqlite3.Connection) -> list[SenderProfile]:
         raise
 
 
-def get_sender_profile(conn: sqlite3.Connection, id: int) -> Optional[SenderProfile]:
-    """Fetch a single sender profile by id."""
+def get_sender_profile(conn: Any, id: int) -> Optional[SenderProfile]:
+    """Fetch a single sender profile by id within the active workspace."""
     try:
         row: Optional[sqlite3.Row] = conn.execute(
-            "SELECT * FROM sender_profiles WHERE id = ?", (id,)
+            "SELECT * FROM sender_profiles WHERE id = ? AND workspace_id = ?",
+            (id, _ws(conn)),
         ).fetchone()
         return SenderProfile.from_row(row) if row else None
     except sqlite3.Error as exc:
@@ -701,18 +853,18 @@ def get_sender_profile(conn: sqlite3.Connection, id: int) -> Optional[SenderProf
 # FollowUp
 # ---------------------------------------------------------------------------
 
-def insert_followup(conn: sqlite3.Connection, followup: FollowUp) -> int:
-    """Insert a follow-up and return its id."""
+def insert_followup(conn: Any, followup: FollowUp) -> int:
+    """Insert a follow-up into the active workspace and return its id."""
     try:
-        cursor: sqlite3.Cursor = conn.execute(
+        cursor = conn.execute(
             """
             INSERT INTO followups (
-                original_draft_id, professor_id, sender_profile_id,
+                workspace_id, original_draft_id, professor_id, sender_profile_id,
                 body, subject, status, scheduled_date, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                followup.original_draft_id, followup.professor_id,
+                _ws(conn), followup.original_draft_id, followup.professor_id,
                 followup.sender_profile_id, followup.body, followup.subject,
                 followup.status, followup.scheduled_date, followup.created_at,
             ),
@@ -726,18 +878,20 @@ def insert_followup(conn: sqlite3.Connection, followup: FollowUp) -> int:
 
 
 def get_followups(
-    conn: sqlite3.Connection,
+    conn: Any,
     status: Optional[str] = None,
 ) -> list[FollowUp]:
-    """Return follow-ups, optionally filtered by status."""
+    """Return follow-ups in the active workspace, optionally filtered by status."""
     try:
         if status is not None:
             rows: list[sqlite3.Row] = conn.execute(
-                "SELECT * FROM followups WHERE status = ? ORDER BY id", (status,)
+                "SELECT * FROM followups WHERE status = ? AND workspace_id = ? ORDER BY id",
+                (status, _ws(conn)),
             ).fetchall()
         else:
             rows = conn.execute(
-                "SELECT * FROM followups ORDER BY id"
+                "SELECT * FROM followups WHERE workspace_id = ? ORDER BY id",
+                (_ws(conn),),
             ).fetchall()
         return [FollowUp.from_row(r) for r in rows]
     except sqlite3.Error as exc:
@@ -749,18 +903,18 @@ def get_followups(
 # Audit log
 # ---------------------------------------------------------------------------
 
-def log_audit(conn: sqlite3.Connection, entry: AuditEntry) -> int:
-    """Insert an audit-log entry and return its id."""
+def log_audit(conn: Any, entry: AuditEntry) -> int:
+    """Insert an audit-log entry into the active workspace and return its id."""
     try:
-        cursor: sqlite3.Cursor = conn.execute(
+        cursor = conn.execute(
             """
             INSERT INTO audit_log (
-                timestamp, action, actor_profile_id,
+                workspace_id, timestamp, action, actor_profile_id,
                 entity_type, entity_id, details
-            ) VALUES (?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                entry.timestamp, entry.action, entry.actor_profile_id,
+                _ws(conn), entry.timestamp, entry.action, entry.actor_profile_id,
                 entry.entity_type, entry.entity_id, entry.details,
             ),
         )
@@ -773,20 +927,22 @@ def log_audit(conn: sqlite3.Connection, entry: AuditEntry) -> int:
 
 
 def get_audit_log(
-    conn: sqlite3.Connection,
+    conn: Any,
     entity_type: Optional[str] = None,
     limit: int = 100,
 ) -> list[AuditEntry]:
-    """Return recent audit entries, optionally filtered by entity_type."""
+    """Return recent audit entries in the workspace, optionally filtered."""
     try:
         if entity_type is not None:
             rows: list[sqlite3.Row] = conn.execute(
-                "SELECT * FROM audit_log WHERE entity_type = ? ORDER BY id DESC LIMIT ?",
-                (entity_type, limit),
+                "SELECT * FROM audit_log WHERE entity_type = ? AND workspace_id = ? "
+                "ORDER BY id DESC LIMIT ?",
+                (entity_type, _ws(conn), limit),
             ).fetchall()
         else:
             rows = conn.execute(
-                "SELECT * FROM audit_log ORDER BY id DESC LIMIT ?", (limit,)
+                "SELECT * FROM audit_log WHERE workspace_id = ? ORDER BY id DESC LIMIT ?",
+                (_ws(conn), limit),
             ).fetchall()
         return [AuditEntry.from_row(r) for r in rows]
     except sqlite3.Error as exc:
@@ -798,11 +954,24 @@ def get_audit_log(
 # App Settings (key-value store for runtime configuration)
 # ---------------------------------------------------------------------------
 
-def get_setting(conn: sqlite3.Connection, key: str, default: str = "") -> str:
-    """Get a single setting value by key, returning *default* if not found."""
+def _upsert_setting(conn: Any, wid: int, key: str, value: str) -> None:
+    """Insert-or-update one (workspace, key) setting.
+
+    ``app_settings`` only holds (workspace_id, key, value) with a composite
+    primary key, so INSERT OR REPLACE is a safe, dialect-portable upsert.
+    """
+    conn.execute(
+        "INSERT OR REPLACE INTO app_settings (workspace_id, key, value) VALUES (?, ?, ?)",
+        (wid, key, value),
+    )
+
+
+def get_setting(conn: Any, key: str, default: str = "") -> str:
+    """Get a single workspace setting value, returning *default* if not found."""
     try:
         row: Optional[sqlite3.Row] = conn.execute(
-            "SELECT value FROM app_settings WHERE key = ?", (key,)
+            "SELECT value FROM app_settings WHERE key = ? AND workspace_id = ?",
+            (key, _ws(conn)),
         ).fetchone()
         return row["value"] if row else default
     except sqlite3.Error as exc:
@@ -810,16 +979,10 @@ def get_setting(conn: sqlite3.Connection, key: str, default: str = "") -> str:
         return default
 
 
-def set_setting(conn: sqlite3.Connection, key: str, value: str) -> None:
-    """Upsert a single setting key-value pair."""
+def set_setting(conn: Any, key: str, value: str) -> None:
+    """Upsert a single setting key-value pair for the active workspace."""
     try:
-        conn.execute(
-            """
-            INSERT INTO app_settings (key, value) VALUES (?, ?)
-            ON CONFLICT(key) DO UPDATE SET value = excluded.value
-            """,
-            (key, value),
-        )
+        _upsert_setting(conn, _ws(conn), key, value)
         conn.commit()
     except sqlite3.Error as exc:
         logger.error("set_setting failed for key=%s: %s", key, exc)
@@ -827,11 +990,12 @@ def set_setting(conn: sqlite3.Connection, key: str, value: str) -> None:
         raise
 
 
-def get_all_settings(conn: sqlite3.Connection) -> dict[str, str]:
-    """Return all settings as a dict."""
+def get_all_settings(conn: Any) -> dict[str, str]:
+    """Return all settings for the active workspace as a dict."""
     try:
         rows: list[sqlite3.Row] = conn.execute(
-            "SELECT key, value FROM app_settings ORDER BY key"
+            "SELECT key, value FROM app_settings WHERE workspace_id = ? ORDER BY key",
+            (_ws(conn),),
         ).fetchall()
         return {r["key"]: r["value"] for r in rows}
     except sqlite3.Error as exc:
@@ -839,17 +1003,12 @@ def get_all_settings(conn: sqlite3.Connection) -> dict[str, str]:
         return {}
 
 
-def set_settings_bulk(conn: sqlite3.Connection, settings: dict[str, str]) -> None:
-    """Upsert multiple settings at once."""
+def set_settings_bulk(conn: Any, settings: dict[str, str]) -> None:
+    """Upsert multiple settings at once for the active workspace."""
+    wid = _ws(conn)
     try:
         for key, value in settings.items():
-            conn.execute(
-                """
-                INSERT INTO app_settings (key, value) VALUES (?, ?)
-                ON CONFLICT(key) DO UPDATE SET value = excluded.value
-                """,
-                (key, value),
-            )
+            _upsert_setting(conn, wid, key, value)
         conn.commit()
     except sqlite3.Error as exc:
         logger.error("set_settings_bulk failed: %s", exc)

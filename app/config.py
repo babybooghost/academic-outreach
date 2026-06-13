@@ -473,9 +473,17 @@ def load_config(
             _tmp_conn = _sqlite3.connect(str(_db_file))
             _tmp_conn.row_factory = _sqlite3.Row
             try:
-                rows = _tmp_conn.execute(
-                    "SELECT key, value FROM app_settings"
-                ).fetchall()
+                # Base config only reads the workspace 0 (CLI / global) settings;
+                # per-user web settings are layered on separately per request.
+                try:
+                    rows = _tmp_conn.execute(
+                        "SELECT key, value FROM app_settings WHERE workspace_id = 0"
+                    ).fetchall()
+                except _sqlite3.OperationalError:
+                    # Legacy schema without a workspace_id column.
+                    rows = _tmp_conn.execute(
+                        "SELECT key, value FROM app_settings"
+                    ).fetchall()
                 db_settings = {r["key"]: r["value"] for r in rows}
             except _sqlite3.OperationalError:
                 pass  # Table doesn't exist yet — first run

@@ -8,6 +8,7 @@ it as enrichment_text for downstream summarization.
 from __future__ import annotations
 
 import random
+import re
 import sqlite3
 import time
 import urllib.robotparser
@@ -69,6 +70,156 @@ def _is_allowed_by_robots(
             url, exc,
         )
         return True
+
+
+# ---------------------------------------------------------------------------
+# Email extraction
+# ---------------------------------------------------------------------------
+
+# Matches a normal email address.
+_EMAIL_RE = re.compile(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}")
+
+# Local parts that indicate a department/role mailbox rather than the professor.
+_GENERIC_LOCALPARTS: frozenset[str] = frozenset({
+    "info", "admin", "webmaster", "contact", "support", "help", "office",
+    "department", "dept", "hr", "jobs", "careers", "press", "media", "noreply",
+    "no-reply", "donotreply", "postmaster", "enquiries", "inquiries", "general",
+    "sales", "marketing", "privacy", "security", "abuse", "webadmin", "it",
+})
+
+# File extensions that the email regex can falsely match (e.g. "logo@2x.png").
+_IMAGE_EXTENSIONS: tuple[str, ...] = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg")
+
+
+def _deobfuscate(text: str) -> str:
+    """Turn common email obfuscations into a parseable form.
+
+    Handles "name [at] domain [dot] edu", "(at)", " AT ", "&#64;", etc.
+    """
+    out = text
+    out = out.replace("&#64;", "@").replace("&commat;", "@").replace("&#46;", ".")
+    # " at "/"[at]"/"(at)" -> "@"   and  " dot "/"[dot]"/"(dot)" -> "."
+    out = re.sub(r"\s*[\(\[\{]\s*at\s*[\)\]\}]\s*", "@", out, flags=re.IGNORECASE)
+    out = re.sub(r"\s+at\s+", "@", out, flags=re.IGNORECASE)
+    out = re.sub(r"\s*[\(\[\{]\s*dot\s*[\)\]\}]\s*", ".", out, flags=re.IGNORECASE)
+    out = re.sub(r"\s+dot\s+", ".", out, flags=re.IGNORECASE)
+    return out
+
+
+def _looks_like_email(candidate: str) -> bool:
+    candidate = candidate.strip().strip(".").lower()
+    if not candidate or candidate.endswith(_IMAGE_EXTENSIONS):
+        return False
+    local = candidate.split("@", 1)[0]
+    if local in _GENERIC_LOCALPARTS:
+        return False
+    return bool(_EMAIL_RE.fullmatch(candidate))
+
+
+def _name_tokens(name: str) -> list[str]:
+    return [t.lower() for t in re.split(r"[^A-Za-z]+", name or "") if len(t) > 1]
+
+
+def _score_email_candidate(email: str, name: str, university: str) -> int:
+    """Rank a candidate email. Higher is a more confident match for the professor."""
+    email = email.lower()
+    local, _, domain = email.partition("@")
+    score = 0
+    if domain.endswith(".edu") or ".edu." in domain or ".ac." in domain:
+        score += 3
+    tokens = _name_tokens(name)
+    if tokens:
+        last = tokens[-1]
+        first = tokens[0]
+        if last and last in local:
+            score += 3
+        if first and first in local:
+            score += 1
+        if first and last and (first[0] + last) in local:  # e.g. jsmith
+            score += 2
+    # Domain echoing the university name is a mild positive signal.
+    uni_tokens = _name_tokens(university)
+    if any(tok in domain for tok in uni_tokens if len(tok) > 3):
+        score += 1
+    return score
+
+
+def extract_email_from_html(
+    html: str,
+    name: str = "",
+    university: str = "",
+) -> Optional[str]:
+    """Extract the most likely professor email from a page's HTML.
+
+    Prefers ``mailto:`` links and addresses that match the professor's name on a
+    ``.edu`` domain. Handles common text obfuscations. Returns None when no
+    plausible address is found. No address is ever fabricated or guessed.
+    """
+    candidates: list[str] = []
+
+    try:
+        soup = BeautifulSoup(html, "html.parser")
+        for link in soup.find_all("a", href=True):
+            href = link["href"].strip()
+            if href.lower().startswith("mailto:"):
+                addr = href[7:].split("?", 1)[0].strip()
+                if addr:
+                    candidates.append(addr)
+        text_source = soup.get_text(separator=" ", strip=True)
+    except Exception:
+        text_source = html
+
+    # Plain and de-obfuscated text matches.
+    for blob in (text_source, _deobfuscate(text_source)):
+        candidates.extend(_EMAIL_RE.findall(blob))
+
+    seen: set[str] = set()
+    valid: list[str] = []
+    for raw in candidates:
+        addr = raw.strip().strip(".").lower()
+        if addr in seen:
+            continue
+        seen.add(addr)
+        if _looks_like_email(addr):
+            valid.append(addr)
+
+    if not valid:
+        return None
+
+    best = max(valid, key=lambda e: _score_email_candidate(e, name, university))
+    # Require at least a weak signal (a .edu domain or a name match) before
+    # trusting an address scraped off a page.
+    if _score_email_candidate(best, name, university) <= 0:
+        return None
+    return best
+
+
+def find_professor_email(
+    profile_url: str,
+    name: str = "",
+    university: str = "",
+    timeout: int = _REQUEST_TIMEOUT,
+) -> Optional[str]:
+    """Fetch a faculty/profile page and extract a published email, best-effort.
+
+    Returns None on any network/parse failure or when no plausible address is
+    found, so callers can fall back to manual entry.
+    """
+    url = (profile_url or "").strip()
+    if not url or url.split("#", 1)[0] in ("", "http://", "https://"):
+        return None
+    if not _is_allowed_by_robots(url, _DEFAULT_USER_AGENT):
+        return None
+    try:
+        resp = requests.get(
+            url,
+            headers={"User-Agent": _DEFAULT_USER_AGENT},
+            timeout=timeout,
+        )
+        resp.raise_for_status()
+    except requests.exceptions.RequestException:
+        return None
+    return extract_email_from_html(resp.text, name=name, university=university)
 
 
 # ---------------------------------------------------------------------------
@@ -208,6 +359,18 @@ def enrich_professor(
         return prof
 
     prof.enrichment_text = extracted
+
+    # Opportunistically recover a real email from the same page when the
+    # professor has none (e.g. discovered via the finder). Never overwrite an
+    # existing real address, and never invent one.
+    if _needs_email(prof.email):
+        found = extract_email_from_html(
+            response.text, name=prof.name, university=prof.university or "",
+        )
+        if found:
+            prof.email = found
+            logger.info("Recovered email for %s: %s", prof.name, found)
+
     prof.status = "enriched"
     logger.info(
         "Enriched %s: extracted %d chars from %s",
@@ -343,3 +506,9 @@ def _append_note(existing: Optional[str], new_note: str) -> str:
     if existing and existing.strip():
         return f"{existing.strip()} | {new_note}"
     return new_note
+
+
+def _needs_email(value: Optional[str]) -> bool:
+    """True when a professor has no real, sendable email yet."""
+    email = (value or "").strip().lower()
+    return not email or email.endswith(".placeholder")

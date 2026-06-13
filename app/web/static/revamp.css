@@ -1005,7 +1005,8 @@ body.app-shell {
 }
 
 .badge-edited,
-.badge-skip {
+.badge-skip,
+.badge-needs_email {
     background: var(--ao-warning-bg);
     color: var(--ao-warning);
 }

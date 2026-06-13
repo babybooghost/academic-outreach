@@ -6,6 +6,8 @@ token.json
 # Database
 data/outreach.db
 data/*.db
+data/*.db-shm
+data/*.db-wal
 data/workspaces/
 
 # Python

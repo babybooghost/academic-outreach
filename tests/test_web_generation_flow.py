@@ -34,7 +34,7 @@ class WebGenerationFlowTests(unittest.TestCase):
         self.addCleanup(self.env_patch.stop)
 
         init_db(self.db_path)
-        conn = get_connection(self.db_path)
+        conn = get_connection(self.db_path, workspace_id=1)
         try:
             upsert_professor(
                 conn,
@@ -62,7 +62,6 @@ class WebGenerationFlowTests(unittest.TestCase):
             session["key_id"] = 1
             session["key_label"] = "Generator User"
             session["role"] = "user"
-            session["workspace_db_path"] = self.db_path
 
     def test_user_can_create_profile_and_generate_drafts_from_web(self) -> None:
         self._login()
@@ -83,7 +82,7 @@ class WebGenerationFlowTests(unittest.TestCase):
         self.assertEqual(create_profile.status_code, 200)
         self.assertIn("Sender profile saved to this workspace.", create_profile.get_data(as_text=True))
 
-        conn = get_connection(self.db_path)
+        conn = get_connection(self.db_path, workspace_id=1)
         try:
             profiles = get_sender_profiles(conn)
         finally:
@@ -98,11 +97,11 @@ class WebGenerationFlowTests(unittest.TestCase):
         self.assertEqual(generate.status_code, 302)
         self.assertIn("/drafts?session=", generate.headers["Location"])
 
-        conn = get_connection(self.db_path)
+        conn = get_connection(self.db_path, workspace_id=1)
         try:
             drafts = get_drafts(conn)
             professor_status = conn.execute(
-                "SELECT status FROM professors WHERE email = ?",
+                "SELECT status FROM professors WHERE email = ? AND workspace_id = 1",
                 ("generator@example.edu",),
             ).fetchone()["status"]
         finally:

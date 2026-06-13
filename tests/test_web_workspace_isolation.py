@@ -123,6 +123,38 @@ class WebWorkspaceIsolationTests(unittest.TestCase):
         self.assertNotIn("Prof Workspace One", professors_two)
         self.assertIn("No faculty files match this view yet.", professors_two)
 
+        # Tenant-safety: both workspaces must live in the SAME shared database,
+        # separated only by workspace_id — not in per-user database files.
+        client_two.post(
+            "/finder/save",
+            json={
+                "professors": [
+                    {
+                        "name": "Prof Workspace Two",
+                        "email": "workspace.two@example.edu",
+                        "university": "Isolation University",
+                        "field": "Robotics",
+                    }
+                ]
+            },
+        )
+        from app.database import get_connection
+
+        conn = get_connection(self.db_path)
+        try:
+            rows = conn.execute(
+                "SELECT name, workspace_id FROM professors ORDER BY name"
+            ).fetchall()
+        finally:
+            conn.close()
+        names = {r["name"]: r["workspace_id"] for r in rows}
+        self.assertIn("Prof Workspace One", names)
+        self.assertIn("Prof Workspace Two", names)
+        # Distinct workspace ids, both persisted in one database file.
+        self.assertNotEqual(
+            names["Prof Workspace One"], names["Prof Workspace Two"]
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
