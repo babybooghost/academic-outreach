@@ -509,6 +509,13 @@ class SafeSender:
                 sender_profile=sender_profile,
             )
 
+            recipient = (resolved_professor.email or "").strip().lower()
+            if not recipient or recipient.endswith(".placeholder"):
+                raise RuntimeError(
+                    f"{resolved_professor.name} has no real email address yet "
+                    "(needs email). Add or look one up before sending."
+                )
+
             if is_suppressed(active_conn, resolved_professor.email):
                 raise RuntimeError(
                     f"{resolved_professor.email} is on the suppression list."

@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from dataclasses import replace
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any
 
 from app.config import Config, email_provider_smtp_defaults
@@ -15,7 +14,6 @@ from app.database import (
     get_drafts,
     get_professor,
     get_sender_profiles,
-    init_db,
     insert_sender_profile,
     set_settings_bulk,
 )
@@ -114,19 +112,6 @@ def seed_person_workspace_identity(
                 background="",
             ),
         )
-
-
-def workspace_db_path(config: Config, key_id: int | str, *, create_root: bool = True) -> str:
-    """Return the per-access-key workspace database path."""
-    workspace_key = str(key_id).strip()
-    if not workspace_key:
-        raise RuntimeError("No workspace key id was provided")
-
-    base_db = Path(config.db_path)
-    workspace_root = base_db.parent / "workspaces"
-    if create_root:
-        workspace_root.mkdir(parents=True, exist_ok=True)
-    return str(workspace_root / f"workspace_{workspace_key}.db")
 
 
 def workspace_config(base_cfg: Config, conn: Any) -> Config:
@@ -388,15 +373,13 @@ def send_ready_queue(
 
 def auto_send_workspace(
     base_cfg: Config,
-    workspace_path: str,
+    workspace_id: int,
     *,
-    workspace_id: int | None = None,
     label: str = "",
     dry_run: bool = False,
 ) -> dict[str, Any]:
-    """Run auto-send for one workspace if that workspace opted in."""
-    init_db(workspace_path)
-    conn = get_connection(workspace_path)
+    """Run auto-send for one workspace (by id) if that workspace opted in."""
+    conn = get_connection(base_cfg.db_path, workspace_id=workspace_id)
     try:
         settings = get_all_settings(conn)
         enabled = parse_bool(settings.get("auto_send_enabled"), default=False)
@@ -404,7 +387,6 @@ def auto_send_workspace(
             return {
                 "workspace_id": workspace_id,
                 "label": label,
-                "workspace_path": workspace_path,
                 "status": "disabled",
                 "success": True,
                 "processed": False,
@@ -426,7 +408,6 @@ def auto_send_workspace(
         result.update({
             "workspace_id": workspace_id,
             "label": label,
-            "workspace_path": workspace_path,
             "processed": result.get("status") != "empty",
             "auto_send": True,
             "method": method,
@@ -439,7 +420,7 @@ def auto_send_workspace(
 
 
 def list_workspace_targets(base_cfg: Config) -> list[dict[str, Any]]:
-    """Discover active non-admin workspace DBs that already exist."""
+    """Return active non-admin workspaces from the shared access-key registry."""
     auth_conn = get_connection(base_cfg.db_path)
     try:
         rows = auth_conn.execute(
@@ -453,18 +434,14 @@ def list_workspace_targets(base_cfg: Config) -> list[dict[str, Any]]:
     finally:
         auth_conn.close()
 
-    targets: list[dict[str, Any]] = []
-    for row in rows:
-        path = workspace_db_path(base_cfg, row["id"], create_root=False)
-        if not Path(path).exists():
-            continue
-        targets.append({
+    return [
+        {
             "workspace_id": row["id"],
             "label": row["label"],
             "role": row["role"],
-            "workspace_path": path,
-        })
-    return targets
+        }
+        for row in rows
+    ]
 
 
 def run_auto_send_for_workspaces(
@@ -473,37 +450,21 @@ def run_auto_send_for_workspaces(
     workspace_id: int | None = None,
     dry_run: bool = False,
 ) -> dict[str, Any]:
-    """Run auto-send across discovered workspaces or one requested workspace."""
+    """Run auto-send across all opted-in workspaces or one requested workspace."""
     if workspace_id is not None:
         targets = [{
             "workspace_id": workspace_id,
             "label": f"Workspace {workspace_id}",
             "role": "user",
-            "workspace_path": workspace_db_path(base_cfg, workspace_id, create_root=False),
         }]
     else:
         targets = list_workspace_targets(base_cfg)
 
     results: list[dict[str, Any]] = []
     for target in targets:
-        path = target["workspace_path"]
-        if not Path(path).exists():
-            results.append({
-                "workspace_id": target.get("workspace_id"),
-                "label": target.get("label", ""),
-                "workspace_path": path,
-                "status": "missing_workspace",
-                "success": False,
-                "processed": False,
-                "sent": 0,
-                "failed": 0,
-                "count": 0,
-            })
-            continue
         results.append(auto_send_workspace(
             base_cfg,
-            path,
-            workspace_id=target.get("workspace_id"),
+            int(target["workspace_id"]),
             label=target.get("label", ""),
             dry_run=dry_run,
         ))

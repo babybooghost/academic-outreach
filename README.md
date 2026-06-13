@@ -25,16 +25,17 @@ This is **not** a mass-email tool. It prioritizes quality, authenticity, and hum
 
 ## Hosted Storage Status
 
-The current hosted web app still has one important deployment limitation:
+The hosted web app supports persistent, tenant-isolated multi-user storage via **Turso**.
 
-- On Vercel without a real database service, the app stores workspace files under `/tmp`, which is temporary instance storage.
-- That means user workspaces are isolated from each other, but hosted data can disappear after deploys, cold starts, or instance replacement.
-- The app now reports this clearly in the UI banner and `/health` output so the deployment mode is visible.
-
-Important caveat:
-
-- The existing Turso/libsql adapter is not yet tenant-safe for the web workspace model, because the hosted app currently isolates users with per-workspace database files.
-- A proper remote multi-tenant schema migration is still needed before hosted persistent multi-user storage is trustworthy.
+- Set `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` (see `.env.example`) and all workspaces share
+  one Turso database, isolated by a `workspace_id` column on every per-user table. Data survives
+  deploys, cold starts, and instance replacement.
+- **Without** Turso configured, a Vercel deploy falls back to `/tmp` storage, which is temporary:
+  user workspaces are still isolated from each other, but hosted data can disappear after deploys,
+  cold starts, or instance replacement.
+- The app reports the active mode in the UI banner and `/health` output (`remote-shared`,
+  `ephemeral-instance`, or `local-files`).
+- Local development needs no database service — it uses a local SQLite file.
 
 ## Quick Start
 

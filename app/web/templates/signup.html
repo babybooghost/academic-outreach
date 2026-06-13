@@ -66,6 +66,13 @@
                     </div>
                     {% else %}
                     <form method="POST" action="{{ url_for('signup') }}" id="signup-form" class="auth-form-stack">
+                        {% if invite_required %}
+                        <div class="form-group">
+                            <label for="invite_code">Invite Code</label>
+                            <input type="text" id="invite_code" name="invite_code" placeholder="Code shared by the workspace owner" required autocomplete="off" value="{{ request.form.get('invite_code', '') }}">
+                            <div class="form-hint">Sign-ups are limited to people with the current invite code.</div>
+                        </div>
+                        {% endif %}
                         <div class="form-group">
                             <label for="email">Email Address</label>
                             <input type="email" id="email" name="email" placeholder="you@school.edu" required autofocus autocomplete="email" value="{{ request.form.get('email', '') }}">

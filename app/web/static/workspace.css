@@ -1,0 +1,398 @@
+/* =========================================================================
+   Academic Outreach — authoritative workspace shell (loaded LAST)
+   Brings the dark editorial aesthetic of the landing page into the app:
+   warm parchment + gold palette, Cormorant serif display, one robust
+   responsive shell (sidebar >=1024px, top bar below). Wins on source order.
+   ========================================================================= */
+
+/* ---- Helper tokens (layout/fonts) available everywhere ---- */
+:root {
+    --ws-sidebar: 264px;
+    --ws-serif: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
+    --ws-sans: 'Manrope', 'Segoe UI', system-ui, sans-serif;
+    --ws-maxw: 1240px;
+}
+
+/* ---- Warm editorial palette ----
+   revamp.css scopes a competing cool/slate theme to
+   `html[data-theme="dark"] body.app-shell` (specificity 0,2,2) and leaves
+   --ao-primary blue. We override at the SAME specificity; loading last wins. */
+html[data-theme="dark"] body.app-shell,
+html:not([data-theme="light"]) body.app-shell {
+    --ao-bg: #14110c;
+    --ao-bg-alt: #1a1610;
+    --ao-surface: #1f1a13;
+    --ao-surface-2: #272118;
+    --ao-surface-3: #2f281d;
+    --ao-panel: #1d1810;
+    --ao-panel-soft: #272118;
+    --ao-border: rgba(217, 196, 158, 0.14);
+    --ao-border-light: rgba(217, 196, 158, 0.26);
+    --ao-text: #f5efe2;
+    --ao-text-muted: #cabfab;
+    --ao-text-dim: #8f836e;
+    --ao-primary: #c79b62;
+    --ao-primary-light: #e2bd85;
+    --ao-primary-dark: #9a6f3c;
+    --ao-primary-glow: rgba(226, 189, 133, 0.16);
+    --ao-accent: #99abb6;
+    color-scheme: dark;
+}
+
+html[data-theme="light"] body.app-shell {
+    --ao-bg: #f3ece0;
+    --ao-bg-alt: #ece3d3;
+    --ao-surface: #fbf7ef;
+    --ao-surface-2: #f3ebdd;
+    --ao-surface-3: #ece1cf;
+    --ao-panel: #fffdf8;
+    --ao-panel-soft: #f3ebdd;
+    --ao-border: rgba(70, 54, 32, 0.14);
+    --ao-border-light: rgba(70, 54, 32, 0.24);
+    --ao-text: #2c2418;
+    --ao-text-muted: #5d5240;
+    --ao-text-dim: #897c64;
+    --ao-primary: #9a6f3c;
+    --ao-primary-light: #b0824a;
+    --ao-primary-dark: #7c5832;
+    --ao-primary-glow: rgba(154, 111, 60, 0.12);
+    color-scheme: light;
+}
+
+/* -------------------------------- Base ---------------------------------- */
+body.app-shell {
+    background:
+        radial-gradient(1200px 620px at 82% -8%, rgba(199, 155, 98, 0.10), transparent 60%),
+        radial-gradient(900px 520px at -6% 4%, rgba(149, 166, 183, 0.06), transparent 55%),
+        var(--ao-bg);
+    color: var(--ao-text);
+    font-family: var(--ws-sans);
+    -webkit-font-smoothing: antialiased;
+}
+
+.app-shell .container,
+.app-shell .page-content {
+    max-width: var(--ws-maxw);
+}
+
+/* Editorial serif for every display heading + the big stat numbers. */
+.app-shell .page-title,
+.app-shell .workspace-title,
+.app-shell .editorial-hero h1,
+.app-shell .panel-title,
+.app-shell .surface-panel-header .panel-title,
+.app-shell h1,
+.app-shell h2 {
+    font-family: var(--ws-serif);
+    font-weight: 600;
+    letter-spacing: -0.005em;
+    color: var(--ao-text);
+}
+
+.app-shell .page-title,
+.app-shell .editorial-hero h1 {
+    font-size: clamp(2.1rem, 4.2vw, 3.2rem);
+    line-height: 1.04;
+}
+
+/* Uppercase kicker labels ("WORKSPACE DESK", "GETTING STARTED"). */
+.app-shell .panel-kicker,
+.app-shell .hero-kicker,
+.app-shell .surface-panel-header .panel-kicker,
+.app-shell .eyebrow {
+    font-family: var(--ws-sans);
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--ao-primary-light);
+}
+
+.app-shell .lead,
+.app-shell .hero-copy {
+    color: var(--ao-text-muted);
+    font-size: 1.04rem;
+    line-height: 1.6;
+}
+
+/* ============================ Responsive shell ==========================
+   One system, two states. No fragile mid-range band.
+   >=1024px : fixed left sidebar.  <1024px : sticky top bar w/ scroll pills.
+   ======================================================================== */
+
+/* --- Mobile / tablet first: clean sticky top bar --- */
+.app-shell .navbar {
+    position: sticky;
+    top: 0;
+    left: 0;
+    width: auto;
+    height: auto;
+    z-index: 300;
+    padding: 0 1.1rem;
+    border-right: 0;
+    border-bottom: 1px solid var(--ao-border);
+    background: color-mix(in srgb, var(--ao-bg) 88%, transparent);
+    backdrop-filter: blur(18px);
+}
+
+.app-shell .navbar-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.6rem;
+    width: 100%;
+    max-width: var(--ws-maxw);
+    min-height: 0;
+    height: auto;
+    margin: 0 auto;
+    padding: 0.7rem 0;
+}
+
+.app-shell .logo { gap: 0.7rem; padding: 0; }
+.app-shell .logo-icon {
+    width: 40px; height: 40px; border-radius: 12px;
+    font-family: var(--ws-serif); font-size: 1.25rem; font-weight: 700;
+    background: linear-gradient(135deg, #9a6f3c, #e2bd85 60%, #c9b79c);
+    color: #2a1f10; box-shadow: 0 10px 22px rgba(0,0,0,0.28);
+}
+.app-shell .logo-text { font-family: var(--ws-serif); font-size: 1.5rem; line-height: 1; color: var(--ao-text); }
+
+.app-shell .nav-links {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 0.35rem;
+    overflow-x: auto;
+    padding-bottom: 0.15rem;
+    scrollbar-width: thin;
+}
+.app-shell .nav-links::-webkit-scrollbar { height: 6px; }
+.app-shell .nav-links::-webkit-scrollbar-thumb { background: var(--ao-border-light); border-radius: 99px; }
+.app-shell .nav-links li { width: auto; }
+.app-shell .nav-links a {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    white-space: nowrap;
+    padding: 0.55rem 0.9rem;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    color: var(--ao-text-muted);
+    font-family: var(--ws-sans);
+    font-size: 0.86rem; font-weight: 600; letter-spacing: 0.005em;
+    transition: all var(--ao-transition);
+}
+.app-shell .nav-links a:hover {
+    color: var(--ao-text);
+    background: var(--ao-surface-2);
+}
+.app-shell .nav-links a.active {
+    color: #2a1f10;
+    background: linear-gradient(135deg, var(--ao-primary), var(--ao-primary-light));
+    border-color: transparent;
+    box-shadow: 0 10px 22px rgba(199, 155, 98, 0.22);
+}
+.app-shell .nav-icon { opacity: 0.7; }
+
+.app-shell .nav-user {
+    display: flex; flex-direction: row; align-items: center;
+    gap: 0.6rem; width: 100%;
+    padding: 0; border: 0; background: transparent; box-shadow: none;
+    font-size: 0.85rem;
+}
+.app-shell .nav-user-label { color: var(--ao-text); font-weight: 600; max-width: 12rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app-shell .nav-user-dot { width: 8px; height: 8px; border-radius: 99px; background: var(--ao-success, #8faa8c); }
+.app-shell .theme-toggle {
+    width: 38px; height: 38px; border-radius: 11px;
+    display: inline-grid; place-items: center;
+    border: 1px solid var(--ao-border); background: var(--ao-surface);
+    color: var(--ao-text-muted); cursor: pointer;
+}
+.app-shell .theme-toggle:hover { color: var(--ao-text); border-color: var(--ao-border-light); }
+
+/* --- Desktop: fixed editorial sidebar --- */
+@media (min-width: 1024px) {
+    body.app-shell { padding-left: var(--ws-sidebar); }
+
+    .app-shell .navbar {
+        position: fixed; top: 0; left: 0;
+        width: var(--ws-sidebar); height: 100svh;
+        padding: 0;
+        border-right: 1px solid var(--ao-border);
+        border-bottom: 0;
+        background: linear-gradient(180deg, var(--ao-bg-alt), var(--ao-bg));
+    }
+    .app-shell .navbar-inner {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 1.1rem;
+        height: 100%;
+        padding: 1.4rem 1rem;
+    }
+    .app-shell .logo { padding: 0.3rem 0.5rem 1rem; border-bottom: 1px solid var(--ao-border); }
+    .app-shell .nav-links {
+        flex-direction: column;
+        flex-wrap: nowrap;
+        align-items: stretch;
+        gap: 0.25rem;
+        overflow: visible;
+    }
+    .app-shell .nav-links a { width: 100%; padding: 0.68rem 0.85rem; border-radius: 13px; }
+    .app-shell .nav-links a.active { box-shadow: 0 12px 26px rgba(199, 155, 98, 0.20); }
+    .app-shell .nav-user {
+        flex-direction: column; align-items: stretch;
+        gap: 0.55rem; margin-top: auto;
+        padding-top: 1rem; border-top: 1px solid var(--ao-border);
+    }
+    .app-shell .nav-user .btn { width: 100%; justify-content: center; }
+    .app-shell .page-content { padding: 2.4rem 0 4rem; }
+}
+
+@media (min-width: 1280px) {
+    .app-shell .container,
+    .app-shell .page-content { padding-left: 2.4rem; padding-right: 2.4rem; }
+}
+
+/* ------------------------------- Buttons -------------------------------- */
+.app-shell .btn {
+    font-family: var(--ws-sans);
+    font-weight: 700;
+    border-radius: 999px;
+    letter-spacing: 0.005em;
+    transition: transform var(--ao-transition), box-shadow var(--ao-transition), background var(--ao-transition);
+}
+.app-shell .btn:hover { transform: translateY(-1px); }
+.app-shell .btn-primary,
+.app-shell button.btn-primary,
+.app-shell a.btn-primary {
+    background: linear-gradient(135deg, var(--ao-primary-dark), var(--ao-primary) 45%, var(--ao-primary-light));
+    color: #2a1f10;
+    border: 0;
+    box-shadow: 0 14px 30px rgba(199, 155, 98, 0.26);
+}
+.app-shell .btn-primary:hover { box-shadow: 0 18px 38px rgba(199, 155, 98, 0.34); }
+.app-shell .btn-outline,
+.app-shell .btn-ghost,
+.app-shell .btn-secondary {
+    background: var(--ao-surface);
+    color: var(--ao-text);
+    border: 1px solid var(--ao-border-light);
+}
+.app-shell .btn-outline:hover,
+.app-shell .btn-ghost:hover,
+.app-shell .btn-secondary:hover {
+    border-color: var(--ao-primary);
+    color: var(--ao-primary-light);
+    background: var(--ao-surface-2);
+}
+.app-shell .btn-danger { background: var(--ao-danger, #d97e72); color: #2a1410; border: 0; }
+
+/* --------------------------- Panels & cards ----------------------------- */
+.app-shell .surface-panel,
+.app-shell .panel,
+.app-shell .card,
+.app-shell .metric-card,
+.app-shell .empty-state,
+.app-shell .info-card,
+.app-shell .step-card {
+    background: linear-gradient(180deg, color-mix(in srgb, var(--ao-surface) 92%, transparent), var(--ao-panel));
+    border: 1px solid var(--ao-border);
+    border-radius: var(--ao-radius, 22px);
+    box-shadow: 0 22px 60px rgba(0, 0, 0, 0.28);
+}
+
+.app-shell .surface-panel { padding: 1.6rem 1.7rem; }
+
+.app-shell .metric-card { padding: 1.3rem 1.4rem; }
+.app-shell .metric-card .metric-value,
+.app-shell .metric-value,
+.app-shell .stat-value,
+.app-shell .stat-number {
+    font-family: var(--ws-serif);
+    font-weight: 600;
+    font-size: 2.2rem;
+    color: var(--ao-text);
+}
+
+/* Numbered "getting started" steps */
+.app-shell .step-card { padding: 1.1rem 1.2rem; }
+.app-shell .step-num,
+.app-shell .step-index {
+    background: var(--ao-primary-glow);
+    color: var(--ao-primary-light);
+    border: 1px solid var(--ao-border-light);
+}
+
+/* ---------------------------- Form controls ----------------------------- */
+.app-shell input[type="text"],
+.app-shell input[type="email"],
+.app-shell input[type="password"],
+.app-shell input[type="number"],
+.app-shell input[type="search"],
+.app-shell select,
+.app-shell textarea {
+    background: var(--ao-bg-alt);
+    color: var(--ao-text);
+    border: 1px solid var(--ao-border);
+    border-radius: 14px;
+    font-family: var(--ws-sans);
+    padding: 0.7rem 0.9rem;
+    transition: border-color var(--ao-transition), box-shadow var(--ao-transition);
+}
+.app-shell input::placeholder,
+.app-shell textarea::placeholder { color: var(--ao-text-dim); }
+.app-shell input:focus,
+.app-shell select:focus,
+.app-shell textarea:focus {
+    outline: none;
+    border-color: var(--ao-primary);
+    box-shadow: 0 0 0 3px var(--ao-primary-glow);
+}
+.app-shell label { color: var(--ao-text-muted); font-weight: 600; font-size: 0.84rem; }
+
+/* ------------------------------- Tables --------------------------------- */
+.app-shell table { border-color: var(--ao-border); }
+.app-shell th {
+    font-family: var(--ws-sans);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 0.72rem;
+    color: var(--ao-text-dim);
+    border-bottom: 1px solid var(--ao-border-light);
+}
+.app-shell td { border-bottom: 1px solid var(--ao-border); color: var(--ao-text-muted); }
+.app-shell tbody tr:hover { background: var(--ao-surface); }
+
+/* ------------------------------ Badges ---------------------------------- */
+.app-shell .badge,
+.app-shell .pill,
+.app-shell .tag,
+.app-shell .status-pill {
+    border-radius: 999px;
+    font-family: var(--ws-sans);
+    font-weight: 700;
+    font-size: 0.72rem;
+    letter-spacing: 0.02em;
+    padding: 0.25rem 0.7rem;
+}
+
+/* --------------------- Storage banner & flash messages ------------------ */
+.app-shell .storage-banner {
+    border-radius: 16px;
+    border: 1px solid var(--ao-border-light);
+    background: var(--ao-surface);
+}
+.app-shell .storage-banner-warning {
+    border-color: rgba(208, 161, 99, 0.4);
+    background: var(--ao-warning-bg, rgba(208,161,99,0.14));
+}
+.app-shell .flash-msg {
+    border-radius: 14px;
+    border: 1px solid var(--ao-border-light);
+    font-weight: 600;
+}
+
+/* ------------------------------- Footer --------------------------------- */
+.app-shell .app-footer { border-top: 1px solid var(--ao-border); color: var(--ao-text-dim); }
+@media (min-width: 1024px) {
+    .app-shell .app-footer { padding-left: 1rem; }
+}

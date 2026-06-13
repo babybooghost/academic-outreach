@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Something went wrong | Academic Outreach</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='revamp.css') }}">
+    <script>
+    (function() {
+        var saved = localStorage.getItem('ao_theme');
+        var t = saved === 'system' ? 'light' : (saved || 'light');
+        document.documentElement.setAttribute('data-theme', t);
+    })();
+    </script>
+</head>
+<body class="auth-shell">
+    <main style="min-height:80vh; display:flex; align-items:center; justify-content:center; padding:2rem;">
+        <div class="card" style="max-width:480px; text-align:center;">
+            <div class="logo-icon" style="margin:0 auto 1rem; width:48px; height:48px; font-size:1.3rem; border-radius:14px;">AO</div>
+            <h1 style="margin:0 0 0.5rem;">Something went wrong</h1>
+            <p style="color:var(--ao-text-muted, #888); margin:0 0 1.5rem;">
+                An unexpected error occurred while handling your request. The issue has been
+                logged. Please try again, and if it keeps happening, report it from the support
+                widget.
+            </p>
+            <a href="{{ url_for('homepage') }}" class="btn btn-primary">Back to home</a>
+        </div>
+    </main>
+</body>
+</html>

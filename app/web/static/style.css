@@ -244,6 +244,7 @@ hr { border: none; border-top: 1px solid var(--ao-border); margin: 1.5rem 0; }
 .badge-enriched { background: var(--ao-info-bg); color: var(--ao-info); }
 .badge-ready { background: var(--ao-success-bg); color: var(--ao-success); }
 .badge-skip { background: var(--ao-warning-bg); color: var(--ao-warning); }
+.badge-needs_email { background: var(--ao-warning-bg); color: var(--ao-warning); }
 .badge-error { background: var(--ao-danger-bg); color: var(--ao-danger); }
 .badge-generated { background: rgba(162, 155, 254, 0.15); color: var(--ao-primary-light); }
 .badge-approved { background: var(--ao-success-bg); color: var(--ao-success); }

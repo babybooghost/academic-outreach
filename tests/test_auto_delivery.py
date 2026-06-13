@@ -13,7 +13,6 @@ from app.database import (
     set_settings_bulk,
     upsert_professor,
 )
-from app.delivery import workspace_db_path
 from app.models import Draft, Professor, SendRecord, SenderProfile
 from app.web.app import create_app
 
@@ -59,11 +58,8 @@ class AutoDeliveryCronTests(unittest.TestCase):
         finally:
             auth_conn.close()
 
-        self.workspace_path = workspace_db_path(self.app.config["APP_CFG"], self.key_id)
-        init_db(self.workspace_path)
-
     def _seed_workspace(self, *, enabled: bool = True) -> None:
-        conn = get_connection(self.workspace_path)
+        conn = get_connection(self.db_path, workspace_id=self.key_id)
         try:
             set_settings_bulk(conn, {
                 "auto_send_enabled": "1" if enabled else "0",
@@ -146,7 +142,7 @@ class AutoDeliveryCronTests(unittest.TestCase):
         self.assertEqual(captured["recipient"], "auto@example.edu")
         self.assertEqual(captured["sender"], "sender@example.com")
 
-        conn = get_connection(self.workspace_path)
+        conn = get_connection(self.db_path, workspace_id=self.key_id)
         try:
             row = conn.execute(
                 "SELECT status FROM drafts WHERE id = ?",

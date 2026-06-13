@@ -315,7 +315,7 @@ async function saveSelected() {
 
     const btn = document.getElementById('save-btn');
     btn.disabled = true;
-    btn.textContent = 'Saving...';
+    btn.textContent = 'Saving & looking up emails...';
 
     try {
         const res = await fetch('/finder/save', {
@@ -325,8 +325,11 @@ async function saveSelected() {
         });
         const data = await res.json();
         if (data.success) {
+            let detail = `Saved ${data.saved} professor(s).`;
+            if (data.email_found) detail += ` Found ${data.email_found} email(s).`;
+            if (data.needs_email) detail += ` ${data.needs_email} need an email — add or look one up on each faculty file.`;
             document.getElementById('save-result').innerHTML =
-                `<div class="flash-msg flash-success">Saved ${data.saved} professor(s). <a href="/professors">View faculty files &rarr;</a></div>`;
+                `<div class="flash-msg flash-success">${esc(detail)} <a href="/professors">View faculty files &rarr;</a></div>`;
             showToast(`Saved ${data.saved} professor(s)`);
         } else {
             document.getElementById('save-result').innerHTML =

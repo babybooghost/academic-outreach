@@ -6,7 +6,6 @@ admin hub, and dark-themed dashboard.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import secrets
@@ -27,6 +26,7 @@ from flask import (
     session,
     url_for,
 )
+from werkzeug.security import generate_password_hash
 
 from app.config import load_config
 from app.database import (
@@ -67,7 +67,6 @@ from app.delivery import (
     send_mailbox_test,
     seed_person_workspace_identity,
     workspace_config as build_workspace_config,
-    workspace_db_path as build_workspace_db_path,
 )
 
 # ---------------------------------------------------------------------------
@@ -78,6 +77,35 @@ logger = get_logger(__name__)
 
 _APP_VERSION = "1.0.0"
 
+# Legacy hardcoded key that must never be used to sign sessions in production.
+_LEGACY_DEV_SECRET = "outreach-local-dev-key"
+
+
+def _resolve_secret_key() -> str:
+    """Resolve the Flask session-signing secret.
+
+    Requires FLASK_SECRET_KEY in any hosted (serverless) deployment so sessions
+    cannot be forged with the old hardcoded key and stay valid across deploys.
+    Falls back to a stable, clearly-marked dev key only for local development.
+    """
+    key = os.environ.get("FLASK_SECRET_KEY", "").strip()
+    if key:
+        return key
+    if os.environ.get("VERCEL"):
+        # No stable secret configured on a hosted instance. Generate an ephemeral
+        # one so cookies are at least unforgeable, and warn loudly — sessions will
+        # not survive a redeploy/cold start until FLASK_SECRET_KEY is set.
+        logger.error(
+            "FLASK_SECRET_KEY is not set on a hosted deployment. Using an ephemeral "
+            "key; users will be logged out on every cold start until you set it."
+        )
+        return secrets.token_hex(32)
+    logger.warning(
+        "FLASK_SECRET_KEY not set; using the local development key. Do not use this "
+        "in a hosted deployment."
+    )
+    return _LEGACY_DEV_SECRET
+
 
 def create_app() -> Flask:
     """Create and configure the Flask application."""
@@ -86,7 +114,17 @@ def create_app() -> Flask:
         template_folder=str(Path(__file__).resolve().parent / "templates"),
         static_folder=str(Path(__file__).resolve().parent / "static"),
     )
-    app.secret_key = os.environ.get("FLASK_SECRET_KEY", "outreach-local-dev-key")
+    app.secret_key = _resolve_secret_key()
+
+    # Session-cookie hardening. SameSite=Lax is the primary CSRF defense: the
+    # browser withholds the session cookie on cross-site POSTs, so forged
+    # requests from other origins arrive unauthenticated. Secure is enabled on
+    # hosted (HTTPS) deployments; local http dev keeps it off so login works.
+    app.config.update(
+        SESSION_COOKIE_HTTPONLY=True,
+        SESSION_COOKIE_SAMESITE="Lax",
+        SESSION_COOKIE_SECURE=bool(os.environ.get("VERCEL")),
+    )
 
     # Load config once and store on app
     try:
@@ -123,25 +161,11 @@ def create_app() -> Flask:
             raise RuntimeError("Application config not loaded")
         return get_connection(c.db_path)
 
-    def _workspace_db_path(key_id: Optional[int] = None) -> str:
-        cfg = app.config.get("APP_CFG")
-        if cfg is None:
-            raise RuntimeError("Application config not loaded")
-
+    def _workspace_id(key_id: Optional[int] = None) -> int:
         workspace_key_id = key_id or session.get("key_id")
         if not workspace_key_id:
             raise RuntimeError("No workspace is associated with this session")
-
-        override_path = session.get("workspace_db_path")
-        if override_path:
-            return str(override_path)
-
-        return build_workspace_db_path(cfg, workspace_key_id)
-
-    def _ensure_workspace_db(key_id: Optional[int] = None) -> str:
-        workspace_path = _workspace_db_path(key_id=key_id)
-        init_db(workspace_path)
-        return workspace_path
+        return int(workspace_key_id)
 
     def _seed_workspace_identity(
         key_id: int,
@@ -149,21 +173,26 @@ def create_app() -> Flask:
         email: str,
         display_name: str,
     ) -> None:
-        workspace_path = _ensure_workspace_db(key_id)
-        workspace_conn = get_connection(workspace_path)
+        cfg = app.config.get("APP_CFG")
+        if cfg is None:
+            raise RuntimeError("Application config not loaded")
+        workspace_conn = get_connection(cfg.db_path, workspace_id=key_id)
         try:
-            base_cfg = app.config.get("APP_CFG")
             seed_person_workspace_identity(
                 workspace_conn,
                 email=email,
                 display_name=display_name,
-                default_provider=base_cfg.email_provider if base_cfg else "gmail",
+                default_provider=cfg.email_provider,
             )
         finally:
             workspace_conn.close()
 
     def _workspace_conn():
-        return get_connection(_ensure_workspace_db())
+        """Connection to the shared DB bound to the current user's workspace."""
+        cfg = app.config.get("APP_CFG")
+        if cfg is None:
+            raise RuntimeError("Application config not loaded")
+        return get_connection(cfg.db_path, workspace_id=_workspace_id())
 
     def _workspace_output_dir() -> Path:
         cfg = app.config.get("APP_CFG")
@@ -191,13 +220,13 @@ def create_app() -> Flask:
             return {
                 "mode": "remote-shared",
                 "persistent": True,
-                "workspace_isolated": False,
-                "severity": "warning",
-                "label": "Remote database attached, tenant isolation still incomplete",
+                "workspace_isolated": True,
+                "severity": "info",
+                "label": "Persistent remote database",
                 "detail": (
-                    "This deployment can persist auth and app data remotely, but workspace isolation still "
-                    "assumes per-user database files. A tenant-scoped remote schema migration is still required "
-                    "before hosted multi-user privacy is trustworthy."
+                    "This deployment persists data in a shared Turso database. Each workspace is "
+                    "isolated by a workspace_id on every per-user table, and data survives deploys, "
+                    "cold starts, and instance replacement."
                 ),
             }
 
@@ -297,6 +326,16 @@ def create_app() -> Flask:
             logger.warning("Activity logging failed: %s", exc)
 
     # ------------------------------------------------------------------
+    # Security headers
+    # ------------------------------------------------------------------
+    @app.after_request
+    def _set_security_headers(response):
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        return response
+
+    # ------------------------------------------------------------------
     # Error handler
     # ------------------------------------------------------------------
     @app.errorhandler(Exception)
@@ -304,9 +343,14 @@ def create_app() -> Flask:
         import traceback
         tb = traceback.format_exc()
         logger.error("Unhandled exception: %s\n%s", e, tb)
-        return (
-            f"<h1>Error</h1><pre style='white-space:pre-wrap; background:#111; color:#e44; padding:1rem;'>{tb}</pre>"
-        ), 500
+        # Never leak stack traces to users. Show the full traceback only when
+        # explicitly debugging locally.
+        if app.debug or app.config.get("SHOW_TRACEBACKS"):
+            return (
+                "<h1>Error</h1>"
+                f"<pre style='white-space:pre-wrap; background:#111; color:#e44; padding:1rem;'>{tb}</pre>"
+            ), 500
+        return render_template("error.html"), 500
 
     # ------------------------------------------------------------------
     # Homepage (public landing page)
@@ -342,7 +386,6 @@ def create_app() -> Flask:
                                 details={"label": key_data["label"], "role": key_data["role"]},
                             )
                         else:
-                            _ensure_workspace_db(key_data["id"])
                             if str(key_data.get("created_by", "")).startswith("signup:"):
                                 _seed_workspace_identity(
                                     key_data["id"],
@@ -377,13 +420,24 @@ def create_app() -> Flask:
         error = None
         access_key = None
 
+        # Optional invite gate so only people with the shared code can register
+        # (signups consume the workspace owner's LLM API key).
+        required_invite = os.environ.get("SIGNUP_INVITE_CODE", "").strip()
+
         if request.method == "POST":
             email = request.form.get("email", "").strip()
             display_name = request.form.get("display_name", "").strip()
             password = request.form.get("password", "")
             password_confirm = request.form.get("password_confirm", "")
+            invite_code = request.form.get("invite_code", "").strip()
 
-            if not email or not display_name:
+            if required_invite and not secrets.compare_digest(invite_code, required_invite):
+                error = "That invite code is not valid. Ask the workspace owner for the current code."
+                _log_activity(
+                    "signup_invalid_invite", category="auth",
+                    details={"email": email[:80]},
+                )
+            elif not email or not display_name:
                 error = "Email and display name are required."
             elif len(password) < 6:
                 error = "Password must be at least 6 characters."
@@ -399,10 +453,12 @@ def create_app() -> Flask:
                     if existing:
                         error = "This email is already registered. Use your existing key to log in."
                     else:
-                        # Hash password
-                        pw_hash = hashlib.sha256(
-                            (password + app.secret_key).encode()
-                        ).hexdigest()
+                        # Salted, slow password hash. pbkdf2:sha256 is portable
+                        # (Werkzeug's newer scrypt default needs OpenSSL 1.1+,
+                        # which some runtimes lack). Replaces the old SHA-256.
+                        pw_hash = generate_password_hash(
+                            password, method="pbkdf2:sha256"
+                        )
 
                         # Generate access key
                         key_value = "ao_" + secrets.token_hex(24)
@@ -461,7 +517,10 @@ def create_app() -> Flask:
                 finally:
                     conn.close()
 
-        return render_template("signup.html", error=error, access_key=access_key)
+        return render_template(
+            "signup.html", error=error, access_key=access_key,
+            invite_required=bool(required_invite),
+        )
 
     @app.route("/logout")
     def logout():
@@ -600,14 +659,17 @@ def create_app() -> Flask:
         workspace_conn = _workspace_conn()
         auth_conn = _auth_conn()
         try:
+            wid = workspace_conn.workspace_id
             prof_rows = workspace_conn.execute(
-                "SELECT status, COUNT(*) as cnt FROM professors GROUP BY status"
+                "SELECT status, COUNT(*) as cnt FROM professors WHERE workspace_id = ? GROUP BY status",
+                (wid,),
             ).fetchall()
             prof_counts: dict[str, int] = {r["status"]: r["cnt"] for r in prof_rows}
             total_professors = sum(prof_counts.values())
 
             draft_rows = workspace_conn.execute(
-                "SELECT status, COUNT(*) as cnt FROM drafts GROUP BY status"
+                "SELECT status, COUNT(*) as cnt FROM drafts WHERE workspace_id = ? GROUP BY status",
+                (wid,),
             ).fetchall()
             draft_counts: dict[str, int] = {r["status"]: r["cnt"] for r in draft_rows}
             total_drafts = sum(draft_counts.values())
@@ -616,7 +678,9 @@ def create_app() -> Flask:
                 """SELECT sl.*, p.name as professor_name
                    FROM send_log sl
                    JOIN professors p ON sl.professor_id = p.id
-                   ORDER BY sl.sent_at DESC LIMIT 10"""
+                   WHERE sl.workspace_id = ?
+                   ORDER BY sl.sent_at DESC LIMIT 10""",
+                (wid,),
             ).fetchall()
 
             recent_activity = auth_conn.execute(
@@ -680,12 +744,97 @@ def create_app() -> Flask:
                 return redirect(url_for("professors_list"))
 
             drafts = conn.execute(
-                "SELECT * FROM drafts WHERE professor_id = ? ORDER BY id DESC",
-                (prof_id,),
+                "SELECT * FROM drafts WHERE professor_id = ? AND workspace_id = ? ORDER BY id DESC",
+                (prof_id, conn.workspace_id),
             ).fetchall()
             draft_objs = [Draft.from_row(r) for r in drafts]
 
             return render_template("professor_detail.html", professor=prof, drafts=draft_objs)
+        finally:
+            conn.close()
+
+    def _is_placeholder(email: Optional[str]) -> bool:
+        e = (email or "").strip().lower()
+        return not e or e.endswith(".placeholder")
+
+    @app.route("/professors/<int:prof_id>/find-email", methods=["POST"])
+    @login_required
+    def professor_find_email(prof_id: int):
+        """On-demand: scrape the professor's profile page for a real email."""
+        from app.enricher import find_professor_email
+        conn = _workspace_conn()
+        try:
+            prof = get_professor(conn, prof_id)
+            if prof is None:
+                return jsonify({"success": False, "error": "Professor not found."}), 404
+            if not prof.profile_url:
+                return jsonify({
+                    "success": False,
+                    "error": "No profile URL on file. Add an email manually instead.",
+                })
+            found = find_professor_email(prof.profile_url, prof.name, prof.university or "")
+            if not found:
+                _log_activity("professor_find_email", category="finder",
+                              target_type="professor", target_id=str(prof_id),
+                              details={"result": "not_found"})
+                return jsonify({
+                    "success": False,
+                    "error": "No published email found on that page. Add one manually.",
+                })
+            conn.execute(
+                "UPDATE professors SET email = ?, status = CASE WHEN status = 'needs_email' "
+                "THEN 'new' ELSE status END, updated_at = datetime('now') "
+                "WHERE id = ? AND workspace_id = ?",
+                (found, prof_id, conn.workspace_id),
+            )
+            conn.commit()
+            _log_activity("professor_find_email", category="finder",
+                          target_type="professor", target_id=str(prof_id),
+                          details={"result": "found"})
+            return jsonify({"success": True, "email": found})
+        except Exception as exc:
+            return jsonify({"success": False, "error": str(exc)}), 500
+        finally:
+            conn.close()
+
+    @app.route("/professors/<int:prof_id>/set-email", methods=["POST"])
+    @login_required
+    def professor_set_email(prof_id: int):
+        """Manually set/correct a professor's email address."""
+        conn = _workspace_conn()
+        try:
+            prof = get_professor(conn, prof_id)
+            if prof is None:
+                return jsonify({"success": False, "error": "Professor not found."}), 404
+            new_email = (request.form.get("email") or
+                         (request.get_json(silent=True) or {}).get("email") or "").strip()
+            if "@" not in new_email or _is_placeholder(new_email):
+                return jsonify({"success": False, "error": "Enter a valid email address."}), 400
+            # Guard against colliding with another professor in this workspace.
+            clash = conn.execute(
+                "SELECT id FROM professors WHERE email = ? AND workspace_id = ? AND id != ?",
+                (new_email, conn.workspace_id, prof_id),
+            ).fetchone()
+            if clash:
+                return jsonify({
+                    "success": False,
+                    "error": "Another saved professor already uses that email.",
+                }), 409
+            conn.execute(
+                "UPDATE professors SET email = ?, status = CASE WHEN status = 'needs_email' "
+                "THEN 'new' ELSE status END, updated_at = datetime('now') "
+                "WHERE id = ? AND workspace_id = ?",
+                (new_email, prof_id, conn.workspace_id),
+            )
+            conn.commit()
+            _log_activity("professor_set_email", category="finder",
+                          target_type="professor", target_id=str(prof_id))
+            if request.is_json:
+                return jsonify({"success": True, "email": new_email})
+            flash("Email updated.", "success")
+            return redirect(url_for("professor_detail", prof_id=prof_id))
+        except Exception as exc:
+            return jsonify({"success": False, "error": str(exc)}), 500
         finally:
             conn.close()
 
@@ -717,7 +866,8 @@ def create_app() -> Flask:
             cfg = _workspace_config(conn)
             variants = list(cfg.generation.template_variants)
             professor_count = conn.execute(
-                "SELECT COUNT(*) AS count FROM professors"
+                "SELECT COUNT(*) AS count FROM professors WHERE workspace_id = ?",
+                (conn.workspace_id,),
             ).fetchone()["count"]
 
             return render_template(
@@ -740,7 +890,8 @@ def create_app() -> Flask:
             sender_profile_id = request.form.get("sender_profile_id", type=int)
             variant = request.form.get("variant", "").strip() or None
             professor_count = conn.execute(
-                "SELECT COUNT(*) AS count FROM professors"
+                "SELECT COUNT(*) AS count FROM professors WHERE workspace_id = ?",
+                (conn.workspace_id,),
             ).fetchone()["count"]
             if not sender_profile_id:
                 flash("Choose a sender profile before generating drafts.", "error")
@@ -754,10 +905,11 @@ def create_app() -> Flask:
 
         try:
             summary = run_generation_pipeline(
-                db_path=_workspace_db_path(),
+                db_path=cfg.db_path,
                 config=cfg,
                 sender_profile_id=sender_profile_id,
                 variant=variant,
+                workspace_id=_workspace_id(),
             )
         except Exception as exc:
             flash(f"Draft generation failed: {exc}", "error")
@@ -863,15 +1015,20 @@ def create_app() -> Flask:
             new_body = data.get("body")
             new_subject = data.get("subject")
             if new_body is not None:
-                conn.execute("UPDATE drafts SET body = ? WHERE id = ?", (new_body, draft_id))
+                conn.execute(
+                    "UPDATE drafts SET body = ? WHERE id = ? AND workspace_id = ?",
+                    (new_body, draft_id, conn.workspace_id),
+                )
             if new_subject is not None:
                 subjects = draft.subject_lines_list
                 if subjects:
                     subjects[0] = new_subject
                 else:
                     subjects = [new_subject]
-                conn.execute("UPDATE drafts SET subject_lines = ? WHERE id = ?",
-                             (json.dumps(subjects), draft_id))
+                conn.execute(
+                    "UPDATE drafts SET subject_lines = ? WHERE id = ? AND workspace_id = ?",
+                    (json.dumps(subjects), draft_id, conn.workspace_id),
+                )
             update_draft_status(conn, draft_id, "edited")
             _log_activity("draft_edit", category="drafts",
                           target_type="draft", target_id=str(draft_id),
@@ -1262,10 +1419,15 @@ def create_app() -> Flask:
             logger.exception("Finder search failed")
             return jsonify({"success": False, "error": str(exc)})
 
+    # Cap how many faculty pages we scrape per save so the request stays well
+    # within serverless time limits; the rest can be looked up on demand later.
+    _MAX_EMAIL_LOOKUPS_PER_SAVE = 12
+
     @app.route("/finder/save", methods=["POST"])
     @login_required
     def finder_save():
         from app.database import upsert_professor
+        from app.enricher import find_professor_email
         data = request.get_json() or {}
         professors_data = data.get("professors", [])
 
@@ -1276,42 +1438,67 @@ def create_app() -> Flask:
         saved = 0
         skipped = 0
         errors = 0
+        email_found = 0
+        needs_email = 0
+        lookups_used = 0
         try:
             for pd in professors_data:
                 try:
                     name = pd.get("name", "").strip()
-                    email = pd.get("email", "").strip()
-
                     if not name:
                         skipped += 1
                         continue
 
-                    # Generate a unique placeholder email if none provided,
-                    # so each professor gets their own row (UNIQUE on email).
-                    if not email:
+                    university = pd.get("university", "")
+                    email = pd.get("email", "").strip()
+                    profile_url = (pd.get("profile_url") or "").strip()
+
+                    # No email from the finder — try to scrape a real one from
+                    # the faculty page (best-effort, bounded). Never guess.
+                    if not email and profile_url and lookups_used < _MAX_EMAIL_LOOKUPS_PER_SAVE:
+                        lookups_used += 1
+                        discovered = find_professor_email(profile_url, name, university, timeout=8)
+                        if discovered:
+                            email = discovered
+
+                    if email:
+                        prof_status = "new"
+                        email_found += 1
+                    else:
+                        # Unique, clearly non-sendable placeholder so each
+                        # professor still gets their own row. Flagged for the
+                        # user to add or look up an address.
                         slug = name.lower().replace(" ", ".").replace(",", "")
-                        uni_slug = (pd.get("university") or "unknown").lower().replace(" ", "-")[:30]
+                        uni_slug = (university or "unknown").lower().replace(" ", "-")[:30]
                         email = f"{slug}@{uni_slug}.placeholder"
+                        prof_status = "needs_email"
+                        needs_email += 1
 
                     # Check if this exact name+university already exists (avoid
                     # saving duplicates from the same search)
                     existing = conn.execute(
-                        "SELECT id FROM professors WHERE name = ? AND university = ?",
-                        (name, pd.get("university", "")),
+                        "SELECT id, email FROM professors WHERE name = ? AND university = ? AND workspace_id = ?",
+                        (name, university, conn.workspace_id),
                     ).fetchone()
                     if existing:
-                        # Update the existing row instead of creating a duplicate
+                        # Update context, and upgrade to a real email/status only
+                        # when we actually found one (never downgrade a real email
+                        # back to a placeholder).
+                        promote = prof_status == "new" and str(existing["email"] or "").endswith(".placeholder")
                         conn.execute(
                             """UPDATE professors SET
                                 field = COALESCE(NULLIF(?, ''), field),
                                 profile_url = COALESCE(NULLIF(?, ''), profile_url),
                                 research_summary = COALESCE(NULLIF(?, ''), research_summary),
                                 notes = COALESCE(NULLIF(?, ''), notes),
+                                email = CASE WHEN ? THEN ? ELSE email END,
+                                status = CASE WHEN ? THEN 'new' ELSE status END,
                                 updated_at = datetime('now')
-                            WHERE id = ?""",
-                            (pd.get("field", ""), pd.get("profile_url", ""),
+                            WHERE id = ? AND workspace_id = ?""",
+                            (pd.get("field", ""), profile_url,
                              pd.get("research_summary", ""), pd.get("notes", ""),
-                             existing["id"]),
+                             promote, email, promote,
+                             existing["id"], conn.workspace_id),
                         )
                         conn.commit()
                         saved += 1
@@ -1321,13 +1508,13 @@ def create_app() -> Flask:
                         name=name,
                         title=pd.get("title"),
                         email=email,
-                        university=pd.get("university", ""),
+                        university=university,
                         department=pd.get("department", "Computer Science"),
                         field=pd.get("field", ""),
                         profile_url=pd.get("profile_url"),
                         research_summary=pd.get("research_summary"),
                         notes=pd.get("notes"),
-                        status="new",
+                        status=prof_status,
                     )
                     upsert_professor(conn, prof)
                     saved += 1
@@ -1339,12 +1526,15 @@ def create_app() -> Flask:
 
         _log_activity("finder_save_professors", category="finder",
                       details={"saved": saved, "skipped": skipped, "errors": errors,
+                               "email_found": email_found, "needs_email": needs_email,
                                "names": [p.get("name") for p in professors_data[:10]]})
         return jsonify({
             "success": True,
             "saved": saved,
             "skipped": skipped,
             "errors": errors,
+            "email_found": email_found,
+            "needs_email": needs_email,
         })
 
     # ------------------------------------------------------------------

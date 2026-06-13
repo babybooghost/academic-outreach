@@ -57,10 +57,11 @@ def run_generation_pipeline(
     sender_profile_id: int,
     professor_ids: Optional[list[int]] = None,
     variant: Optional[str] = None,
+    workspace_id: int = 0,
 ) -> GenerationSummary:
     """Generate drafts for the selected professors inside one DB workspace."""
 
-    conn = get_connection(db_path)
+    conn = get_connection(db_path, workspace_id=workspace_id)
     try:
         sender = get_sender_profile(conn, sender_profile_id)
         if sender is None:
@@ -125,12 +126,14 @@ def run_generation_pipeline(
         conn.close()
 
     if summary.created:
-        summary.scored = score_all_drafts(db_path, summary.session_id, config)
+        summary.scored = score_all_drafts(
+            db_path, summary.session_id, config, workspace_id=workspace_id
+        )
         try:
             from app.similarity import compute_session_similarity
 
             summary.flagged_similarity = compute_session_similarity(
-                db_path, summary.session_id, config
+                db_path, summary.session_id, config, workspace_id=workspace_id
             )
         except ModuleNotFoundError as exc:
             summary.warnings.append(

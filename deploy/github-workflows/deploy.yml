@@ -1,0 +1,47 @@
+name: Deploy (Vercel)
+
+# Optional test-gated production deploy.
+#
+# This workflow stays INERT until you add a VERCEL_TOKEN secret (plus
+# VERCEL_ORG_ID and VERCEL_PROJECT_ID). If you rely on Vercel's native Git
+# integration instead (the default — pushing to the production branch already
+# deploys), you can leave this disabled and just use CI for the test gate.
+
+on:
+  push:
+    branches: ["main", "master"]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # No-op unless a Vercel token has been configured in repo secrets.
+    if: ${{ secrets.VERCEL_TOKEN != '' }}
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install test deps and run the suite (deploy gate)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-full.txt pytest aiosmtpd
+          pytest tests/ -q
+          python scripts/smtp_selftest.py
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Deploy to Vercel (production)
+        run: |
+          vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+          vercel build --prod --token="$VERCEL_TOKEN"
+          vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}

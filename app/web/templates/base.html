@@ -7,12 +7,15 @@
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='revamp.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='workspace.css') }}">
     <script>
     (function() {
         var saved = localStorage.getItem('ao_theme');
-        var t = saved === 'system' ? 'light' : (saved || 'light');
+        var t = saved === 'system' ? 'dark' : (saved || 'dark');
         var p = t === 'system' ? (matchMedia('(prefers-color-scheme:light)').matches ? 'light' : 'dark') : t;
         document.documentElement.setAttribute('data-theme', p);
     })();
@@ -150,7 +153,7 @@
     <script>
     function getTheme() {
         const saved = localStorage.getItem('ao_theme');
-        return saved === 'system' ? 'light' : (saved || 'light');
+        return saved === 'system' ? 'dark' : (saved || 'dark');
     }
     function applyTheme(t) {
         document.documentElement.setAttribute('data-theme', t);

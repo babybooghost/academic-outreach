@@ -39,7 +39,7 @@ class WebSendRouteTests(unittest.TestCase):
         self.addCleanup(self.env_patch.stop)
 
         init_db(self.db_path)
-        conn = get_connection(self.db_path)
+        conn = get_connection(self.db_path, workspace_id=1)
         try:
             sender_profile = SenderProfile(
                 name="Web Sender",
@@ -88,7 +88,6 @@ class WebSendRouteTests(unittest.TestCase):
             session["key_id"] = 1
             session["key_label"] = "Test User"
             session["role"] = "user"
-            session["workspace_db_path"] = self.db_path
 
     def test_send_route_returns_summary_from_service(self) -> None:
         self._login()
