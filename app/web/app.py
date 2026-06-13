@@ -10,6 +10,7 @@ import base64
 import json
 import os
 import secrets
+import time
 import traceback
 from datetime import datetime, timedelta
 from functools import wraps
@@ -22,6 +23,7 @@ import requests
 from flask import (
     Flask,
     flash,
+    g,
     jsonify,
     redirect,
     render_template,
@@ -30,6 +32,7 @@ from flask import (
     session,
     url_for,
 )
+from werkzeug.exceptions import HTTPException
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from app.config import load_config
@@ -51,12 +54,15 @@ from app.database import (
     get_professor,
     get_professors,
     get_professors_by_ids,
+    get_request_logs,
     get_sender_profiles,
     get_setting,
     get_suppression_list,
     init_db,
+    insert_request_log,
     insert_sender_profile,
     log_admin_activity,
+    prune_request_logs,
     revoke_access_key,
     set_settings_bulk,
     update_draft_status,
@@ -381,12 +387,93 @@ def create_app() -> Flask:
         return response
 
     # ------------------------------------------------------------------
+    # Detailed request logging (admin-visible, secrets redacted)
+    # ------------------------------------------------------------------
+    _REDACT_FIELDS = {
+        "password", "password_confirm", "access_key", "code", "smtp_password",
+        "api_key", "apikey", "llm_api_key", "token", "id_token", "refresh_token",
+        "client_secret", "secret", "authorization", "csrf_token",
+    }
+    _LOG_SKIP_PREFIXES = ("/static/",)
+    _LOG_SKIP_PATHS = {"/health", "/favicon.ico", "/admin/logs", "/admin/logs/api"}
+
+    def _redact_map(data: dict[str, Any]) -> dict[str, Any]:
+        return {
+            k: ("***" if k.lower() in _REDACT_FIELDS else v)
+            for k, v in (data or {}).items()
+        }
+
+    @app.before_request
+    def _log_request_start():
+        g._req_start = time.monotonic()
+
+    @app.after_request
+    def _log_request(response):
+        try:
+            path = request.path or ""
+            if path in _LOG_SKIP_PATHS or any(path.startswith(p) for p in _LOG_SKIP_PREFIXES):
+                return response
+            start = getattr(g, "_req_start", None)
+            duration_ms = int((time.monotonic() - start) * 1000) if start else 0
+            ip = request.headers.get("X-Forwarded-For", request.remote_addr) or ""
+            if "," in ip:
+                ip = ip.split(",")[0].strip()
+
+            query = _redact_map(request.args.to_dict(flat=True))
+            body: dict[str, Any] = {}
+            if request.method in ("POST", "PUT", "PATCH", "DELETE"):
+                if request.is_json:
+                    parsed = request.get_json(silent=True)
+                    if isinstance(parsed, dict):
+                        body = _redact_map(parsed)
+                else:
+                    body = _redact_map(request.form.to_dict(flat=True))
+
+            is_admin = bool(session.get("admin_authenticated"))
+            if is_admin:
+                actor_label = session.get("admin_key_label", "")
+                role = "admin"
+                wsid = session.get("admin_key_id")
+            elif session.get("authenticated"):
+                actor_label = session.get("key_label", "")
+                role = session.get("role", "user")
+                wsid = session.get("key_id")
+            else:
+                actor_label, role, wsid = "", "anon", None
+
+            conn = _auth_conn()
+            try:
+                insert_request_log(
+                    conn,
+                    method=request.method, path=path, status=response.status_code,
+                    duration_ms=duration_ms, workspace_id=wsid, actor_label=actor_label,
+                    role=role, ip=ip,
+                    user_agent=request.headers.get("User-Agent", "")[:300],
+                    referrer=request.headers.get("Referer", "")[:300],
+                    query=json.dumps(query)[:2000],
+                    body=json.dumps(body)[:4000],
+                    error=(getattr(g, "_log_error", "") or "")[:6000],
+                )
+                if secrets.randbelow(100) == 0:  # opportunistic retention prune
+                    prune_request_logs(conn, keep_days=14)
+            finally:
+                conn.close()
+        except Exception as exc:  # logging must never break a response
+            logger.warning("Request logging failed: %s", exc)
+        return response
+
+    # ------------------------------------------------------------------
     # Error handler
     # ------------------------------------------------------------------
     @app.errorhandler(Exception)
     def handle_exception(e):
+        # Preserve real HTTP errors (404/403/405/...) instead of masking them
+        # all as 500 — keeps status codes (and the request log) accurate.
+        if isinstance(e, HTTPException):
+            return render_template("error.html", code=e.code, message=e.description), e.code
         import traceback
         tb = traceback.format_exc()
+        g._log_error = tb  # surfaced in the detailed request log
         logger.error("Unhandled exception: %s\n%s", e, tb)
         # Never leak stack traces to users. Show the full traceback only when
         # explicitly debugging locally.
@@ -395,7 +482,7 @@ def create_app() -> Flask:
                 "<h1>Error</h1>"
                 f"<pre style='white-space:pre-wrap; background:#111; color:#e44; padding:1rem;'>{tb}</pre>"
             ), 500
-        return render_template("error.html"), 500
+        return render_template("error.html", code=500), 500
 
     # ------------------------------------------------------------------
     # Homepage (public landing page)
@@ -2318,6 +2405,47 @@ def create_app() -> Flask:
             limit = min(int(request.args.get("limit", 50)), 500)
             activities = get_admin_activity_log(conn, category=category, limit=limit)
             return jsonify({"success": True, "activities": activities})
+        finally:
+            conn.close()
+
+    @app.route("/admin/logs")
+    @admin_required
+    def admin_logs():
+        """Detailed per-request log (method, path, status, timing, payloads)."""
+        conn = _auth_conn()
+        try:
+            method = request.args.get("method") or None
+            path_like = request.args.get("path") or None
+            actor = request.args.get("actor") or None
+            errors_only = parse_bool(request.args.get("errors_only"), default=False)
+            status_class = request.args.get("status_class", type=int)
+            limit = min(int(request.args.get("limit", 200)), 1000)
+            logs = get_request_logs(
+                conn, method=method, status_class=status_class, path_like=path_like,
+                actor=actor, errors_only=errors_only, limit=limit,
+            )
+            methods = [r["method"] for r in conn.execute(
+                "SELECT DISTINCT method FROM request_log ORDER BY method").fetchall()]
+            actors = [r["actor_label"] for r in conn.execute(
+                "SELECT DISTINCT actor_label FROM request_log WHERE actor_label != '' ORDER BY actor_label").fetchall()]
+            return render_template(
+                "admin_logs.html", logs=logs, methods=methods, actors=actors,
+                current_method=method or "", current_path=path_like or "",
+                current_actor=actor or "", errors_only=errors_only,
+                current_status_class=status_class or "", limit=limit,
+            )
+        finally:
+            conn.close()
+
+    @app.route("/admin/logs/api")
+    @admin_required
+    def admin_logs_api():
+        conn = _auth_conn()
+        try:
+            limit = min(int(request.args.get("limit", 100)), 1000)
+            errors_only = parse_bool(request.args.get("errors_only"), default=False)
+            logs = get_request_logs(conn, errors_only=errors_only, limit=limit)
+            return jsonify({"success": True, "logs": logs})
         finally:
             conn.close()
 

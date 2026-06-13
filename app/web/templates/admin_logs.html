@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Request Logs | Admin Hub</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon-admin.svg') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='revamp.css') }}">
+</head>
+<body class="admin-shell">
+    <nav class="navbar">
+        <div class="navbar-inner">
+            <a href="{{ url_for('admin_hub') }}" class="logo">
+                <div class="logo-icon">AO</div>
+                <div class="logo-text">Admin<span>Hub</span></div>
+            </a>
+            <ul class="nav-links">
+                <li><a href="{{ url_for('admin_hub') }}"><span class="nav-icon">&#9879;</span> Overview</a></li>
+                <li><a href="{{ url_for('admin_activity') }}"><span class="nav-icon">&#128203;</span> Activity Log</a></li>
+                <li><a href="{{ url_for('admin_logs') }}" class="active"><span class="nav-icon">&#128269;</span> Request Logs</a></li>
+            </ul>
+            <div class="nav-user">
+                <span class="badge badge-admin">Admin</span>
+                <span>{{ session.get('admin_key_label', 'Admin') }}</span>
+                <a href="{{ url_for('admin_logout') }}" class="btn btn-ghost btn-sm">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="app-main">
+        <div class="container page-content">
+            <div class="editorial-page">
+                <section class="editorial-hero animate-in">
+                    <div class="hero-copy">
+                        <div class="eyebrow">Request trace</div>
+                        <h1 class="page-title">Every request, in full detail.</h1>
+                        <p class="lead">Method, path, status, timing, who made it, from where, and the redacted payload. Passwords, access keys, API keys and tokens are masked; email and professor content is kept so you can see exactly what happened.</p>
+                    </div>
+                    <div class="image-card image-card--tall">
+                        <img src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&amp;fit=crop&amp;w=1600&amp;q=80" alt="Analytics dashboard on a screen">
+                        <div class="image-caption">
+                            <span>Observability</span>
+                            <strong>Auto-captured on every request; retained 14 days.</strong>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="surface-panel animate-in animate-in-1">
+                    <div class="surface-panel-header">
+                        <div>
+                            <div class="panel-kicker">Filters</div>
+                            <div class="panel-title">Narrow the request stream</div>
+                        </div>
+                    </div>
+                    <form method="GET" action="{{ url_for('admin_logs') }}" class="grid-4">
+                        <div class="form-group">
+                            <label for="method">Method</label>
+                            <select name="method" id="method">
+                                <option value="">All methods</option>
+                                {% for m in methods %}
+                                <option value="{{ m }}" {% if current_method == m %}selected{% endif %}>{{ m }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="status_class">Status</label>
+                            <select name="status_class" id="status_class">
+                                <option value="">All statuses</option>
+                                <option value="200" {% if current_status_class == 200 %}selected{% endif %}>2xx success</option>
+                                <option value="300" {% if current_status_class == 300 %}selected{% endif %}>3xx redirect</option>
+                                <option value="400" {% if current_status_class == 400 %}selected{% endif %}>4xx client error</option>
+                                <option value="500" {% if current_status_class == 500 %}selected{% endif %}>5xx server error</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="actor">Actor</label>
+                            <select name="actor" id="actor">
+                                <option value="">All actors</option>
+                                {% for act in actors %}
+                                <option value="{{ act }}" {% if current_actor == act %}selected{% endif %}>{{ act }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="path">Path contains</label>
+                            <input type="text" id="path" name="path" value="{{ current_path }}" placeholder="/drafts">
+                        </div>
+                        <div class="form-group">
+                            <label class="checkbox-row" for="errors_only">
+                                <input type="checkbox" id="errors_only" name="errors_only" value="1" {% if errors_only %}checked{% endif %}>
+                                Errors only (4xx/5xx)
+                            </label>
+                        </div>
+                        <div class="form-group" style="display:flex; align-items:end; gap:0.6rem;">
+                            <button type="submit" class="btn btn-primary">Filter</button>
+                            <a href="{{ url_for('admin_logs') }}" class="btn btn-outline">Reset</a>
+                        </div>
+                    </form>
+                </section>
+
+                <section class="surface-panel animate-in animate-in-2">
+                    <div class="surface-panel-header">
+                        <div>
+                            <div class="panel-kicker">Requests</div>
+                            <div class="panel-title">{{ logs|length }} matching records</div>
+                        </div>
+                    </div>
+                    {% if logs %}
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Method</th>
+                                    <th>Path</th>
+                                    <th>Status</th>
+                                    <th>ms</th>
+                                    <th>Actor</th>
+                                    <th>IP</th>
+                                    <th>Detail</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for r in logs %}
+                                {% set sc = r.status %}
+                                <tr>
+                                    <td>{{ r.ts[:19].replace('T', ' ') }}</td>
+                                    <td><code>{{ r.method }}</code></td>
+                                    <td title="{{ r.path }}">{{ r.path[:48] }}</td>
+                                    <td>
+                                        <span class="badge {% if sc >= 500 %}badge-rejected{% elif sc >= 400 %}badge-needs_email{% elif sc >= 300 %}badge-keyword{% else %}badge-approved{% endif %}">{{ sc }}</span>
+                                    </td>
+                                    <td>{{ r.duration_ms }}</td>
+                                    <td>
+                                        {% if r.actor_label %}<strong>{{ r.actor_label }}</strong>{% else %}<span style="color:var(--ao-text-dim);">{{ r.role or 'anon' }}</span>{% endif %}
+                                        {% if r.role == 'admin' %} <span class="badge badge-admin">admin</span>{% endif %}
+                                    </td>
+                                    <td>{{ r.ip or '-' }}</td>
+                                    <td>
+                                        {% if (r.query and r.query != '{}') or (r.body and r.body != '{}') or r.error %}
+                                        <details>
+                                            <summary style="cursor:pointer; color:var(--ao-accent);">view</summary>
+                                            <div style="margin-top:0.4rem; max-width:520px;">
+                                                {% if r.query and r.query != '{}' %}<div class="form-hint"><strong>query</strong></div><code style="white-space:pre-wrap; display:block; margin-bottom:0.4rem;">{{ r.query }}</code>{% endif %}
+                                                {% if r.body and r.body != '{}' %}<div class="form-hint"><strong>body</strong></div><code style="white-space:pre-wrap; display:block; margin-bottom:0.4rem;">{{ r.body }}</code>{% endif %}
+                                                {% if r.user_agent %}<div class="form-hint"><strong>agent</strong> {{ r.user_agent }}</div>{% endif %}
+                                                {% if r.error %}<div class="form-hint" style="color:var(--ao-danger);"><strong>error</strong></div><code style="white-space:pre-wrap; display:block; color:var(--ao-danger);">{{ r.error }}</code>{% endif %}
+                                            </div>
+                                        </details>
+                                        {% else %}-{% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="empty-state">
+                        <div class="empty-icon">&#128269;</div>
+                        <p>No requests match the current filters.</p>
+                    </div>
+                    {% endif %}
+                </section>
+            </div>
+        </div>
+    </main>
+
+    <footer class="app-footer">
+        <div class="app-footer-inner">
+            <div class="app-footer-mark">
+                <div class="logo-icon" style="width:32px; height:32px; font-size:1rem; border-radius:12px;">AO</div>
+                <span>Admin Hub</span>
+            </div>
+            <div>Academic Outreach v{{ app_version }}</div>
+        </div>
+    </footer>
+
+    <script>
+    function applyTheme(t) {
+        const pref = t === 'system' ? (matchMedia('(prefers-color-scheme:light)').matches ? 'light' : 'dark') : t;
+        document.documentElement.setAttribute('data-theme', pref);
+    }
+    applyTheme(localStorage.getItem('ao_theme') || 'system');
+
+    const obs = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('animate-visible');
+                obs.unobserve(entry.target);
+            }
+        });
+    }, { threshold: 0.12 });
+    document.querySelectorAll('.animate-in').forEach((el) => obs.observe(el));
+    </script>
+</body>
+</html>

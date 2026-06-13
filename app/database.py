@@ -23,7 +23,7 @@ import json
 import logging
 import os
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Optional
 
 from app.models import (
@@ -581,6 +581,26 @@ CREATE TABLE IF NOT EXISTS email_verifications (
     expires_at     TEXT    NOT NULL,
     created_at     TEXT    NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS request_log (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts           TEXT    NOT NULL DEFAULT (datetime('now')),
+    method       TEXT    NOT NULL DEFAULT '',
+    path         TEXT    NOT NULL DEFAULT '',
+    status       INTEGER NOT NULL DEFAULT 0,
+    duration_ms  INTEGER NOT NULL DEFAULT 0,
+    workspace_id INTEGER,
+    actor_label  TEXT    NOT NULL DEFAULT '',
+    role         TEXT    NOT NULL DEFAULT '',
+    ip           TEXT    NOT NULL DEFAULT '',
+    user_agent   TEXT    NOT NULL DEFAULT '',
+    referrer     TEXT    NOT NULL DEFAULT '',
+    query        TEXT    NOT NULL DEFAULT '',
+    body         TEXT    NOT NULL DEFAULT '',
+    error        TEXT    NOT NULL DEFAULT ''
+);
+
+CREATE INDEX IF NOT EXISTS ix_request_log_id ON request_log(id);
 """
 
 
@@ -656,6 +676,67 @@ def delete_email_verification(conn: Any, email: str) -> None:
         conn.commit()
     except sqlite3.Error as exc:
         logger.error("delete_email_verification failed: %s", exc)
+
+
+_REQUEST_LOG_COLS = (
+    "method", "path", "status", "duration_ms", "workspace_id", "actor_label",
+    "role", "ip", "user_agent", "referrer", "query", "body", "error",
+)
+
+
+def insert_request_log(conn: Any, **fields: Any) -> int:
+    """Insert one detailed request-log row. Best-effort; caller guards errors."""
+    cols = ("ts", *_REQUEST_LOG_COLS)
+    values = [_now_iso()] + [fields.get(c) for c in _REQUEST_LOG_COLS]
+    placeholders = ",".join("?" for _ in cols)
+    cursor = conn.execute(
+        f"INSERT INTO request_log ({','.join(cols)}) VALUES ({placeholders})",
+        values,
+    )
+    conn.commit()
+    return cursor.lastrowid or 0
+
+
+def get_request_logs(
+    conn: Any,
+    *,
+    method: Optional[str] = None,
+    status_class: Optional[int] = None,
+    path_like: Optional[str] = None,
+    actor: Optional[str] = None,
+    errors_only: bool = False,
+    limit: int = 200,
+) -> list[dict[str, Any]]:
+    """Return detailed request logs (newest first) with optional filters."""
+    clauses: list[str] = []
+    params: list[Any] = []
+    if method:
+        clauses.append("method = ?")
+        params.append(method)
+    if status_class:
+        clauses.append("status >= ? AND status < ?")
+        params.extend([int(status_class), int(status_class) + 100])
+    if path_like:
+        clauses.append("path LIKE ?")
+        params.append(f"%{path_like}%")
+    if actor:
+        clauses.append("actor_label = ?")
+        params.append(actor)
+    if errors_only:
+        clauses.append("(status >= 400 OR error != '')")
+    where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
+    rows = conn.execute(
+        f"SELECT * FROM request_log{where} ORDER BY id DESC LIMIT ?",
+        [*params, int(limit)],
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def prune_request_logs(conn: Any, keep_days: int = 14) -> None:
+    """Delete request-log rows older than *keep_days* to bound table growth."""
+    cutoff = (datetime.utcnow() - timedelta(days=max(1, keep_days))).isoformat()
+    conn.execute("DELETE FROM request_log WHERE ts < ?", (cutoff,))
+    conn.commit()
 
 
 def find_workspace_by_owner_email(conn: Any, email: str) -> Optional[dict[str, Any]]:
