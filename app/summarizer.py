@@ -311,7 +311,7 @@ class LLMSummarizer:
             "Content-Type": "application/json",
         }
         payload: dict[str, Any] = {
-            "model": self._model or "google/gemini-2.5-flash-preview",
+            "model": self._model or "google/gemini-2.5-flash",
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.3,
             "max_tokens": 500,

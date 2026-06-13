@@ -138,13 +138,13 @@ DEFAULT_CONFIG_YAML: Dict[str, Any] = {
     ],
     "llm_models": {
         "openrouter": {
-            "gemini-flash": "google/gemini-2.5-flash-preview",
-            "gemini-pro": "google/gemini-2.5-pro-preview",
-            "claude-haiku": "anthropic/claude-haiku-4-5-20251001",
-            "claude-sonnet": "anthropic/claude-sonnet-4-6",
-            "claude-opus": "anthropic/claude-opus-4-6",
+            "gemini-flash": "google/gemini-2.5-flash",
+            "gemini-pro": "google/gemini-2.5-pro",
+            "claude-haiku": "anthropic/claude-haiku-4.5",
+            "claude-sonnet": "anthropic/claude-sonnet-4.6",
+            "claude-opus": "anthropic/claude-opus-4.6",
         },
-        "default_model": "google/gemini-2.5-flash-preview",
+        "default_model": "google/gemini-2.5-flash",
     },
     "email_providers": {
         "gmail": {
@@ -517,7 +517,7 @@ def load_config(
     llm_provider: Optional[str] = llm_provider_raw if llm_provider_raw else None
     llm_api_key_raw: str = _env("LLM_API_KEY", "", db_settings=db_settings)
     llm_api_key: Optional[str] = llm_api_key_raw if llm_api_key_raw else None
-    llm_model: str = _env("LLM_MODEL", merged.get("llm_models", {}).get("default_model", "google/gemini-2.5-flash-preview"), db_settings=db_settings)
+    llm_model: str = _env("LLM_MODEL", merged.get("llm_models", {}).get("default_model", "google/gemini-2.5-flash"), db_settings=db_settings)
     email_provider: str = _env("EMAIL_PROVIDER", "gmail", db_settings=db_settings).lower()
     db_path: str = _env("DB_PATH", str(root / "data" / "outreach.db"), db_settings=db_settings)
     log_dir: str = _env("LOG_DIR", str(root / "logs"), db_settings=db_settings)
