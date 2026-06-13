@@ -271,6 +271,11 @@ class Config:
     followup_pools: FollowUpPools = field(default_factory=lambda: _default_followup_pools())
     fields: List[str] = field(default_factory=lambda: list(DEFAULT_CONFIG_YAML["fields"]))
 
+    # Optional cheaper model used only for parsing/summarizing professor pages
+    # (the premium ``llm_model`` still writes the actual emails). Empty = use the
+    # same model for both.
+    llm_model_parse: str = ""
+
     # --- optional outgoing attachment (e.g. a CV/resume PDF), per workspace ---
     # Stored base64-encoded so it round-trips through the settings table on a
     # serverless host where the filesystem is ephemeral. Empty = no attachment.

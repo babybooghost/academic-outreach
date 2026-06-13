@@ -269,61 +269,33 @@ def _generate_llm_points(
 
 
 def _call_llm(prompt: str, config: Config) -> str:
-    """Dispatch to the configured LLM provider."""
+    """Call the configured LLM provider (OpenRouter) and return the response."""
     provider: str = (config.llm_provider or "").lower()
     api_key: str = config.llm_api_key or ""
 
-    if provider == "openai":
-        try:
-            import openai  # type: ignore[import-untyped]
-            client = openai.OpenAI(api_key=api_key)
-            response = client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.4,
-                max_tokens=600,
-            )
-            return response.choices[0].message.content or ""
-        except ImportError:
-            raise RuntimeError("openai package is not installed")
-
-    elif provider == "anthropic":
-        try:
-            import anthropic  # type: ignore[import-untyped]
-            client = anthropic.Anthropic(api_key=api_key)
-            response = client.messages.create(
-                model="claude-sonnet-4-20250514",
-                max_tokens=600,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            if response.content and len(response.content) > 0:
-                return response.content[0].text
-            return ""
-        except ImportError:
-            raise RuntimeError("anthropic package is not installed")
-
-    elif provider == "openrouter":
-        url: str = "https://openrouter.ai/api/v1/chat/completions"
-        headers: dict[str, str] = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        }
-        payload: dict[str, Any] = {
-            "model": config.llm_model,
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.4,
-            "max_tokens": 600,
-        }
-        resp = http_requests.post(url, headers=headers, json=payload, timeout=30)
-        resp.raise_for_status()
-        data: dict[str, Any] = resp.json()
-        choices: list[dict[str, Any]] = data.get("choices", [])
-        if choices:
-            return choices[0].get("message", {}).get("content", "")
-        return ""
-
-    else:
+    if provider != "openrouter":
         raise ValueError(f"Unsupported LLM provider: {provider}")
+
+    url: str = "https://openrouter.ai/api/v1/chat/completions"
+    headers: dict[str, str] = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    payload: dict[str, Any] = {
+        # Personalization writes the actual email, so it always uses the
+        # premium writing model (never the cheaper parsing model).
+        "model": config.llm_model,
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.4,
+        "max_tokens": 600,
+    }
+    resp = http_requests.post(url, headers=headers, json=payload, timeout=30)
+    resp.raise_for_status()
+    data: dict[str, Any] = resp.json()
+    choices: list[dict[str, Any]] = data.get("choices", [])
+    if choices:
+        return choices[0].get("message", {}).get("content", "")
+    return ""
 
 
 def _parse_llm_points(raw: str) -> list[str]:

@@ -1487,6 +1487,7 @@ def create_app() -> Flask:
                 "llm_provider": cfg.llm_provider if cfg else "",
                 "llm_api_key_set": bool((cfg.llm_api_key if cfg else "") or os.environ.get("LLM_API_KEY", "")),
                 "llm_model": cfg.llm_model if cfg else "google/gemini-2.5-flash",
+                "llm_model_parse": (cfg.llm_model_parse if cfg else "") or "",
                 "email_provider": cfg.email_provider if cfg else "gmail",
                 "smtp_user": cfg.smtp_user if cfg else "",
                 "smtp_password": cfg.smtp_password if cfg else "",
@@ -1520,7 +1521,7 @@ def create_app() -> Flask:
         conn = _workspace_conn()
         try:
             new_settings: dict[str, str] = {}
-            for key in ("sender_email", "llm_provider", "llm_model",
+            for key in ("sender_email", "llm_provider", "llm_model", "llm_model_parse",
                         "email_provider", "smtp_user", "smtp_password",
                         "auto_send_method", "auto_send_limit",
                         "auto_followup_days", "auto_followup_limit"):
