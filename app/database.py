@@ -1105,6 +1105,20 @@ def get_followups(
         raise
 
 
+def update_followup_status(conn: Any, followup_id: int, status: str) -> None:
+    """Set a follow-up's status (e.g. 'sent', 'failed') within the workspace."""
+    try:
+        conn.execute(
+            "UPDATE followups SET status = ? WHERE id = ? AND workspace_id = ?",
+            (status, followup_id, _ws(conn)),
+        )
+        conn.commit()
+    except sqlite3.Error as exc:
+        logger.error("update_followup_status failed for id=%s: %s", followup_id, exc)
+        conn.rollback()
+        raise
+
+
 # ---------------------------------------------------------------------------
 # Audit log
 # ---------------------------------------------------------------------------

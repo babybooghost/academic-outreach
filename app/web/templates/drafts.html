@@ -56,9 +56,10 @@
                 </div>
                 <div class="hero-actions">
                     <button type="submit" class="btn btn-primary" {% if not profiles or professor_count == 0 %}disabled{% endif %}>Generate drafts</button>
+                    <button type="submit" formaction="{{ url_for('sample_draft_route') }}" class="btn btn-outline" {% if not profiles or professor_count == 0 %}disabled{% endif %}>Generate one sample</button>
                 </div>
                 <div class="auth-note">
-                    <p>{{ professor_count }} faculty file{{ '' if professor_count == 1 else 's' }} available. {% if not profiles %}Create a sender profile in Setup first.{% endif %}</p>
+                    <p>{{ professor_count }} faculty file{{ '' if professor_count == 1 else 's' }} available. {% if not profiles %}Create a sender profile in Setup first.{% endif %} Use <strong>one sample</strong> to check Sonnet's tone before a full batch.</p>
                 </div>
             </form>
         </article>

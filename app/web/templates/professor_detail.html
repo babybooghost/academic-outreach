@@ -162,6 +162,44 @@
                 </div>
                 {% endif %}
             </article>
+
+            <article class="surface-panel animate-in animate-in-2">
+                <div class="surface-panel-header">
+                    <div>
+                        <div class="panel-kicker">Send history</div>
+                        <div class="panel-title">What actually went out ({{ send_history|length }})</div>
+                    </div>
+                </div>
+                {% if send_history %}
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Sent</th>
+                                <th>Method</th>
+                                <th>Status</th>
+                                <th>Detail</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for s in send_history %}
+                            <tr>
+                                <td>{{ s.sent_at | prettydt }}</td>
+                                <td><code>{{ s.method }}</code></td>
+                                <td><span class="badge badge-{{ 'sent' if s.status == 'success' else s.status }}">{{ s.status }}</span></td>
+                                <td>{{ s.error_message or '—' }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="empty-state">
+                    <div class="empty-icon">&#9993;</div>
+                    <p>Nothing sent to {{ professor.name }} yet.</p>
+                </div>
+                {% endif %}
+            </article>
         </section>
     </div>
 </div>

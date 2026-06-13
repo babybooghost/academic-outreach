@@ -10,6 +10,7 @@ from app.database import (
     init_db,
     insert_draft,
     insert_sender_profile,
+    record_send,
     set_settings_bulk,
     upsert_professor,
 )
@@ -150,6 +151,78 @@ class AutoDeliveryCronTests(unittest.TestCase):
             ).fetchone()
         finally:
             conn.close()
+        self.assertEqual(row["status"], "sent")
+
+    def _seed_followup_workspace(self) -> None:
+        """A workspace with one already-sent draft, due for a follow-up."""
+        conn = get_connection(self.db_path, workspace_id=self.key_id)
+        try:
+            set_settings_bulk(conn, {
+                "auto_send_enabled": "0",        # isolate the follow-up path
+                "auto_followup_enabled": "1",
+                "auto_followup_days": "7",
+                "auto_followup_limit": "5",
+                "sender_email": "sender@example.com",
+                "email_provider": "gmail",
+                "smtp_user": "sender@example.com",
+                "smtp_password": "topsecret",
+            })
+            sender_profile_id = insert_sender_profile(conn, SenderProfile(
+                name="Auto Sender", school="Example High", grade="11",
+                email="sender@example.com", interests="ML", background="Python",
+            ))
+            session_id = create_session(conn, sender_profile_id, notes="fu test")
+            upsert_professor(conn, Professor(
+                name="Prof FU", email="fu@example.edu", university="Example U",
+                department="CS", field="ML", status="ready",
+            ))
+            professor_id = conn.execute(
+                "SELECT id FROM professors WHERE email = ?", ("fu@example.edu",),
+            ).fetchone()["id"]
+            self.fu_draft_id = insert_draft(conn, Draft(
+                professor_id=professor_id, sender_profile_id=sender_profile_id,
+                session_id=session_id, subject_lines='["Original Subject"]',
+                body="Body", status="sent",
+            ))
+            # An old successful send makes the draft eligible for a nudge.
+            record_send(conn, SendRecord(
+                draft_id=self.fu_draft_id, professor_id=professor_id,
+                sent_at="2020-01-01T00:00:00+00:00", method="smtp", status="success",
+            ))
+        finally:
+            conn.close()
+
+    def test_cron_generates_and_sends_due_followup(self) -> None:
+        self._seed_followup_workspace()
+
+        def fake_smtp_send(_smtp, draft, professor, sender_profile, config):
+            return SendRecord(
+                draft_id=draft.id or 0, professor_id=professor.id or 0,
+                sent_at="2026-04-26T00:00:00+00:00", method="smtp", status="success",
+            )
+
+        with patch("app.sender.SMTPSender.send", new=fake_smtp_send):
+            response = self.client.get(
+                "/api/cron/auto-send",
+                headers={"Authorization": "Bearer test-cron-secret"},
+            )
+
+        data = response.get_json()
+        self.assertEqual(response.status_code, 200)
+        followups = data["followups"]
+        self.assertEqual(followups["generated"], 1)
+        self.assertEqual(followups["sent"], 1)
+        self.assertEqual(followups["failed"], 0)
+
+        conn = get_connection(self.db_path, workspace_id=self.key_id)
+        try:
+            row = conn.execute(
+                "SELECT status FROM followups WHERE original_draft_id = ?",
+                (self.fu_draft_id,),
+            ).fetchone()
+        finally:
+            conn.close()
+        self.assertIsNotNone(row)
         self.assertEqual(row["status"], "sent")
 
     def test_cron_skips_disabled_workspace(self) -> None:

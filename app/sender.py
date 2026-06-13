@@ -13,9 +13,11 @@ import json
 import os
 import random
 import sqlite3
+import base64
 import smtplib
 import time
 from datetime import datetime, timezone
+from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
@@ -64,16 +66,41 @@ def _build_mime_message(
     subject_lines: list[str] = draft.subject_lines_list
     subject: str = subject_lines[0] if subject_lines else "(No Subject)"
 
-    msg = MIMEMultipart("alternative")
+    body_part = MIMEText(draft.body, "plain", "utf-8")
+    attachment = _build_attachment_part(config)
+
+    if attachment is not None:
+        # An attachment requires a "mixed" container holding the body + file.
+        msg: MIMEMultipart = MIMEMultipart("mixed")
+        msg.attach(body_part)
+        msg.attach(attachment)
+    else:
+        msg = MIMEMultipart("alternative")
+        msg.attach(body_part)
+
     msg["From"] = f"{sender.name} <{config.sender_email}>"
     msg["To"] = f"{professor.name} <{professor.email}>"
     msg["Subject"] = subject
     msg["Reply-To"] = config.sender_email
 
-    # Plain text body
-    msg.attach(MIMEText(draft.body, "plain", "utf-8"))
-
     return msg
+
+
+def _build_attachment_part(config: Config) -> Optional[MIMEApplication]:
+    """Return a MIME attachment part from the workspace config, or None."""
+    b64 = (getattr(config, "attachment_b64", "") or "").strip()
+    filename = (getattr(config, "attachment_filename", "") or "").strip()
+    if not b64 or not filename:
+        return None
+    try:
+        data = base64.b64decode(b64)
+    except Exception as exc:  # corrupt stored attachment — skip rather than fail the send
+        logger.warning("Skipping attachment %s: could not decode (%s)", filename, exc)
+        return None
+    subtype = "pdf" if filename.lower().endswith(".pdf") else "octet-stream"
+    part = MIMEApplication(data, _subtype=subtype)
+    part.add_header("Content-Disposition", "attachment", filename=filename)
+    return part
 
 
 # ---------------------------------------------------------------------------
