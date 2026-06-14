@@ -1468,9 +1468,7 @@ def create_app() -> Flask:
             draft = get_draft(conn, draft_id)
             if draft is None:
                 return jsonify({"error": "Draft not found"}), 404
-            notes = None
-            if request.is_json:
-                notes = request.json.get("notes")
+            notes = (request.get_json(silent=True) or {}).get("notes")
             update_draft_status(conn, draft_id, "rejected", notes=notes)
             _log_activity("draft_reject", category="drafts",
                           target_type="draft", target_id=str(draft_id),
@@ -2113,7 +2111,7 @@ def create_app() -> Flask:
     @login_required
     def finder_search():
         from app.finder import find_professors
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         query = data.get("scholar_query", "").strip()
         universities = data.get("universities", [])
         field = data.get("field", "").strip()
@@ -2170,7 +2168,7 @@ def create_app() -> Flask:
     def finder_save():
         from app.database import upsert_professor
         from app.enricher import find_professor_email
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         professors_data = data.get("professors", [])
 
         if not professors_data:
