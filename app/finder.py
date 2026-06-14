@@ -11,6 +11,7 @@ Both return Professor dataclass instances ready for upsert into the database.
 from __future__ import annotations
 
 import logging
+import os
 import re
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -37,6 +38,43 @@ _HEADERS: Dict[str, str] = {
 
 _TIMEOUT: int = 20
 _POLITE_DELAY: float = 0.3
+# Optional: a Semantic Scholar API key lifts the (very low) shared rate limit.
+_S2_KEY: str = os.environ.get("SEMANTIC_SCHOLAR_API_KEY", "").strip()
+
+
+def _get_with_retry(
+    url: str,
+    *,
+    params: Optional[dict] = None,
+    headers: Optional[dict] = None,
+    timeout: int = _TIMEOUT,
+    retries: int = 2,
+    backoff: float = 1.2,
+) -> requests.Response:
+    """GET that retries on 429 / 5xx with backoff (honoring Retry-After).
+
+    Returns the final Response (which may still be an error) or raises the last
+    network exception. Keeps transient rate-limits/blips from killing a source.
+    """
+    resp = None
+    for attempt in range(retries + 1):
+        try:
+            resp = requests.get(url, params=params, headers=headers, timeout=timeout)
+            if resp.status_code == 429 or resp.status_code >= 500:
+                if attempt < retries:
+                    try:
+                        wait = float(resp.headers.get("Retry-After", "") or (backoff * (attempt + 1)))
+                    except ValueError:
+                        wait = backoff * (attempt + 1)
+                    time.sleep(min(wait, 5.0))
+                    continue
+            return resp
+        except requests.RequestException:
+            if attempt < retries:
+                time.sleep(backoff * (attempt + 1))
+                continue
+            raise
+    return resp  # type: ignore[return-value]
 
 # University names — use EXACT OpenAlex display names so filtering works.
 _TOP_UNIVERSITIES: list[str] = [
@@ -203,7 +241,7 @@ def _resolve_institution_id(name: str) -> Optional[str]:
         return _inst_id_cache[name]
 
     try:
-        resp = requests.get(
+        resp = _get_with_retry(
             f"{_OPENALEX_BASE}/institutions",
             params={"search": name, "per_page": 1, "filter": "type:education"},
             headers=_HEADERS,
@@ -262,7 +300,7 @@ def search_openalex_works(
 
     try:
         time.sleep(_POLITE_DELAY)
-        resp = requests.get(
+        resp = _get_with_retry(
             f"{_OPENALEX_BASE}/works",
             params=params,
             headers=_HEADERS,
@@ -375,7 +413,7 @@ def search_openalex_authors(
 
     try:
         time.sleep(_POLITE_DELAY)
-        resp = requests.get(
+        resp = _get_with_retry(
             f"{_OPENALEX_BASE}/authors",
             params=params,
             headers=_HEADERS,
@@ -450,20 +488,30 @@ def search_semantic_scholar(
     logger.info("Searching Semantic Scholar for: %s", query)
     warnings: list[str] = []
 
+    s2_headers = {"User-Agent": _HEADERS["User-Agent"]}
+    if _S2_KEY:
+        s2_headers["x-api-key"] = _S2_KEY
     try:
-        time.sleep(1.0)
-        resp = requests.get(
+        time.sleep(_POLITE_DELAY)
+        resp = _get_with_retry(
             f"{_S2_BASE}/paper/search",
             params={
                 "query": query,
                 "fields": "title,authors,year,citationCount",
                 "limit": min(max_results * 3, 100),
             },
-            headers={"User-Agent": _HEADERS["User-Agent"]},
+            headers=s2_headers,
             timeout=_TIMEOUT,
+            # Keyless S2 is reliably rate-limited, so don't burn time retrying it
+            # (it runs in parallel anyway); retry hard only when a key makes
+            # success likely.
+            retries=3 if _S2_KEY else 0,
         )
         if resp.status_code == 429:
-            warnings.append("Semantic Scholar rate limited — try again in a minute.")
+            warnings.append(
+                "Semantic Scholar is rate-limiting right now — the other sources still ran. "
+                "Set a SEMANTIC_SCHOLAR_API_KEY for higher limits."
+            )
             return [], warnings
         resp.raise_for_status()
         data = resp.json()
@@ -523,7 +571,7 @@ def search_crossref(
 
     try:
         time.sleep(_POLITE_DELAY)
-        resp = requests.get(
+        resp = _get_with_retry(
             f"{_CROSSREF_BASE}/works",
             params={
                 "query": query,
@@ -611,7 +659,7 @@ def _resolve_journal_issn(name: str) -> tuple[Optional[str], str]:
     """Resolve a journal name to its (ISSN, canonical title) via Crossref."""
     try:
         time.sleep(_POLITE_DELAY)
-        resp = requests.get(
+        resp = _get_with_retry(
             f"{_CROSSREF_BASE}/journals", params={"query": name, "rows": 1},
             headers={**_HEADERS, "User-Agent": "AcademicOutreach/1.0 (mailto:outreach@example.com)"},
             timeout=_TIMEOUT,
@@ -662,7 +710,7 @@ def search_journal(
 
     try:
         time.sleep(_POLITE_DELAY)
-        resp = requests.get(
+        resp = _get_with_retry(
             f"{_CROSSREF_BASE}/works", params=params,
             headers={**_HEADERS, "User-Agent": "AcademicOutreach/1.0 (mailto:outreach@example.com)"},
             timeout=_TIMEOUT,
@@ -737,7 +785,7 @@ def search_dblp(
 
     try:
         time.sleep(_POLITE_DELAY)
-        resp = requests.get(
+        resp = _get_with_retry(
             _DBLP_BASE,
             params={
                 "q": query,
@@ -839,7 +887,7 @@ def search_arxiv(
 
     try:
         time.sleep(_POLITE_DELAY)
-        resp = requests.get(
+        resp = _get_with_retry(
             _ARXIV_BASE,
             params={
                 "search_query": search_query,
