@@ -17,6 +17,16 @@
             </div>
             {% endif %}
         </div>
+        {% if draft.status == 'sent' %}
+        <div class="workspace-actions" style="margin-top:0.4rem;">
+            <span class="form-hint" style="align-self:center;">Reply status:</span>
+            <button type="button" class="btn btn-sm {% if not draft.outcome %}btn-primary{% else %}btn-outline{% endif %}" onclick="setOutcome({{ draft.id }}, '')">Awaiting</button>
+            <button type="button" class="btn btn-sm {% if draft.outcome == 'replied' %}btn-primary{% else %}btn-outline{% endif %}" onclick="setOutcome({{ draft.id }}, 'replied')">Replied</button>
+            <button type="button" class="btn btn-sm {% if draft.outcome == 'meeting' %}btn-primary{% else %}btn-outline{% endif %}" onclick="setOutcome({{ draft.id }}, 'meeting')">Meeting booked</button>
+            <button type="button" class="btn btn-sm {% if draft.outcome == 'declined' %}btn-primary{% else %}btn-outline{% endif %}" onclick="setOutcome({{ draft.id }}, 'declined')">Declined</button>
+        </div>
+        <p class="form-hint" style="margin-top:0.3rem;">Marking a reply excludes this professor from follow-up nudges.</p>
+        {% endif %}
         <div class="workspace-stats">
             <div class="workspace-stat">
                 <span>Status</span>
@@ -151,6 +161,21 @@
 
 {% block scripts %}
 <script>
+async function setOutcome(id, outcome) {
+    try {
+        const res = await fetch(`/drafts/${id}/outcome`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({outcome: outcome}),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.success) location.reload();
+        else alert(data.error || `Could not update (HTTP ${res.status})`);
+    } catch (e) {
+        alert('Could not update: ' + e.message);
+    }
+}
+
 async function draftAction(id, action) {
     try {
         const res = await fetch(`/drafts/${id}/${action}`, {

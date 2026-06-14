@@ -563,6 +563,7 @@ def _eligible_followup_drafts(conn: Any, days_since: int, limit: int) -> list[Dr
         LEFT JOIN send_log sl
           ON sl.draft_id = d.id AND sl.workspace_id = d.workspace_id AND sl.status = 'success'
         WHERE d.workspace_id = ? AND d.status = 'sent'
+          AND (d.outcome IS NULL OR d.outcome = '')
           AND d.id NOT IN (SELECT original_draft_id FROM followups WHERE workspace_id = ?)
         GROUP BY d.id
         HAVING sent_when <= ?

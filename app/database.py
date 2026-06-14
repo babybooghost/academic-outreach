@@ -364,6 +364,20 @@ def _migrate_schema(conn: Any) -> None:
                 except Exception as exc:
                     logger.warning("Could not add %s to sender_profiles: %s", col, exc)
 
+    # Reply-tracking columns on drafts (databases created before they existed).
+    draft_cols = _column_names(conn, "drafts")
+    if draft_cols:
+        if "outcome" not in draft_cols:
+            try:
+                conn.execute("ALTER TABLE drafts ADD COLUMN outcome TEXT NOT NULL DEFAULT ''")
+            except Exception as exc:
+                logger.warning("Could not add outcome to drafts: %s", exc)
+        if "replied_at" not in draft_cols:
+            try:
+                conn.execute("ALTER TABLE drafts ADD COLUMN replied_at TEXT")
+            except Exception as exc:
+                logger.warning("Could not add replied_at to drafts: %s", exc)
+
     # app_settings needs a composite primary key; rebuild if it still has the
     # legacy single-column (key) primary key.
     settings_cols = _column_names(conn, "app_settings")
@@ -493,7 +507,9 @@ CREATE TABLE IF NOT EXISTS drafts (
     status              TEXT    NOT NULL DEFAULT 'generated',
     created_at          TEXT    NOT NULL DEFAULT (datetime('now')),
     reviewed_at         TEXT,
-    reviewer_notes      TEXT
+    reviewer_notes      TEXT,
+    outcome             TEXT    NOT NULL DEFAULT '',
+    replied_at          TEXT
 );
 
 CREATE TABLE IF NOT EXISTS send_log (
@@ -1083,6 +1099,53 @@ def update_draft_status(
         logger.error("update_draft_status failed for id=%d: %s", draft_id, exc)
         conn.rollback()
         raise
+
+
+VALID_OUTCOMES: tuple[str, ...] = ("", "replied", "meeting", "declined")
+
+
+def set_draft_outcome(conn: Any, draft_id: int, outcome: str) -> None:
+    """Record a reply outcome for a draft (workspace-scoped).
+
+    A non-empty outcome means the professor responded — which excludes them from
+    follow-up nudges. Empty outcome clears it (back to 'awaiting reply').
+    """
+    outcome = outcome if outcome in VALID_OUTCOMES else ""
+    replied_at = _now_iso() if outcome else None
+    try:
+        conn.execute(
+            "UPDATE drafts SET outcome = ?, replied_at = ? WHERE id = ? AND workspace_id = ?",
+            (outcome, replied_at, draft_id, _ws(conn)),
+        )
+        conn.commit()
+    except sqlite3.Error as exc:
+        logger.error("set_draft_outcome failed for id=%d: %s", draft_id, exc)
+        conn.rollback()
+        raise
+
+
+def get_outreach_stats(conn: Any) -> dict[str, int]:
+    """Funnel metrics for the active workspace: sent, replied, meetings, rate."""
+    wid = _ws(conn)
+
+    def _count(where: str) -> int:
+        try:
+            return int(conn.execute(
+                f"SELECT COUNT(*) AS c FROM drafts WHERE workspace_id = ? AND {where}",
+                (wid,),
+            ).fetchone()["c"])
+        except sqlite3.Error:
+            return 0
+
+    sent = _count("status = 'sent'")
+    replied = _count("outcome != ''")
+    meetings = _count("outcome = 'meeting'")
+    return {
+        "sent": sent,
+        "replied": replied,
+        "meetings": meetings,
+        "reply_rate": round(100 * replied / sent) if sent else 0,
+    }
 
 
 # ---------------------------------------------------------------------------

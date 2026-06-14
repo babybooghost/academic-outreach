@@ -200,6 +200,8 @@ class Draft:
     created_at: str = dc_field(default_factory=_now_iso)
     reviewed_at: Optional[str] = None
     reviewer_notes: Optional[str] = None
+    outcome: str = ""               # "", replied, meeting, declined
+    replied_at: Optional[str] = None
 
     # -- JSON helpers --------------------------------------------------------
 
@@ -251,6 +253,8 @@ class Draft:
             created_at=data.get("created_at", _now_iso()),
             reviewed_at=data.get("reviewed_at"),
             reviewer_notes=data.get("reviewer_notes"),
+            outcome=data.get("outcome", "") or "",
+            replied_at=data.get("replied_at"),
         )
 
 
