@@ -601,6 +601,125 @@ def search_crossref(
 
 
 # ---------------------------------------------------------------------------
+# Journal-of-choice search (Crossref by journal name or ISSN)
+# ---------------------------------------------------------------------------
+
+_ISSN_RE = re.compile(r"^\d{4}-\d{3}[\dxX]$")
+
+
+def _resolve_journal_issn(name: str) -> tuple[Optional[str], str]:
+    """Resolve a journal name to its (ISSN, canonical title) via Crossref."""
+    try:
+        time.sleep(_POLITE_DELAY)
+        resp = requests.get(
+            f"{_CROSSREF_BASE}/journals", params={"query": name, "rows": 1},
+            headers={**_HEADERS, "User-Agent": "AcademicOutreach/1.0 (mailto:outreach@example.com)"},
+            timeout=_TIMEOUT,
+        )
+        resp.raise_for_status()
+        items = resp.json().get("message", {}).get("items", [])
+    except requests.RequestException as exc:
+        logger.warning("Journal name resolution failed for %s: %s", name, exc)
+        return None, name
+    if not items:
+        return None, name
+    issns = items[0].get("ISSN", [])
+    return (issns[0] if issns else None), items[0].get("title", name)
+
+
+def search_journal(
+    journal: str,
+    field: str = "",
+    max_results: int = 20,
+) -> Tuple[list[Professor], list[str]]:
+    """Find recent corresponding authors in a specific journal (name or ISSN).
+
+    Resolves a journal name to its exact ISSN first (so "Physical Review X"
+    doesn't fuzzy-match unrelated journals), then pulls its most recent papers.
+    Uses Crossref's openly-licensed metadata, so it works for any journal —
+    including paywalled ones (IEEE, Elsevier, Springer) — without scraping the
+    publisher's site.
+    """
+    journal = (journal or "").strip()
+    warnings: list[str] = []
+    if not journal:
+        return [], warnings
+
+    issn = journal if _ISSN_RE.match(journal) else None
+    if not issn:
+        issn, _resolved = _resolve_journal_issn(journal)
+        if not issn:
+            warnings.append(f"Couldn't find a journal named '{journal}'. Try its ISSN instead.")
+            return [], warnings
+
+    params: dict[str, Any] = {
+        "rows": min(max_results * 3, 100),
+        "sort": "published",
+        "order": "desc",
+        "filter": f"type:journal-article,issn:{issn}",
+        "select": "title,author,is-referenced-by-count,DOI,published-print,published-online,container-title",
+    }
+
+    try:
+        time.sleep(_POLITE_DELAY)
+        resp = requests.get(
+            f"{_CROSSREF_BASE}/works", params=params,
+            headers={**_HEADERS, "User-Agent": "AcademicOutreach/1.0 (mailto:outreach@example.com)"},
+            timeout=_TIMEOUT,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    except requests.RequestException as exc:
+        logger.error("Journal search failed for %s: %s", journal, exc)
+        warnings.append(f"Journal '{journal}' search error: {exc}")
+        return [], warnings
+
+    professors: list[Professor] = []
+    seen_names: set[str] = set()
+    for item in data.get("message", {}).get("items", []):
+        if len(professors) >= max_results:
+            break
+        title = (item.get("title") or [""])[0]
+        cited = item.get("is-referenced-by-count", 0)
+        doi = item.get("DOI", "")
+        container = (item.get("container-title") or [journal])[0]
+        pub_date = item.get("published-print") or item.get("published-online") or {}
+        date_parts = pub_date.get("date-parts", [[]])
+        year = date_parts[0][0] if date_parts and date_parts[0] else ""
+
+        # Corresponding author is usually first; take the leading authors.
+        for author in item.get("author", [])[:3]:
+            if len(professors) >= max_results:
+                break
+            given, family = author.get("given", ""), author.get("family", "")
+            if not given or not family:
+                continue
+            name = _clean_name(f"{given} {family}")
+            if not name or len(name.split()) < 2 or name.lower() in seen_names:
+                continue
+            affiliations = author.get("affiliation", [])
+            institution = affiliations[0].get("name", "") if affiliations else ""
+            orcid = author.get("ORCID", "")
+            seen_names.add(name.lower())
+            professors.append(Professor(
+                name=name, title=None, email="",
+                university=_clean_institution(institution), department="",
+                field=field or container,
+                profile_url=orcid if orcid else (f"https://doi.org/{doi}" if doi else ""),
+                research_summary=f'Paper: "{title}" ({year}) in {container}' if title else f"Published in {container}",
+                notes=(
+                    f'Source: Journal "{container}" | Citations: {cited}'
+                    + (f" | DOI: {doi}" if doi else "")
+                    + (f" | ORCID: {orcid}" if orcid else "")
+                ),
+                status="new",
+            ))
+
+    logger.info("Found %d authors from journal '%s'", len(professors), journal)
+    return professors, warnings
+
+
+# ---------------------------------------------------------------------------
 # Strategy 4: DBLP (computer science focused — free, no key)
 # ---------------------------------------------------------------------------
 
@@ -806,20 +925,23 @@ def find_professors(
     max_scholar_results: int = 30,
     custom_urls: Optional[dict[str, str]] = None,
     sources: Optional[list[str]] = None,
+    journals: Optional[list[str]] = None,
 ) -> Tuple[list[Professor], list[str]]:
     """Run discovery across the selected academic databases, concurrently.
 
     ``sources`` selects which databases to query (defaults to all). Every chosen
     source runs regardless of the university filter — OpenAlex uses true
     institution filtering, while the others have the university names folded into
-    their query so results lean toward those schools. All sources run in
-    parallel so total latency is roughly the slowest source, not their sum.
+    their query so results lean toward those schools. ``journals`` adds a search
+    of one or more specific journals (by name or ISSN) via Crossref. All calls
+    run in parallel so total latency is roughly the slowest one, not their sum.
     """
     all_professors: list[Professor] = []
     warnings: list[str] = []
 
-    if not query:
-        warnings.append("Enter a search query to find professors.")
+    journals = [j.strip() for j in (journals or []) if j and j.strip()]
+    if not query and not journals:
+        warnings.append("Enter a search query or a journal to find professors.")
         return [], warnings
 
     chosen = [s for s in (sources or ALL_SOURCES) if s in ALL_SOURCES] or list(ALL_SOURCES)
@@ -830,7 +952,8 @@ def find_professors(
     # Build the list of independent source calls, then fan them out on threads.
     tasks: list[tuple[str, Any]] = []  # (label, callable)
 
-    if "openalex" in chosen:
+    # Topic-based sources only run when there's a research-topic query.
+    if query and "openalex" in chosen:
         if universities:
             per_uni = max(max_scholar_results // len(universities), 8)
             for uni in universities:
@@ -848,18 +971,24 @@ def find_professors(
             tasks.append(("OpenAlex authors", lambda: search_openalex_authors(
                 query=query, field=field, max_results=max_scholar_results // 2)))
 
-    if "crossref" in chosen:
+    if query and "crossref" in chosen:
         tasks.append(("Crossref", lambda: search_crossref(
             query=query + uni_suffix, field=field, max_results=min(max_scholar_results, 15))))
-    if "dblp" in chosen:
+    if query and "dblp" in chosen:
         tasks.append(("DBLP", lambda: search_dblp(
             query=query + uni_suffix, field=field or "Computer Science", max_results=min(max_scholar_results, 12))))
-    if "arxiv" in chosen:
+    if query and "arxiv" in chosen:
         tasks.append(("arXiv", lambda: search_arxiv(
             query=query + uni_suffix, field=field, max_results=min(max_scholar_results, 12))))
-    if "semantic_scholar" in chosen:
+    if query and "semantic_scholar" in chosen:
         tasks.append(("Semantic Scholar", lambda: search_semantic_scholar(
             query=query + uni_suffix, field=field, max_results=min(max_scholar_results, 15))))
+
+    # Journal-of-choice: one task per requested journal (name or ISSN).
+    per_journal = max(max_scholar_results // len(journals), 8) if journals else 0
+    for jrnl in journals:
+        tasks.append((f'Journal "{jrnl}"', lambda j=jrnl, n=per_journal: search_journal(
+            j, field=field, max_results=n)))
 
     # Fan out: every source call is independent I/O, so run them concurrently.
     with ThreadPoolExecutor(max_workers=min(8, len(tasks)) or 1) as pool:
