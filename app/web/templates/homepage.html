@@ -5,218 +5,186 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Academic Outreach</title>
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='revamp.css') }}">
+    <style>
+        :root {
+            --ap-bg: #060606;
+            --ap-bg-2: #0e0e0f;
+            --ap-card: #141416;
+            --ap-text: #f5f5f7;
+            --ap-muted: #a1a1a6;
+            --ap-dim: #6e6e73;
+            --ap-accent: #2997ff;
+            --ap-border: rgba(255,255,255,0.09);
+            --ap-font: 'Manrope', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
+        body.ap-body {
+            background: var(--ap-bg);
+            color: var(--ap-text);
+            font-family: var(--ap-font);
+            -webkit-font-smoothing: antialiased;
+            line-height: 1.5;
+        }
+        a { color: inherit; text-decoration: none; }
+
+        /* ---- Nav ---- */
+        .ap-nav {
+            position: sticky; top: 0; z-index: 100;
+            background: rgba(8,8,8,0.72);
+            backdrop-filter: saturate(180%) blur(20px);
+            border-bottom: 1px solid var(--ap-border);
+        }
+        .ap-nav-inner {
+            max-width: 1024px; margin: 0 auto;
+            height: 52px; padding: 0 22px;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .ap-logo { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 18px; }
+        .ap-logo-mark {
+            width: 28px; height: 28px; border-radius: 7px;
+            background: linear-gradient(135deg, #c79b62, #e2bd85);
+            color: #1a1207; display: grid; place-items: center;
+            font-weight: 800; font-size: 13px;
+        }
+        .ap-nav-actions { display: flex; align-items: center; gap: 8px; }
+        .ap-link { color: var(--ap-muted); font-size: 14px; padding: 8px 12px; border-radius: 980px; transition: color .2s; }
+        .ap-link:hover { color: var(--ap-text); }
+        .ap-btn {
+            display: inline-flex; align-items: center; gap: 6px;
+            font-size: 14px; font-weight: 600; padding: 8px 16px; border-radius: 980px;
+            background: var(--ap-accent); color: #fff; transition: filter .2s, transform .1s;
+        }
+        .ap-btn:hover { filter: brightness(1.08); }
+        .ap-btn-ghost { background: transparent; border: 1px solid var(--ap-border); color: var(--ap-text); }
+
+        /* ---- Hero ---- */
+        .ap-hero { text-align: center; padding: 92px 22px 80px; max-width: 900px; margin: 0 auto; }
+        .ap-eyebrow { color: var(--ap-accent); font-weight: 600; font-size: 19px; margin-bottom: 10px; }
+        .ap-hero h1 {
+            font-size: clamp(40px, 7vw, 80px); line-height: 1.05;
+            font-weight: 700; letter-spacing: -0.03em;
+        }
+        .ap-hero h1 .grad {
+            background: linear-gradient(90deg, #e2bd85, #99abb6);
+            -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        .ap-hero p { color: var(--ap-muted); font-size: clamp(18px, 2.4vw, 24px); margin: 22px auto 0; max-width: 640px; }
+        .ap-hero-cta { margin-top: 34px; display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+        .ap-cta-text { color: var(--ap-accent); font-size: 17px; font-weight: 500; display: inline-flex; align-items: center; gap: 4px; }
+        .ap-cta-text:hover { text-decoration: underline; }
+
+        /* ---- Sections ---- */
+        .ap-section { padding: 80px 22px; }
+        .ap-section.alt { background: var(--ap-bg-2); border-block: 1px solid var(--ap-border); }
+        .ap-section-head { text-align: center; max-width: 760px; margin: 0 auto 52px; }
+        .ap-section-head h2 { font-size: clamp(30px, 4.4vw, 50px); font-weight: 700; letter-spacing: -0.02em; }
+        .ap-section-head p { color: var(--ap-muted); font-size: clamp(17px, 2vw, 21px); margin-top: 14px; }
+
+        .ap-grid { max-width: 1024px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; }
+        .ap-card {
+            background: var(--ap-card); border: 1px solid var(--ap-border);
+            border-radius: 20px; padding: 30px 28px;
+        }
+        .ap-card .ap-ico { font-size: 26px; margin-bottom: 14px; display: block; }
+        .ap-card h3 { font-size: 22px; font-weight: 650; letter-spacing: -0.01em; }
+        .ap-card p { color: var(--ap-muted); font-size: 16px; margin-top: 8px; }
+
+        /* ---- Pipeline steps ---- */
+        .ap-steps { max-width: 880px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; }
+        .ap-step { text-align: center; padding: 8px; }
+        .ap-step .n { width: 44px; height: 44px; margin: 0 auto 14px; border-radius: 50%; display: grid; place-items: center;
+            border: 1px solid var(--ap-border); color: var(--ap-accent); font-weight: 700; }
+        .ap-step h4 { font-size: 19px; font-weight: 650; }
+        .ap-step p { color: var(--ap-muted); font-size: 15px; margin-top: 6px; }
+
+        /* ---- Final CTA ---- */
+        .ap-final { text-align: center; padding: 96px 22px; }
+        .ap-final h2 { font-size: clamp(32px, 5vw, 56px); font-weight: 700; letter-spacing: -0.02em; }
+        .ap-final p { color: var(--ap-muted); font-size: 20px; margin: 16px auto 30px; max-width: 560px; }
+
+        .ap-footer { border-top: 1px solid var(--ap-border); padding: 30px 22px; text-align: center; color: var(--ap-dim); font-size: 13px; }
+        .ap-banner { max-width: 1024px; margin: 16px auto -40px; background: rgba(217,126,114,0.12); border: 1px solid rgba(217,126,114,0.3);
+            border-radius: 12px; padding: 12px 16px; color: #e8b9b0; font-size: 14px; }
+        .ap-banner strong { display:block; }
+    </style>
 </head>
-<body class="landing-body">
-    <nav class="hp-nav">
-        <div class="hp-nav-inner">
-            <a href="{{ url_for('homepage') }}" class="logo">
-                <div class="logo-icon">AO</div>
-                <div class="logo-text">Academic<span>Outreach</span></div>
+<body class="ap-body">
+    <nav class="ap-nav">
+        <div class="ap-nav-inner">
+            <a href="{{ url_for('homepage') }}" class="ap-logo">
+                <span class="ap-logo-mark">AO</span> Academic Outreach
             </a>
-            <div class="hp-nav-meta">
-                <span class="hp-nav-note">Research-first outreach workspace</span>
-                <button type="button" class="theme-toggle" onclick="cycleTheme()" title="Toggle theme" aria-label="Toggle theme">
-                    <span id="theme-icon-hp">&#9790;</span>
-                </button>
-                <a href="{{ url_for('login') }}" class="btn btn-ghost btn-sm">Log in</a>
-                <a href="{{ url_for('signup') }}" class="btn btn-primary btn-sm">Open workspace</a>
+            <div class="ap-nav-actions">
+                {% if session.get('authenticated') %}
+                <a href="{{ url_for('dashboard') }}" class="ap-btn">Go to your Desk</a>
+                {% else %}
+                <a href="{{ url_for('login') }}" class="ap-link">Log in</a>
+                <a href="{{ url_for('signup') }}" class="ap-btn">Open workspace</a>
+                {% endif %}
             </div>
         </div>
     </nav>
 
-    <main class="container landing-main">
-        {% if storage_status and storage_status.severity == 'warning' %}
-        <div class="storage-banner storage-banner-warning animate-in">
-            <strong>{{ storage_status.label }}</strong>
-            <span>{{ storage_status.detail }}</span>
+    {% if storage_status and storage_status.severity == 'warning' %}
+    <div class="ap-banner"><strong>{{ storage_status.label }}</strong>{{ storage_status.detail }}</div>
+    {% endif %}
+
+    <header class="ap-hero">
+        <div class="ap-eyebrow">For students writing to real labs</div>
+        <h1>Outreach that feels<br><span class="grad">researched, not mass-mailed.</span></h1>
+        <p>Find the right faculty across five databases, draft messages grounded in their actual work, review every word, and send only what reads like a prepared student wrote it.</p>
+        <div class="ap-hero-cta">
+            {% if session.get('authenticated') %}
+            <a href="{{ url_for('finder_page') }}" class="ap-btn" style="font-size:17px;padding:12px 24px;">Search for faculty</a>
+            <a href="{{ url_for('dashboard') }}" class="ap-cta-text">Open your Desk &rsaquo;</a>
+            {% else %}
+            <a href="{{ url_for('signup') }}" class="ap-btn" style="font-size:17px;padding:12px 24px;">Create a private workspace</a>
+            <a href="{{ url_for('login') }}" class="ap-cta-text">Use an existing key &rsaquo;</a>
+            {% endif %}
         </div>
-        {% endif %}
+    </header>
 
-        <section class="landing-hero animate-in">
-            <div class="landing-copy">
-                <div class="eyebrow">For students writing to real labs</div>
-                <h1 class="landing-title">Outreach that feels researched, restrained, and believable.</h1>
-                <p class="landing-lead">
-                    Academic Outreach is a private workspace for building faculty lists, keeping research notes, reviewing personalized drafts,
-                    and sending only after the queue actually reads like it came from a prepared student.
-                </p>
-                <div class="hero-metrics">
-                    <div class="metric-card">
-                        <span>Search inputs</span>
-                        <strong>5 sources</strong>
-                    </div>
-                    <div class="metric-card">
-                        <span>Review standard</span>
-                        <strong>Human approval</strong>
-                    </div>
-                    <div class="metric-card">
-                        <span>Draft scoring</span>
-                        <strong>1 to 10</strong>
-                    </div>
-                </div>
-                <div class="hero-actions">
-                    <a href="{{ url_for('signup') }}" class="btn btn-primary">Create a private workspace</a>
-                    <a href="{{ url_for('login') }}" class="btn btn-outline">Use an existing key</a>
-                </div>
-            </div>
-            <div class="image-stack">
-                <div class="image-card image-card--tall">
-                    <img src="https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&amp;fit=crop&amp;w=1600&amp;q=80" alt="Students studying in a university library">
-                    <div class="image-caption">
-                        <span>Research desk</span>
-                        <strong>Built for the slow part of outreach: reading, comparing, annotating, and choosing carefully.</strong>
-                    </div>
-                </div>
-                <div class="image-stack-col">
-                    <div class="image-stack-card image-card--short">
-                        <img src="https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&amp;fit=crop&amp;w=1200&amp;q=80" alt="Students collaborating at a table">
-                        <div class="image-caption">
-                            <span>Shortlists</span>
-                            <strong>Keep the list small enough to know who you are contacting.</strong>
-                        </div>
-                    </div>
-                    <div class="image-stack-card image-card--short">
-                        <img src="https://images.unsplash.com/photo-1455390582262-044cdead277a?auto=format&amp;fit=crop&amp;w=1200&amp;q=80" alt="Notebook and coffee on a writing desk">
-                        <div class="image-caption">
-                            <span>Draft review</span>
-                            <strong>Every message is edited before it gets anywhere near a send queue.</strong>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <section class="landing-feature-grid">
-            <article class="landing-panel animate-in animate-in-1">
-                <div class="panel-kicker">Faculty search</div>
-                <h3>Search across academic sources, then save only the plausible fits.</h3>
-                <p>Find professors by topic, institution, and field, then keep the list grounded in real research context instead of a giant scraped spreadsheet.</p>
-            </article>
-            <article class="landing-panel animate-in animate-in-2">
-                <div class="panel-kicker">Working files</div>
-                <h3>Keep notes, keywords, summaries, and talking points beside each contact.</h3>
-                <p>The app behaves more like a research notebook than a mass-email tool, which makes the later draft work feel more defensible.</p>
-            </article>
-            <article class="landing-panel animate-in animate-in-3">
-                <div class="panel-kicker">Controlled delivery</div>
-                <h3>Approve, preview, and send in smaller batches.</h3>
-                <p>Draft scoring, suppression checks, and delivery controls are there so the final step feels cautious rather than automatic.</p>
-            </article>
-        </section>
-
-        <section class="landing-story">
-            <article class="surface-panel animate-in">
-                <div class="section-head">
-                    <div>
-                        <div class="panel-kicker">What the workflow actually looks like</div>
-                        <div class="panel-title">A calmer cycle from search to sent folder.</div>
-                    </div>
-                </div>
-                <div class="page-block">
-                    <p>Start by searching for labs and faculty whose work you can genuinely reference. Save the strongest matches, keep notes on what they study, then generate drafts only when your own background and the professor record are both ready.</p>
-                    <p>After that, review the copy like an editor would: check whether the hook is specific, whether the ask is realistic, and whether the message sounds like a student who actually read the lab page or recent paper list.</p>
-                    <div class="chip-row">
-                        <div class="chip"><strong>Search</strong> real faculty leads</div>
-                        <div class="chip"><strong>Annotate</strong> papers and interests</div>
-                        <div class="chip"><strong>Review</strong> score and warnings</div>
-                        <div class="chip"><strong>Send</strong> in measured batches</div>
-                    </div>
-                </div>
-            </article>
-            <div class="quote-block animate-in animate-in-1">
-                <blockquote>"The best outreach usually looks quieter than people expect. It reads like someone paid attention."</blockquote>
-                <figcaption>Design principle for the workspace</figcaption>
-            </div>
-        </section>
-
-        <section class="landing-gallery">
-            <div class="landing-shot animate-in">
-                <img src="https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&amp;fit=crop&amp;w=1400&amp;q=80" alt="Students working on laptops together">
-                <div class="image-caption">
-                    <span>Search sessions</span>
-                    <strong>Better inputs lead to better faculty files.</strong>
-                </div>
-            </div>
-            <div class="landing-shot animate-in animate-in-1">
-                <img src="https://images.unsplash.com/photo-1503676260728-1c00da094a0b?auto=format&amp;fit=crop&amp;w=1400&amp;q=80" alt="Student on a university campus with books">
-                <div class="image-caption">
-                    <span>Student context</span>
-                    <strong>Your background and interests shape how convincing the draft feels.</strong>
-                </div>
-            </div>
-            <div class="landing-shot animate-in animate-in-2">
-                <img src="https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&amp;fit=crop&amp;w=1400&amp;q=80" alt="Professional office desk with laptop and notes">
-                <div class="image-caption">
-                    <span>Delivery desk</span>
-                    <strong>Approval, preview, and sending stay visible instead of hidden behind a single button.</strong>
-                </div>
-            </div>
-        </section>
-
-        <section class="landing-quote-band">
-            <article class="surface-panel animate-in">
-                <div class="panel-kicker">Private access</div>
-                <div class="panel-title">Create a workspace, keep the access key, and start with a smaller better list.</div>
-                <p class="panel-copy">The app is meant for focused outreach, not anonymous volume. Sign up, store the issued key, and build a queue you would actually stand behind.</p>
-                <div class="hero-actions">
-                    <a href="{{ url_for('signup') }}" class="btn btn-primary">Create account</a>
-                    <a href="{{ url_for('login') }}" class="btn btn-outline">Go to login</a>
-                </div>
-            </article>
-            <div class="landing-shot animate-in animate-in-1">
-                <img src="https://images.unsplash.com/photo-1501504905252-473c47e087f8?auto=format&amp;fit=crop&amp;w=1400&amp;q=80" alt="University lecture hall with students">
-                <div class="image-caption">
-                    <span>Academic context</span>
-                    <strong>The product should feel native to research culture, not borrowed from generic sales software.</strong>
-                </div>
-            </div>
-        </section>
-    </main>
-
-    <footer class="hp-footer">
-        <div class="app-footer-inner">
-            <div class="app-footer-mark">
-                <div class="logo-icon" style="width:32px; height:32px; font-size:1rem; border-radius:12px;">AO</div>
-                <span>Academic Outreach v{{ app_version }}</span>
-            </div>
-            <div>Built for legitimate student-to-faculty outreach. Research first, review always.</div>
+    <section class="ap-section alt">
+        <div class="ap-section-head">
+            <h2>Five sources. One shortlist.</h2>
+            <p>OpenAlex, Crossref, DBLP, arXiv, and Semantic Scholar — searched in parallel, plus any journal by name or ISSN. Pick exactly who you can genuinely reference.</p>
         </div>
+        <div class="ap-grid">
+            <div class="ap-card"><span class="ap-ico">&#128269;</span><h3>Targeted discovery</h3><p>Search by topic, university, journal, or arXiv sub-field — and pull corresponding-author emails straight from PDF headers.</p></div>
+            <div class="ap-card"><span class="ap-ico">&#9997;</span><h3>Grounded drafts</h3><p>Messages written from each professor's real research with a premium model — never generic, never fabricated.</p></div>
+            <div class="ap-card"><span class="ap-ico">&#9989;</span><h3>You approve everything</h3><p>Specificity and tone scored 1–10, spam-risk flags, and a human approval step before anything sends.</p></div>
+        </div>
+    </section>
+
+    <section class="ap-section">
+        <div class="ap-section-head">
+            <h2>The slow part, done right.</h2>
+            <p>Built for reading, comparing, and choosing carefully — not blasting two hundred identical emails.</p>
+        </div>
+        <div class="ap-steps">
+            <div class="ap-step"><div class="n">1</div><h4>Search</h4><p>Build a small, plausible faculty list.</p></div>
+            <div class="ap-step"><div class="n">2</div><h4>Draft</h4><p>Generate personalized messages.</p></div>
+            <div class="ap-step"><div class="n">3</div><h4>Review</h4><p>Edit for specificity and tone.</p></div>
+            <div class="ap-step"><div class="n">4</div><h4>Send</h4><p>Deliver, then nudge once after a week.</p></div>
+        </div>
+    </section>
+
+    <section class="ap-final">
+        <h2>Start your outreach desk.</h2>
+        <p>A private workspace for thoughtful, specific cold emails to professors.</p>
+        <div class="ap-hero-cta">
+            {% if session.get('authenticated') %}
+            <a href="{{ url_for('dashboard') }}" class="ap-btn" style="font-size:17px;padding:12px 24px;">Go to your Desk</a>
+            {% else %}
+            <a href="{{ url_for('signup') }}" class="ap-btn" style="font-size:17px;padding:12px 24px;">Open workspace</a>
+            <a href="{{ url_for('login') }}" class="ap-cta-text">Log in &rsaquo;</a>
+            {% endif %}
+        </div>
+    </section>
+
+    <footer class="ap-footer">
+        Academic Outreach · for students writing to real labs · v{{ app_version }}
     </footer>
-
-    <script>
-    function getTheme() { return localStorage.getItem('ao_theme') || 'system'; }
-    function applyTheme(t) {
-        const pref = t === 'system' ? (matchMedia('(prefers-color-scheme:light)').matches ? 'light' : 'dark') : t;
-        document.documentElement.setAttribute('data-theme', pref);
-        const icons = {'dark':'&#9790;','light':'&#9728;','system':'&#9788;'};
-        const el = document.getElementById('theme-icon-hp');
-        if (el) el.innerHTML = icons[t] || icons.dark;
-    }
-    function cycleTheme() {
-        const order = ['dark', 'light', 'system'];
-        const cur = getTheme();
-        const next = order[(order.indexOf(cur) + 1) % order.length];
-        localStorage.setItem('ao_theme', next);
-        applyTheme(next);
-    }
-    applyTheme(getTheme());
-    matchMedia('(prefers-color-scheme:light)').addEventListener('change', () => {
-        if (getTheme() === 'system') applyTheme('system');
-    });
-
-    const obs = new IntersectionObserver((entries) => {
-        entries.forEach((entry) => {
-            if (entry.isIntersecting) {
-                entry.target.classList.add('animate-visible');
-                obs.unobserve(entry.target);
-            }
-        });
-    }, { threshold: 0.14 });
-    document.querySelectorAll('.animate-in').forEach((el) => obs.observe(el));
-    </script>
 </body>
 </html>

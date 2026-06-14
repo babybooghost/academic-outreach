@@ -493,8 +493,7 @@ def create_app() -> Flask:
     # ------------------------------------------------------------------
     @app.route("/")
     def homepage():
-        if session.get("authenticated"):
-            return redirect(url_for("dashboard"))
+        # Logged-in users can view the homepage too (not trapped in the app).
         return render_template("homepage.html")
 
     # ------------------------------------------------------------------
