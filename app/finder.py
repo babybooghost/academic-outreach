@@ -13,6 +13,7 @@ from __future__ import annotations
 import logging
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import quote_plus
 
@@ -793,6 +794,10 @@ def search_arxiv(
 # Combined search
 # ---------------------------------------------------------------------------
 
+# All discovery sources the finder can draw on (all free, no API keys).
+ALL_SOURCES: tuple[str, ...] = ("openalex", "crossref", "dblp", "arxiv", "semantic_scholar")
+
+
 def find_professors(
     query: str = "",
     universities: Optional[list[str]] = None,
@@ -800,15 +805,15 @@ def find_professors(
     department: str = "Computer Science",
     max_scholar_results: int = 30,
     custom_urls: Optional[dict[str, str]] = None,
+    sources: Optional[list[str]] = None,
 ) -> Tuple[list[Professor], list[str]]:
-    """
-    Run discovery across multiple academic databases and combine results.
+    """Run discovery across the selected academic databases, concurrently.
 
-    Sources (all free, no API keys):
-        1. OpenAlex — 250M+ works, structured institution data (primary)
-        2. Crossref — 150M+ metadata records, DOI authority
-        3. DBLP — Computer science focused, venue info
-        4. Semantic Scholar — backup if others return few results
+    ``sources`` selects which databases to query (defaults to all). Every chosen
+    source runs regardless of the university filter — OpenAlex uses true
+    institution filtering, while the others have the university names folded into
+    their query so results lean toward those schools. All sources run in
+    parallel so total latency is roughly the slowest source, not their sum.
     """
     all_professors: list[Professor] = []
     warnings: list[str] = []
@@ -817,94 +822,64 @@ def find_professors(
         warnings.append("Enter a search query to find professors.")
         return [], warnings
 
-    # --- Strategy 1: OpenAlex (primary — best for university filtering) ---
-    if universities:
-        per_uni = max(max_scholar_results // len(universities), 8)
-        for uni in universities:
-            inst_id = _resolve_institution_id(uni)
-            if not inst_id:
-                warnings.append(f"Could not resolve '{uni}' — skipped.")
-                continue
+    chosen = [s for s in (sources or ALL_SOURCES) if s in ALL_SOURCES] or list(ALL_SOURCES)
+    # Non-OpenAlex sources can't filter by institution, so bias their query text
+    # toward the requested universities instead of dropping them entirely.
+    uni_suffix = (" " + " ".join(universities)) if universities else ""
 
-            work_profs, work_warns = search_openalex_works(
-                query=query, field=field,
-                max_results=per_uni,
-                university_filter=uni,
-                _resolved_inst_id=inst_id,
-            )
-            all_professors.extend(work_profs)
-            warnings.extend(work_warns)
+    # Build the list of independent source calls, then fan them out on threads.
+    tasks: list[tuple[str, Any]] = []  # (label, callable)
 
-            auth_profs, auth_warns = search_openalex_authors(
-                query=query, field=field,
-                max_results=max(per_uni // 2, 5),
-                university_filter=uni,
-                _resolved_inst_id=inst_id,
-            )
-            all_professors.extend(auth_profs)
-            warnings.extend(auth_warns)
-    else:
-        work_profs, work_warns = search_openalex_works(
-            query=query, field=field, max_results=max_scholar_results,
-        )
-        all_professors.extend(work_profs)
-        warnings.extend(work_warns)
+    if "openalex" in chosen:
+        if universities:
+            per_uni = max(max_scholar_results // len(universities), 8)
+            for uni in universities:
+                inst_id = _resolve_institution_id(uni)
+                if not inst_id:
+                    warnings.append(f"Could not resolve '{uni}' — skipped on OpenAlex.")
+                    continue
+                tasks.append((f"OpenAlex works @ {uni}", lambda u=uni, i=inst_id, n=per_uni: search_openalex_works(
+                    query=query, field=field, max_results=n, university_filter=u, _resolved_inst_id=i)))
+                tasks.append((f"OpenAlex authors @ {uni}", lambda u=uni, i=inst_id, n=per_uni: search_openalex_authors(
+                    query=query, field=field, max_results=max(n // 2, 5), university_filter=u, _resolved_inst_id=i)))
+        else:
+            tasks.append(("OpenAlex works", lambda: search_openalex_works(
+                query=query, field=field, max_results=max_scholar_results)))
+            tasks.append(("OpenAlex authors", lambda: search_openalex_authors(
+                query=query, field=field, max_results=max_scholar_results // 2)))
 
-        auth_profs, auth_warns = search_openalex_authors(
-            query=query, field=field, max_results=max_scholar_results // 2,
-        )
-        all_professors.extend(auth_profs)
-        warnings.extend(auth_warns)
+    if "crossref" in chosen:
+        tasks.append(("Crossref", lambda: search_crossref(
+            query=query + uni_suffix, field=field, max_results=min(max_scholar_results, 15))))
+    if "dblp" in chosen:
+        tasks.append(("DBLP", lambda: search_dblp(
+            query=query + uni_suffix, field=field or "Computer Science", max_results=min(max_scholar_results, 12))))
+    if "arxiv" in chosen:
+        tasks.append(("arXiv", lambda: search_arxiv(
+            query=query + uni_suffix, field=field, max_results=min(max_scholar_results, 12))))
+    if "semantic_scholar" in chosen:
+        tasks.append(("Semantic Scholar", lambda: search_semantic_scholar(
+            query=query + uni_suffix, field=field, max_results=min(max_scholar_results, 15))))
 
-    # --- Strategy 2: Crossref (always mix in for broader coverage) ---
-    if not universities:
-        cr_profs, cr_warns = search_crossref(
-            query=query, field=field, max_results=min(max_scholar_results // 3, 10),
-        )
-        all_professors.extend(cr_profs)
-        warnings.extend(cr_warns)
-
-    # --- Strategy 3: DBLP (CS-focused, good for CS/AI/ML queries) ---
-    cs_keywords = {"computer", "algorithm", "machine learning", "ai ", "deep learning",
-                   "neural", "nlp", "software", "database", "crypto", "blockchain",
-                   "distributed", "security", "network", "programming", "data"}
-    is_cs_query = any(kw in query.lower() for kw in cs_keywords)
-
-    if is_cs_query and not universities:
-        dblp_profs, dblp_warns = search_dblp(
-            query=query, field=field or "Computer Science",
-            max_results=min(max_scholar_results // 4, 8),
-        )
-        all_professors.extend(dblp_profs)
-        warnings.extend(dblp_warns)
-
-    # --- Strategy 4: arXiv (preprints — physics, CS, math, fintech) ---
-    arxiv_keywords = cs_keywords | {"physics", "quantum", "fintech", "finance",
-                                     "economic", "math", "statistics", "biology"}
-    is_arxiv_query = any(kw in query.lower() for kw in arxiv_keywords)
-
-    if is_arxiv_query and not universities:
-        ax_profs, ax_warns = search_arxiv(
-            query=query, field=field,
-            max_results=min(max_scholar_results // 4, 8),
-        )
-        all_professors.extend(ax_profs)
-        warnings.extend(ax_warns)
-
-    # --- Strategy 5: Semantic Scholar (backup if still few results) ---
-    if len(all_professors) < 5 and not universities:
-        s2_profs, s2_warns = search_semantic_scholar(
-            query=query, field=field, max_results=max_scholar_results,
-        )
-        all_professors.extend(s2_profs)
-        warnings.extend(s2_warns)
+    # Fan out: every source call is independent I/O, so run them concurrently.
+    with ThreadPoolExecutor(max_workers=min(8, len(tasks)) or 1) as pool:
+        futures = {pool.submit(fn): label for label, fn in tasks}
+        for fut in as_completed(futures):
+            label = futures[fut]
+            try:
+                profs, warns = fut.result()
+                all_professors.extend(profs)
+                warnings.extend(warns)
+            except Exception as exc:
+                warnings.append(f"{label} source failed: {exc}")
+                logger.warning("Finder source %s failed: %s", label, exc)
 
     # Deduplicate by name
     seen: set[str] = set()
     unique: list[Professor] = []
     for prof in all_professors:
         key = prof.name.lower().strip()
-        if key not in seen:
+        if key and key not in seen:
             seen.add(key)
             unique.append(prof)
 

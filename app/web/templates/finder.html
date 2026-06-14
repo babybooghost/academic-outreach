@@ -78,6 +78,18 @@
                     <button type="button" class="pill-button" onclick="clearUnis()" style="color:var(--ao-danger); border-color:rgba(217,126,114,0.3);">Clear all</button>
                 </div>
 
+                <div class="form-group">
+                    <label>Sources</label>
+                    <div class="chip-row" id="source-toggles">
+                        <label class="checkbox-row"><input type="checkbox" class="source-cb" value="openalex" checked> OpenAlex</label>
+                        <label class="checkbox-row"><input type="checkbox" class="source-cb" value="crossref" checked> Crossref</label>
+                        <label class="checkbox-row"><input type="checkbox" class="source-cb" value="dblp" checked> DBLP</label>
+                        <label class="checkbox-row"><input type="checkbox" class="source-cb" value="arxiv" checked> arXiv</label>
+                        <label class="checkbox-row"><input type="checkbox" class="source-cb" value="semantic_scholar" checked> Semantic Scholar</label>
+                    </div>
+                    <div class="form-hint">All run in parallel. Uncheck any you don't want. OpenAlex does true university filtering; the others lean toward your selected schools.</div>
+                </div>
+
                 <div class="hero-actions">
                     <button type="button" class="btn btn-primary" id="search-btn" onclick="runSearch()">Build faculty list</button>
                     <span id="search-status" class="form-hint" style="align-self:center;"></span>
@@ -218,6 +230,14 @@ async function runSearch() {
 
     const field = document.getElementById('field').value.trim();
     const maxResults = parseInt(document.getElementById('max_results').value) || 25;
+    const sources = Array.from(document.querySelectorAll('.source-cb:checked')).map(cb => cb.value);
+
+    if (sources.length === 0) {
+        status.textContent = 'Pick at least one source.';
+        status.style.color = 'var(--ao-danger)';
+        btn.disabled = false; btn.textContent = 'Build faculty list';
+        return;
+    }
 
     try {
         const res = await fetch('/finder/search', {
@@ -228,6 +248,7 @@ async function runSearch() {
                 universities: Array.from(selectedUnis),
                 field: field,
                 max_results: maxResults,
+                sources: sources,
             }),
         });
         const data = await res.json();

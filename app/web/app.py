@@ -407,8 +407,12 @@ def create_app() -> Flask:
     def _log_request_start():
         g._req_start = time.monotonic()
 
+    _request_log_enabled = os.environ.get("REQUEST_LOG_ENABLED", "1").strip() != "0"
+
     @app.after_request
     def _log_request(response):
+        if not _request_log_enabled:
+            return response
         try:
             path = request.path or ""
             if path in _LOG_SKIP_PATHS or any(path.startswith(p) for p in _LOG_SKIP_PREFIXES):
@@ -1926,20 +1930,30 @@ def create_app() -> Flask:
                 )
                 return redirect(url_for("settings_page"))
 
-            from app.summarizer import LLMSummarizer
-            client = LLMSummarizer(provider=provider, api_key=api_key, model=model)
-            reply = client._call_llm(
-                "Reply with exactly the word: ready"
-            )
-            ok = "ready" in (reply or "").lower()
-            _log_activity(
-                "ai_test", category="settings",
-                details={"provider": provider, "model": model, "ok": ok},
-            )
-            if ok or reply:
-                flash(f"AI is working — {model} responded successfully.", "success")
-            else:
-                flash(f"AI call to {model} returned an empty response.", "error")
+            from app.summarizer import probe_openrouter, DEFAULT_PARSE_MODEL
+            parse_model = (cfg.llm_model_parse or DEFAULT_PARSE_MODEL)
+
+            # Probe each model independently and report the model OpenRouter
+            # actually served — so "is it really using model X?" is verifiable,
+            # not assumed.
+            results = []
+            all_ok = True
+            for label, m in (("Writing", model), ("Parsing", parse_model)):
+                r = probe_openrouter(api_key, m)
+                all_ok = all_ok and r["ok"]
+                if r["ok"]:
+                    served = r["served_model"] or m
+                    mismatch = "" if served == m else f" (⚠ OpenRouter served “{served}”)"
+                    results.append(f"{label}: {m} ✓{mismatch}")
+                else:
+                    results.append(f"{label}: {m} ✗ — {r['error']}")
+
+            _log_activity("ai_test", category="settings",
+                          details={"provider": provider, "writing": model,
+                                   "parsing": parse_model, "ok": all_ok})
+            summary = " · ".join(results)
+            flash(("AI check — " + summary) if all_ok else ("AI check found problems — " + summary),
+                  "success" if all_ok else "error")
             return redirect(url_for("settings_page"))
         except Exception as exc:
             _log_activity("ai_test", category="settings",
@@ -2061,6 +2075,7 @@ def create_app() -> Flask:
         universities = data.get("universities", [])
         field = data.get("field", "").strip()
         max_results = min(int(data.get("max_results", 25)), 50)
+        sources = data.get("sources") or None  # None = all sources
 
         if not query:
             return jsonify({"success": False, "error": "Enter a search query (e.g. 'blockchain fintech AI')."})
@@ -2071,6 +2086,7 @@ def create_app() -> Flask:
                 universities=universities if universities else None,
                 field=field,
                 max_scholar_results=max_results,
+                sources=sources,
             )
 
             results = []
