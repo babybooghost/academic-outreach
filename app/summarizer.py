@@ -332,8 +332,42 @@ class LLMSummarizer:
 # ---------------------------------------------------------------------------
 
 # Cheap, capable model for reading/summarizing professor pages. Used unless a
-# workspace explicitly picks a parsing model in Setup.
+# workspace explicitly picks a parsing model in Setup. The "Test AI" probe
+# reports the model OpenRouter actually serves so this can be verified live.
 DEFAULT_PARSE_MODEL: str = "google/gemini-3.5-flash"
+
+
+def probe_openrouter(api_key: str, model: str) -> dict[str, Any]:
+    """One tiny OpenRouter call that reports which model actually answered.
+
+    Returns ``{ok, served_model, text, error}``. ``served_model`` is the model
+    OpenRouter says it ran (its response ``model`` field) — the ground truth for
+    "did it really use the model I picked?". Never raises.
+    """
+    try:
+        resp = http_requests.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={
+                "model": model,
+                "messages": [{"role": "user", "content": "Reply with exactly the word: ready"}],
+                "max_tokens": 10,
+            },
+            timeout=30,
+        )
+        try:
+            data = resp.json()
+        except Exception:
+            return {"ok": False, "served_model": "", "text": "", "error": f"HTTP {resp.status_code}: {resp.text[:200]}"}
+        if resp.status_code >= 400:
+            msg = (data.get("error") or {}).get("message") if isinstance(data, dict) else None
+            return {"ok": False, "served_model": "", "text": "", "error": msg or f"HTTP {resp.status_code}"}
+        served = data.get("model", "") if isinstance(data, dict) else ""
+        choices = data.get("choices") or [] if isinstance(data, dict) else []
+        text = (choices[0].get("message", {}).get("content", "") if choices else "")
+        return {"ok": bool(text), "served_model": served, "text": text, "error": ""}
+    except Exception as exc:
+        return {"ok": False, "served_model": "", "text": "", "error": str(exc)}
 
 
 def get_summarizer(config: Config) -> SummarizerStrategy:
