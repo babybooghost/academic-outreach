@@ -351,7 +351,10 @@ def probe_openrouter(api_key: str, model: str) -> dict[str, Any]:
             json={
                 "model": model,
                 "messages": [{"role": "user", "content": "Reply with exactly the word: ready"}],
-                "max_tokens": 10,
+                # Generous budget: thinking-capable models (e.g. Gemini Flash) spend
+                # tokens on internal reasoning before any visible output, so a tiny
+                # cap can come back empty even though the model works fine in real use.
+                "max_tokens": 256,
             },
             timeout=30,
         )
@@ -365,7 +368,10 @@ def probe_openrouter(api_key: str, model: str) -> dict[str, Any]:
         served = data.get("model", "") if isinstance(data, dict) else ""
         choices = data.get("choices") or [] if isinstance(data, dict) else []
         text = (choices[0].get("message", {}).get("content", "") if choices else "")
-        return {"ok": bool(text), "served_model": served, "text": text, "error": ""}
+        if not text:
+            return {"ok": False, "served_model": served, "text": "",
+                    "error": "model returned no visible text (it may route output to internal reasoning)"}
+        return {"ok": True, "served_model": served, "text": text, "error": ""}
     except Exception as exc:
         return {"ok": False, "served_model": "", "text": "", "error": str(exc)}
 
