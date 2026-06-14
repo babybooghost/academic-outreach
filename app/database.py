@@ -740,20 +740,43 @@ def prune_request_logs(conn: Any, keep_days: int = 14) -> None:
 
 
 def find_workspace_by_owner_email(conn: Any, email: str) -> Optional[dict[str, Any]]:
-    """Return the active access-key row whose workspace is owned by *email*."""
+    """Return the active access-key row whose workspace is owned by *email*.
+
+    Matches case-insensitively (emails aren't case-sensitive), and falls back to
+    the ``user_signups`` table so a returning user is recognised even if the
+    ``workspace_owner_email`` setting was never written. This is what keeps a
+    Google sign-in mapping back to the same workspace instead of looking "new".
+    """
+    em = (email or "").strip().lower()
+    if not em:
+        return None
     try:
         row = conn.execute(
             "SELECT workspace_id FROM app_settings "
-            "WHERE key = 'workspace_owner_email' AND value = ? LIMIT 1",
-            (email,),
+            "WHERE key = 'workspace_owner_email' AND LOWER(value) = ? LIMIT 1",
+            (em,),
         ).fetchone()
-        if not row:
-            return None
-        key_row = conn.execute(
-            "SELECT * FROM access_keys WHERE id = ? AND is_active = 1",
-            (row["workspace_id"],),
+        if row:
+            key_row = conn.execute(
+                "SELECT * FROM access_keys WHERE id = ? AND is_active = 1",
+                (row["workspace_id"],),
+            ).fetchone()
+            if key_row:
+                return dict(key_row)
+
+        # Fallback: map via the signup record's access key.
+        srow = conn.execute(
+            "SELECT key_value FROM user_signups WHERE LOWER(email) = ? LIMIT 1",
+            (em,),
         ).fetchone()
-        return dict(key_row) if key_row else None
+        if srow:
+            key_row = conn.execute(
+                "SELECT * FROM access_keys WHERE key_value = ? AND is_active = 1",
+                (srow["key_value"],),
+            ).fetchone()
+            if key_row:
+                return dict(key_row)
+        return None
     except sqlite3.Error as exc:
         logger.error("find_workspace_by_owner_email failed: %s", exc)
         raise
