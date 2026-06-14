@@ -64,8 +64,8 @@
 {% block scripts %}
 <script>
 async function triggerExport() {
-    const res = await fetch('/export', {method:'POST', headers:{'Content-Type':'application/json'}});
-    const data = await res.json();
+    const res = await fetch('/export', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
+    const data = await res.json().catch(() => ({}));
     const el = document.getElementById('export-result');
     if (data.success) {
         el.innerHTML = '<div class="flash-msg flash-success">Export ready: <a href="' + data.download_url + '">Download ' + data.filename + '</a></div>';

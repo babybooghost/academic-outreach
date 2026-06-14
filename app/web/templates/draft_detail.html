@@ -152,10 +152,18 @@
 {% block scripts %}
 <script>
 async function draftAction(id, action) {
-    const res = await fetch(`/drafts/${id}/${action}`, {method:'POST', headers:{'Content-Type':'application/json'}});
-    const data = await res.json();
-    if (data.success) location.reload();
-    else alert(data.error || 'Action failed');
+    try {
+        const res = await fetch(`/drafts/${id}/${action}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: '{}',
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.success) location.reload();
+        else alert(data.error || `Action failed (HTTP ${res.status})`);
+    } catch (e) {
+        alert('Action failed: ' + e.message);
+    }
 }
 </script>
 {% endblock %}

@@ -181,7 +181,7 @@ class WebSendRouteTests(unittest.TestCase):
     def test_settings_page_shows_delivery_diagnostics(self) -> None:
         self._login()
 
-        response = self.client.get("/settings")
+        response = self.client.get("/setup")
         body = response.get_data(as_text=True)
 
         self.assertEqual(response.status_code, 200)
