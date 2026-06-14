@@ -3012,3 +3012,51 @@ h1, h2, h3,
     padding: 2rem;
 }
 .auth-panel { width: 100%; max-width: 440px; margin: 0 auto; }
+
+/* =========================================================================
+   Apple-style auth skin (login / signup) — scoped to body.ap-auth so it
+   never touches the app pages. Matches the homepage aesthetic.
+   ========================================================================= */
+body.ap-auth {
+    background: #060606 !important;
+    color: #f5f5f7;
+    font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+}
+body.ap-auth .auth-layout {
+    display: flex !important; align-items: center; justify-content: center;
+    min-height: 100svh; padding: 2rem;
+}
+body.ap-auth .auth-stage { display: none !important; }
+body.ap-auth .auth-panel { width: 100%; max-width: 440px; margin: 0 auto; }
+body.ap-auth .auth-form-card {
+    background: #141416; border: 1px solid rgba(255,255,255,0.09);
+    border-radius: 22px; padding: 38px 34px; box-shadow: none;
+}
+body.ap-auth .auth-kicker {
+    color: #2997ff; font-weight: 600; text-transform: none;
+    letter-spacing: 0; font-size: 15px; margin-bottom: 6px;
+}
+body.ap-auth .auth-title,
+body.ap-auth h1 { font-size: 30px; font-weight: 700; letter-spacing: -0.02em; color: #f5f5f7; }
+body.ap-auth p,
+body.ap-auth .form-hint,
+body.ap-auth .auth-note p { color: #a1a1a6; }
+body.ap-auth label { color: #f5f5f7; font-weight: 600; }
+body.ap-auth input {
+    background: #0e0e0f; border: 1px solid rgba(255,255,255,0.14);
+    color: #f5f5f7; border-radius: 10px;
+}
+body.ap-auth input::placeholder { color: #6e6e73; }
+body.ap-auth input:focus { border-color: #2997ff; outline: none; box-shadow: 0 0 0 3px rgba(41,151,255,0.25); }
+body.ap-auth .btn-primary { background: #2997ff !important; color: #fff !important; border: 0; border-radius: 980px; font-weight: 600; }
+body.ap-auth .btn-primary:hover { filter: brightness(1.08); }
+body.ap-auth .btn-outline { border: 1px solid rgba(255,255,255,0.2); color: #f5f5f7; border-radius: 980px; background: transparent; }
+body.ap-auth a { color: #2997ff; }
+body.ap-auth .auth-note,
+body.ap-auth .auth-key-card {
+    background: #0e0e0f; border: 1px solid rgba(255,255,255,0.08); border-radius: 14px;
+}
+body.ap-auth .flash-error {
+    background: rgba(217,126,114,0.14); border: 1px solid rgba(217,126,114,0.34);
+    color: #e8b9b0; border-radius: 10px;
+}
