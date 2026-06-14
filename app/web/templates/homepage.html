@@ -107,7 +107,12 @@
             .js .reveal { opacity: 1; transform: none; transition: none; }
             .ap-card, .ap-btn { transition: none; }
         }
-        .ap-card .ap-ico { font-size: 26px; margin-bottom: 14px; display: block; }
+        .ap-card .ap-ico {
+            width: 46px; height: 46px; border-radius: 12px; display: grid; place-items: center; margin-bottom: 16px;
+            background: linear-gradient(135deg, rgba(199,155,98,0.20), rgba(226,189,133,0.06));
+            border: 1px solid rgba(226,189,133,0.24);
+        }
+        .ap-card .ap-ico svg { width: 23px; height: 23px; stroke: var(--ap-accent); fill: none; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
         .ap-card h3 { font-size: 22px; font-weight: 650; letter-spacing: -0.01em; }
         .ap-card p { color: var(--ap-muted); font-size: 16px; margin-top: 8px; }
 
@@ -123,6 +128,44 @@
         .ap-final { text-align: center; padding: 96px 22px; }
         .ap-final h2 { font-size: clamp(32px, 5vw, 56px); font-weight: 700; letter-spacing: -0.02em; }
         .ap-final p { color: var(--ap-muted); font-size: 20px; margin: 16px auto 30px; max-width: 560px; }
+
+        /* ---- Product mockup (pure CSS/SVG — no image, zero load) ---- */
+        .ap-hero-visual { max-width: 1000px; margin: 14px auto 0; padding: 0 22px; perspective: 1600px; }
+        .ap-mock {
+            border-radius: 16px; overflow: hidden; border: 1px solid var(--ap-border);
+            background: #0b0b0c; box-shadow: 0 40px 120px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.03) inset;
+            transform: rotateX(7deg) translateY(0); transform-origin: top center;
+            transition: transform .5s cubic-bezier(.22,1,.36,1);
+        }
+        .ap-mock:hover { transform: rotateX(0deg); }
+        .ap-mock-bar { display: flex; align-items: center; gap: 7px; padding: 11px 14px; background: #141416; border-bottom: 1px solid var(--ap-border); }
+        .ap-mock-bar .dot { width: 11px; height: 11px; border-radius: 50%; background: #3a3a3d; }
+        .ap-mock-url { margin-left: 12px; flex: 1; max-width: 280px; height: 22px; border-radius: 6px; background: #0e0e0f; border: 1px solid var(--ap-border); color: var(--ap-dim); font-size: 11px; display: flex; align-items: center; padding: 0 10px; }
+        .ap-mock-body { display: grid; grid-template-columns: 150px 1fr; min-height: 320px; }
+        .ap-mock-side { background: #0e0e0f; border-right: 1px solid var(--ap-border); padding: 16px 12px; display: flex; flex-direction: column; gap: 8px; }
+        .ap-mock-logo { width: 26px; height: 26px; border-radius: 7px; background: linear-gradient(135deg, var(--ap-accent-2), var(--ap-accent)); color: #1a1207; font-weight: 800; font-size: 11px; display: grid; place-items: center; margin-bottom: 8px; }
+        .ap-mock-nav { height: 30px; border-radius: 7px; background: #16161a; }
+        .ap-mock-nav.active { background: linear-gradient(135deg, var(--ap-accent-2), var(--ap-accent)); }
+        .ap-mock-nav.w1 { width: 84%; } .ap-mock-nav.w2 { width: 72%; } .ap-mock-nav.w3 { width: 90%; }
+        .ap-mock-main { padding: 22px 24px; }
+        .ap-mock-title { height: 14px; width: 46%; border-radius: 6px; background: #e9e3d6; opacity: .92; }
+        .ap-mock-sub { height: 9px; width: 62%; border-radius: 5px; background: #2a2a2d; margin-top: 12px; }
+        .ap-mock-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 22px; }
+        .ap-mock-stat { background: #141416; border: 1px solid var(--ap-border); border-radius: 12px; padding: 14px; }
+        .ap-mock-stat b { color: var(--ap-accent); font-size: 24px; font-weight: 750; display: block; }
+        .ap-mock-stat span { display: block; height: 8px; width: 60%; border-radius: 4px; background: #2a2a2d; margin-top: 8px; }
+        .ap-mock-rows { margin-top: 16px; display: flex; flex-direction: column; gap: 9px; }
+        .ap-mock-row { height: 34px; border-radius: 9px; background: #121214; border: 1px solid var(--ap-border); display: flex; align-items: center; gap: 10px; padding: 0 12px; }
+        .ap-mock-row::before { content: ''; width: 18px; height: 18px; border-radius: 50%; background: #23231f; }
+        .ap-mock-row::after { content: ''; height: 8px; width: 40%; border-radius: 4px; background: #2a2a2d; }
+        @media (max-width: 720px) { .ap-mock-body { grid-template-columns: 64px 1fr; } .ap-mock { transform: none; } }
+
+        /* ---- Photo band (optimized + lazy so it never blocks render) ---- */
+        .ap-photo-grid { max-width: 1024px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px,1fr)); gap: 16px; }
+        .ap-photo { position: relative; border-radius: 18px; overflow: hidden; border: 1px solid var(--ap-border); aspect-ratio: 4/3; background: #141416; }
+        .ap-photo img { width: 100%; height: 100%; object-fit: cover; display: block; filter: saturate(0.92) contrast(1.02); transition: transform .5s cubic-bezier(.22,1,.36,1); }
+        .ap-photo:hover img { transform: scale(1.04); }
+        .ap-photo figcaption { position: absolute; left: 0; right: 0; bottom: 0; padding: 14px 16px; font-size: 13px; color: #f5f5f7; background: linear-gradient(transparent, rgba(0,0,0,0.7)); }
 
         .ap-footer { border-top: 1px solid var(--ap-border); padding: 30px 22px; text-align: center; color: var(--ap-dim); font-size: 13px; }
         .ap-banner { max-width: 1024px; margin: 16px auto -40px; background: rgba(217,126,114,0.12); border: 1px solid rgba(217,126,114,0.3);
@@ -166,15 +209,50 @@
         </div>
     </header>
 
+    <div class="ap-hero-visual reveal">
+        <div class="ap-mock">
+            <div class="ap-mock-bar">
+                <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+                <div class="ap-mock-url">hs-ro.space/desk</div>
+            </div>
+            <div class="ap-mock-body">
+                <aside class="ap-mock-side">
+                    <div class="ap-mock-logo">AO</div>
+                    <span class="ap-mock-nav active w3"></span>
+                    <span class="ap-mock-nav w1"></span>
+                    <span class="ap-mock-nav w2"></span>
+                    <span class="ap-mock-nav w3"></span>
+                    <span class="ap-mock-nav w1"></span>
+                    <span class="ap-mock-nav w2"></span>
+                </aside>
+                <main class="ap-mock-main">
+                    <div class="ap-mock-title"></div>
+                    <div class="ap-mock-sub"></div>
+                    <div class="ap-mock-stats">
+                        <div class="ap-mock-stat"><b>24</b><span></span></div>
+                        <div class="ap-mock-stat"><b>8</b><span></span></div>
+                        <div class="ap-mock-stat"><b>3</b><span></span></div>
+                    </div>
+                    <div class="ap-mock-rows">
+                        <div class="ap-mock-row"></div>
+                        <div class="ap-mock-row"></div>
+                        <div class="ap-mock-row"></div>
+                        <div class="ap-mock-row"></div>
+                    </div>
+                </main>
+            </div>
+        </div>
+    </div>
+
     <section class="ap-section alt">
         <div class="ap-section-head">
             <h2>Five sources. One shortlist.</h2>
             <p>OpenAlex, Crossref, DBLP, arXiv, and Semantic Scholar — searched in parallel, plus any journal by name or ISSN. Pick exactly who you can genuinely reference.</p>
         </div>
         <div class="ap-grid">
-            <div class="ap-card"><span class="ap-ico">&#128269;</span><h3>Targeted discovery</h3><p>Search by topic, university, journal, or arXiv sub-field — and pull corresponding-author emails straight from PDF headers.</p></div>
-            <div class="ap-card"><span class="ap-ico">&#9997;</span><h3>Grounded drafts</h3><p>Messages written from each professor's real research with a premium model — never generic, never fabricated.</p></div>
-            <div class="ap-card"><span class="ap-ico">&#9989;</span><h3>You approve everything</h3><p>Specificity and tone scored 1–10, spam-risk flags, and a human approval step before anything sends.</p></div>
+            <div class="ap-card"><span class="ap-ico"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></span><h3>Targeted discovery</h3><p>Search by topic, university, journal, or arXiv sub-field — and pull corresponding-author emails straight from PDF headers.</p></div>
+            <div class="ap-card"><span class="ap-ico"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span><h3>Grounded drafts</h3><p>Messages written from each professor's real research with a premium model — never generic, never fabricated.</p></div>
+            <div class="ap-card"><span class="ap-ico"><svg viewBox="0 0 24 24"><path d="M22 11.1V12a10 10 0 1 1-5.9-9.1"/><path d="m9 11 3 3L22 4"/></svg></span><h3>You approve everything</h3><p>Specificity and tone scored 1–10, spam-risk flags, and a human approval step before anything sends.</p></div>
         </div>
     </section>
 
@@ -188,6 +266,30 @@
             <div class="ap-step"><div class="n">2</div><h4>Draft</h4><p>Generate personalized messages.</p></div>
             <div class="ap-step"><div class="n">3</div><h4>Review</h4><p>Edit for specificity and tone.</p></div>
             <div class="ap-step"><div class="n">4</div><h4>Send</h4><p>Deliver, then nudge once after a week.</p></div>
+        </div>
+    </section>
+
+    <section class="ap-section alt">
+        <div class="ap-section-head">
+            <h2>Outreach worth a professor's reply.</h2>
+            <p>The slow, deliberate kind of cold email — the kind that actually starts a conversation with a lab.</p>
+        </div>
+        <div class="ap-photo-grid">
+            <figure class="ap-photo reveal">
+                <img loading="lazy" decoding="async" width="800" height="600" alt="University library reading room"
+                     src="https://images.unsplash.com/photo-1532012197267-da84d127e765?auto=format&amp;fit=crop&amp;w=800&amp;q=68&amp;fm=webp">
+                <figcaption>Find faculty whose work you can genuinely reference.</figcaption>
+            </figure>
+            <figure class="ap-photo reveal">
+                <img loading="lazy" decoding="async" width="800" height="600" alt="Students collaborating on research"
+                     src="https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&amp;fit=crop&amp;w=800&amp;q=68&amp;fm=webp">
+                <figcaption>Write from their real research, not a template.</figcaption>
+            </figure>
+            <figure class="ap-photo reveal">
+                <img loading="lazy" decoding="async" width="800" height="600" alt="Student writing notes at a desk"
+                     src="https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?auto=format&amp;fit=crop&amp;w=800&amp;q=68&amp;fm=webp">
+                <figcaption>Review every word before it ever sends.</figcaption>
+            </figure>
         </div>
     </section>
 
@@ -210,7 +312,7 @@
 
     <script>
     (function () {
-        var targets = document.querySelectorAll('.ap-section-head, .ap-card, .ap-step, .ap-final h2, .ap-final p, .ap-final .ap-hero-cta');
+        var targets = document.querySelectorAll('.ap-hero-visual, .ap-photo, .ap-section-head, .ap-card, .ap-step, .ap-final h2, .ap-final p, .ap-final .ap-hero-cta');
         targets.forEach(function (el, i) { el.classList.add('reveal'); el.style.transitionDelay = (Math.min(i % 4, 3) * 60) + 'ms'; });
         if (!('IntersectionObserver' in window)) { targets.forEach(function (el) { el.classList.add('in'); }); return; }
         var io = new IntersectionObserver(function (entries) {
