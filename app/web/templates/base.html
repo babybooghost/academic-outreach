@@ -29,6 +29,7 @@
                 <div class="logo-text">Academic Outreach</div>
             </a>
             <ul class="nav-links">
+                <li><a href="{{ url_for('homepage') }}"><span class="nav-icon">&#8962;</span> Home</a></li>
                 <li><a href="{{ url_for('dashboard') }}" {% if request.endpoint == 'dashboard' %}class="active"{% endif %}><span class="nav-icon">&#9632;</span> Desk</a></li>
                 <li><a href="{{ url_for('professors_list') }}" {% if request.endpoint and 'professor' in request.endpoint %}class="active"{% endif %}><span class="nav-icon">&#10022;</span> Faculty</a></li>
                 <li><a href="{{ url_for('drafts_list') }}" {% if request.endpoint and 'draft' in request.endpoint %}class="active"{% endif %}><span class="nav-icon">&#9998;</span> Drafts</a></li>
