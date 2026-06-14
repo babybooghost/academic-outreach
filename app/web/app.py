@@ -52,6 +52,7 @@ from app.database import (
     get_connection,
     get_draft,
     get_drafts,
+    get_outreach_stats,
     get_email_verification,
     get_professor,
     get_professors,
@@ -67,6 +68,7 @@ from app.database import (
     prune_request_logs,
     revoke_access_key,
     set_settings_bulk,
+    set_draft_outcome,
     update_draft_status,
     upsert_professor,
     validate_access_key,
@@ -1078,6 +1080,8 @@ def create_app() -> Flask:
                 (wid,),
             ).fetchall()
 
+            outreach = get_outreach_stats(workspace_conn)
+
             return render_template(
                 "dashboard.html",
                 prof_counts=prof_counts,
@@ -1085,6 +1089,7 @@ def create_app() -> Flask:
                 draft_counts=draft_counts,
                 total_drafts=total_drafts,
                 recent_sends=[dict(r) for r in recent_sends],
+                outreach=outreach,
             )
         finally:
             workspace_conn.close()
@@ -1512,6 +1517,29 @@ def create_app() -> Flask:
         finally:
             conn.close()
 
+    @app.route("/drafts/<int:draft_id>/outcome", methods=["POST"])
+    @login_required
+    def draft_outcome_route(draft_id: int):
+        """Record whether the professor replied (excludes them from follow-ups)."""
+        conn = _workspace_conn()
+        try:
+            draft = get_draft(conn, draft_id)
+            if draft is None:
+                return jsonify({"error": "Draft not found"}), 404
+            outcome = (request.get_json(silent=True) or {}).get("outcome", "")
+            from app.database import VALID_OUTCOMES
+            if outcome not in VALID_OUTCOMES:
+                return jsonify({"error": "Unknown outcome"}), 400
+            set_draft_outcome(conn, draft_id, outcome)
+            _log_activity("draft_outcome", category="drafts",
+                          target_type="draft", target_id=str(draft_id),
+                          details={"outcome": outcome or "none"})
+            return jsonify({"success": True, "outcome": outcome})
+        except Exception as exc:
+            return jsonify({"error": str(exc)}), 500
+        finally:
+            conn.close()
+
     @app.route("/drafts/bulk", methods=["POST"])
     @login_required
     def bulk_draft_action():
@@ -1698,6 +1726,8 @@ def create_app() -> Flask:
         eligible = []
         for d in get_drafts(conn, status="sent"):
             if d.id in already:
+                continue
+            if d.outcome:  # professor already replied — don't nudge them
                 continue
             sent_at = sent_map.get(d.id) or d.reviewed_at or d.created_at
             if sent_at and sent_at <= cutoff:
