@@ -1631,8 +1631,10 @@ def create_app() -> Flask:
                         "status": result.get("status"),
                     },
                 )
-                status_code = 200 if result.get("success") or result.get("results") else 400
-                return jsonify(result), status_code
+                # "empty" (nothing approved yet) is a benign state, not a client
+                # error — return 200 so the UI shows the message cleanly.
+                ok = result.get("success") or result.get("results") or result.get("status") == "empty"
+                return jsonify(result), 200 if ok else 400
             except ImportError:
                 return jsonify({"success": False, "error": "Sender module not available"}), 500
         except Exception as exc:
