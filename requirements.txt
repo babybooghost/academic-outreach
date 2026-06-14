@@ -8,6 +8,7 @@ pyyaml>=6.0.0
 flask>=3.0.0
 requests>=2.31.0
 beautifulsoup4>=4.12.0
+pypdf>=4.0.0  # extract corresponding-author emails from arXiv/JMLR PDF headers
 
 # Persistent cloud storage (Turso) is reached over its HTTP pipeline API in
 # app/database.py — pure stdlib, no native driver needed. Set

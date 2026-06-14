@@ -819,20 +819,33 @@ def search_arxiv(
     query: str,
     field: str = "",
     max_results: int = 20,
+    category: str = "",
 ) -> Tuple[list[Professor], list[str]]:
-    """Search arXiv for preprints and extract author info."""
-    logger.info("Searching arXiv for: %s", query)
+    """Search arXiv for preprints and extract author info.
+
+    With a ``category`` (e.g. ``cs.LG``, ``math.CO``, ``quant-ph``) it browses
+    that sub-field's most recent submissions; otherwise it searches by topic.
+    """
+    category = (category or "").strip()
+    logger.info("Searching arXiv for: %s%s", query, f" [cat:{category}]" if category else "")
     warnings: list[str] = []
+
+    if category:
+        search_query = f"cat:{category}" + (f" AND all:{query}" if query else "")
+        sort_by = "submittedDate"
+    else:
+        search_query = f"all:{query}"
+        sort_by = "relevance"
 
     try:
         time.sleep(_POLITE_DELAY)
         resp = requests.get(
             _ARXIV_BASE,
             params={
-                "search_query": f"all:{query}",
+                "search_query": search_query,
                 "start": 0,
                 "max_results": min(max_results * 3, 50),
-                "sortBy": "relevance",
+                "sortBy": sort_by,
                 "sortOrder": "descending",
             },
             headers=_HEADERS,
@@ -926,6 +939,7 @@ def find_professors(
     custom_urls: Optional[dict[str, str]] = None,
     sources: Optional[list[str]] = None,
     journals: Optional[list[str]] = None,
+    arxiv_categories: Optional[list[str]] = None,
 ) -> Tuple[list[Professor], list[str]]:
     """Run discovery across the selected academic databases, concurrently.
 
@@ -940,8 +954,9 @@ def find_professors(
     warnings: list[str] = []
 
     journals = [j.strip() for j in (journals or []) if j and j.strip()]
-    if not query and not journals:
-        warnings.append("Enter a search query or a journal to find professors.")
+    arxiv_categories = [c.strip() for c in (arxiv_categories or []) if c and c.strip()]
+    if not query and not journals and not arxiv_categories:
+        warnings.append("Enter a search query, a journal, or an arXiv category to find professors.")
         return [], warnings
 
     chosen = [s for s in (sources or ALL_SOURCES) if s in ALL_SOURCES] or list(ALL_SOURCES)
@@ -989,6 +1004,12 @@ def find_professors(
     for jrnl in journals:
         tasks.append((f'Journal "{jrnl}"', lambda j=jrnl, n=per_journal: search_journal(
             j, field=field, max_results=n)))
+
+    # arXiv sub-field browsing: one task per requested category (cs.LG, math.CO…).
+    per_cat = max(max_scholar_results // len(arxiv_categories), 8) if arxiv_categories else 0
+    for cat in arxiv_categories:
+        tasks.append((f"arXiv {cat}", lambda c=cat, n=per_cat: search_arxiv(
+            query=query, field=field, max_results=n, category=c)))
 
     # Fan out: every source call is independent I/O, so run them concurrently.
     with ThreadPoolExecutor(max_workers=min(8, len(tasks)) or 1) as pool:

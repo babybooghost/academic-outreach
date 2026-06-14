@@ -144,6 +144,71 @@ def _score_email_candidate(email: str, name: str, university: str) -> int:
     return score
 
 
+def _best_email_from_candidates(
+    candidates: list[str], name: str, university: str
+) -> Optional[str]:
+    """Dedupe, validate, and pick the best-scoring candidate email (or None)."""
+    seen: set[str] = set()
+    valid: list[str] = []
+    for raw in candidates:
+        addr = raw.strip().strip(".").lower()
+        if addr in seen:
+            continue
+        seen.add(addr)
+        if _looks_like_email(addr):
+            valid.append(addr)
+    if not valid:
+        return None
+    best = max(valid, key=lambda e: _score_email_candidate(e, name, university))
+    # Require a weak signal (.edu domain or a name match) before trusting it.
+    if _score_email_candidate(best, name, university) <= 0:
+        return None
+    return best
+
+
+def extract_email_from_text(text: str, name: str = "", university: str = "") -> Optional[str]:
+    """Pick the most likely professor email out of a plain-text blob (e.g. PDF text)."""
+    candidates: list[str] = []
+    for blob in (text or "", _deobfuscate(text or "")):
+        candidates.extend(_EMAIL_RE.findall(blob))
+    return _best_email_from_candidates(candidates, name, university)
+
+
+_ARXIV_ID_RE = re.compile(r"arxiv\.org/(?:abs|pdf)/([\w.\-/]+?)(?:v\d+)?(?:\.pdf)?/?$", re.IGNORECASE)
+
+
+def extract_email_from_arxiv(
+    abs_url: str, name: str = "", university: str = "", timeout: int = _REQUEST_TIMEOUT
+) -> Optional[str]:
+    """Pull a corresponding-author email from an arXiv paper's PDF header.
+
+    arXiv strips emails from the HTML abstract page but they're in the PDF's
+    author block. Open-access, so this is a clean scrape. Best-effort: any
+    network/parse failure returns None.
+    """
+    m = _ARXIV_ID_RE.search((abs_url or "").strip())
+    if not m:
+        return None
+    pdf_url = f"https://arxiv.org/pdf/{m.group(1)}"
+    try:
+        resp = requests.get(pdf_url, headers={"User-Agent": _DEFAULT_USER_AGENT}, timeout=timeout)
+        resp.raise_for_status()
+    except requests.exceptions.RequestException:
+        return None
+    if len(resp.content) > 20 * 1024 * 1024:  # don't load huge PDFs into memory
+        return None
+    try:
+        import io
+        from pypdf import PdfReader
+        reader = PdfReader(io.BytesIO(resp.content))
+        text = " ".join(
+            (reader.pages[i].extract_text() or "") for i in range(min(2, len(reader.pages)))
+        )
+    except Exception:
+        return None
+    return extract_email_from_text(text, name=name, university=university)
+
+
 def extract_email_from_html(
     html: str,
     name: str = "",
@@ -173,25 +238,7 @@ def extract_email_from_html(
     for blob in (text_source, _deobfuscate(text_source)):
         candidates.extend(_EMAIL_RE.findall(blob))
 
-    seen: set[str] = set()
-    valid: list[str] = []
-    for raw in candidates:
-        addr = raw.strip().strip(".").lower()
-        if addr in seen:
-            continue
-        seen.add(addr)
-        if _looks_like_email(addr):
-            valid.append(addr)
-
-    if not valid:
-        return None
-
-    best = max(valid, key=lambda e: _score_email_candidate(e, name, university))
-    # Require at least a weak signal (a .edu domain or a name match) before
-    # trusting an address scraped off a page.
-    if _score_email_candidate(best, name, university) <= 0:
-        return None
-    return best
+    return _best_email_from_candidates(candidates, name, university)
 
 
 def find_professor_email(
@@ -208,6 +255,11 @@ def find_professor_email(
     url = (profile_url or "").strip()
     if not url or url.split("#", 1)[0] in ("", "http://", "https://"):
         return None
+
+    # arXiv: the email lives in the PDF header, not the HTML abstract page.
+    if "arxiv.org" in url.lower():
+        return extract_email_from_arxiv(url, name=name, university=university, timeout=timeout)
+
     if not _is_allowed_by_robots(url, _DEFAULT_USER_AGENT):
         return None
     try:

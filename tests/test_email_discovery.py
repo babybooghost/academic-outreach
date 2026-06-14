@@ -6,7 +6,12 @@ from unittest.mock import patch
 
 from app.config import load_config
 from app.database import get_connection, init_db
-from app.enricher import _find_contact_link, extract_email_from_html
+from app.enricher import (
+    _find_contact_link,
+    extract_email_from_arxiv,
+    extract_email_from_html,
+    extract_email_from_text,
+)
 from app.models import Draft, Professor, SenderProfile
 from app.sender import SafeSender
 
@@ -21,6 +26,17 @@ class EmailExtractionTests(unittest.TestCase):
             extract_email_from_html(html, "John Smith", "Stanford University"),
             "jsmith@stanford.edu",
         )
+
+    def test_text_extractor_prefers_name_match(self) -> None:
+        text = "General: info@mit.edu. Corresponding author: jdoe@mit.edu (J. Doe)."
+        self.assertEqual(
+            extract_email_from_text(text, "Jane Doe", "MIT"),
+            "jdoe@mit.edu",
+        )
+
+    def test_arxiv_extractor_ignores_non_arxiv_url(self) -> None:
+        # No network: a non-arXiv URL must short-circuit to None.
+        self.assertIsNone(extract_email_from_arxiv("https://example.edu/~prof"))
 
     def test_finds_contact_link_absolute(self) -> None:
         html = '<a href="research.html">Research</a> <a href="/people/contact">Contact</a>'
