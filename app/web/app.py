@@ -505,7 +505,9 @@ def create_app() -> Flask:
     for _old_path, _target in (
         ("/dashboard", "dashboard"), ("/finder", "finder_page"),
         ("/followups", "followups_page"), ("/professors", "professors_list"),
+        ("/send", "send_page"), ("/settings", "settings_page"),
     ):
+        # GET-only redirect; coexists with any POST handler on the same path.
         app.add_url_rule(_old_path, f"legacy_{_target}", _legacy_redirect(_target))
 
     # ------------------------------------------------------------------
@@ -1555,7 +1557,7 @@ def create_app() -> Flask:
     # ------------------------------------------------------------------
     # Send
     # ------------------------------------------------------------------
-    @app.route("/send")
+    @app.route("/delivery")
     @login_required
     def send_page():
         conn = _workspace_conn()
@@ -1794,7 +1796,7 @@ def create_app() -> Flask:
         "hotmail": "Hotmail",
     }
 
-    @app.route("/settings")
+    @app.route("/setup")
     @login_required
     def settings_page():
         conn = _workspace_conn()
