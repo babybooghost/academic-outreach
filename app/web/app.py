@@ -2390,6 +2390,80 @@ def create_app() -> Flask:
 
         return jsonify({"success": True})
 
+    _CHAT_SYSTEM = (
+        "You are the in-app assistant for Academic Outreach, a tool that helps high-school and "
+        "undergraduate students send genuine, specific cold emails to professors. Workflow: "
+        "Search (find faculty across OpenAlex/Crossref/DBLP/arXiv/Semantic Scholar and by journal "
+        "name or ISSN), Faculty (the saved shortlist), Drafts (AI-generated, scored 1-10, with "
+        "spam-risk flags), Delivery (send through the student's own Gmail), Follow-ups (one polite "
+        "nudge ~7-10 days later), Setup (writing/parsing models, sender identity, SMTP). "
+        "Help with two things: (1) how to use the app, concisely; (2) outreach quality — critique "
+        "or rewrite the student's drafts to be specific, grounded in the professor's real work, "
+        "humble, and non-spammy, with a bounded ask (e.g. a 15-minute conversation). Use an "
+        "authentic student voice: no flattery, no fabricated papers, results, or credentials. "
+        "Keep replies short and practical. Don't invent professor details. If asked something "
+        "off-topic, gently steer back to outreach."
+    )
+
+    @app.route("/api/chat", methods=["POST"])
+    @login_required
+    def chat_api():
+        """AI assistant: answer questions + help write/critique outreach emails."""
+        data = request.get_json(silent=True) or {}
+        message = (data.get("message") or "").strip()
+        history = data.get("history") or []
+        if not message:
+            return jsonify({"success": False, "error": "Empty message"})
+
+        conn = _workspace_conn()
+        try:
+            cfg = _workspace_config(conn)
+        finally:
+            conn.close()
+        provider = (cfg.llm_provider or "").strip()
+        api_key = (cfg.llm_api_key or os.environ.get("LLM_API_KEY", "")).strip()
+        if provider != "openrouter" or not api_key:
+            # No model configured — tell the client to use its built-in canned help.
+            return jsonify({"success": False, "error": "no_ai"})
+
+        msgs = [{"role": "system", "content": _CHAT_SYSTEM}]
+        for h in history[-8:]:
+            if not isinstance(h, dict):
+                continue
+            role = "assistant" if h.get("role") == "bot" else "user"
+            content = str(h.get("content", ""))[:2000]
+            if content:
+                msgs.append({"role": role, "content": content})
+        msgs.append({"role": "user", "content": message[:2000]})
+
+        try:
+            from app.summarizer import chat_openrouter
+            reply = chat_openrouter(api_key, cfg.llm_model, msgs)
+        except Exception as exc:
+            logger.warning("AI chat failed: %s", exc)
+            return jsonify({"success": False, "error": "ai_error"})
+        if not reply:
+            return jsonify({"success": False, "error": "empty"})
+
+        conn = _auth_conn()
+        try:
+            ip = request.headers.get("X-Forwarded-For", request.remote_addr)
+            if ip and "," in ip:
+                ip = ip.split(",")[0].strip()
+            conn.execute(
+                """INSERT INTO chat_logs
+                   (user_key_id, user_label, user_message, bot_response, prompt_key, ip_address, created_at)
+                   VALUES (?, ?, ?, ?, 'ai', ?, ?)""",
+                (session.get("key_id"), session.get("key_label", ""),
+                 message[:2000], reply[:5000], ip, datetime.utcnow().isoformat()),
+            )
+            conn.commit()
+        except Exception as exc:
+            logger.warning("chat log failed: %s", exc)
+        finally:
+            conn.close()
+        return jsonify({"success": True, "reply": reply})
+
     @app.route("/api/bug-report", methods=["POST"])
     @login_required
     def bug_report():

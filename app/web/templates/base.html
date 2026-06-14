@@ -85,19 +85,19 @@
                 <div class="chat-widget" id="chat-widget">
                     <button type="button" class="chat-fab" id="chat-fab" onclick="toggleChat()" title="Support">
                         <span id="chat-fab-icon">&#128172;</span>
-                        <span>Support</span>
+                        <span>Assistant</span>
                     </button>
                     <div class="chat-panel" id="chat-panel">
                         <div class="chat-header">
                             <div style="display:flex; align-items:center; gap:0.55rem;">
                                 <span style="font-size:1.05rem;">&#128172;</span>
-                                <strong>Support</strong>
+                                <strong>Assistant</strong>
                             </div>
                             <button type="button" class="chat-close" onclick="toggleChat()" title="Close">&times;</button>
                         </div>
                         <div class="chat-body" id="chat-body">
                             <div class="chat-msg chat-msg-bot">
-                                <div class="chat-msg-content">Need a quick hand? I can walk through search, drafts, delivery, or setup.</div>
+                                <div class="chat-msg-content">Hi! I can answer questions and help write or sharpen your outreach emails — paste a draft to improve it, or pick a topic below.</div>
                             </div>
                             <div class="chat-prompts" id="chat-prompts">
                                 <button type="button" class="chat-prompt-btn" onclick="sendPrompt('how_to_start')">How do I get started?</button>
@@ -127,7 +127,7 @@
                             </div>
                         </div>
                         <div class="chat-input-area" id="chat-input-area">
-                            <input type="text" id="chat-input" placeholder="Ask about the workflow..." onkeydown="if(event.key==='Enter')sendMessage()">
+                            <input type="text" id="chat-input" placeholder="Ask anything, or paste a draft to improve…" onkeydown="if(event.key==='Enter')sendMessage()">
                             <button type="button" class="chat-send-btn" onclick="sendMessage()" title="Send">&#10148;</button>
                         </div>
                     </div>
@@ -374,47 +374,56 @@
         }, 280);
     }
 
-    function sendMessage() {
+    let chatHistory = [];
+
+    // Built-in help used when no AI model is configured or the AI call fails.
+    function cannedFallback(text) {
+        const lower = text.toLowerCase();
+        if (lower.includes('start') || lower.includes('begin') || lower.includes('setup')) return CHAT_RESPONSES.how_to_start.a;
+        if (lower.includes('find') || lower.includes('search') || lower.includes('professor'))
+            return (lower.includes('machine learning') || lower.includes('ml') || lower.includes('ai lab'))
+                ? CHAT_RESPONSES.find_ml_professors.a : CHAT_RESPONSES.find_professors.a;
+        if (lower.includes('generat') || lower.includes('email') || lower.includes('draft') || lower.includes('template')) return CHAT_RESPONSES.generate_emails.a;
+        if (lower.includes('send') || lower.includes('gmail') || lower.includes('smtp')) return CHAT_RESPONSES.send_emails.a;
+        if (lower.includes('score') || lower.includes('quality') || lower.includes('rating')) return CHAT_RESPONSES.quality_scores.a;
+        if (lower.includes('tutorial') || lower.includes('tour') || lower.includes('guide')) return CHAT_RESPONSES.tutorial.a;
+        if (lower.includes('bug') || lower.includes('issue') || lower.includes('broken') || lower.includes('error')) return 'Sounds like a problem — use the "Report a bug" button to send details.';
+        if (lower.includes('setting') || lower.includes('config') || lower.includes('api key')) return 'Open Setup to configure the model, sender address, SMTP credentials, and delivery behavior.';
+        return 'I can help with search, faculty review, draft generation, sending, and setup — and I can rewrite or critique a draft. Set an OpenRouter model in Setup to unlock full AI answers; meanwhile try a keyword like "search", "draft", or "send".';
+    }
+
+    async function sendMessage() {
         const input = document.getElementById('chat-input');
         const text = input.value.trim();
         if (!text) return;
         input.value = '';
         document.getElementById('chat-prompts').style.display = 'none';
         addMessage(text, false);
-
-        const lower = text.toLowerCase();
-        let response = '';
-        if (lower.includes('start') || lower.includes('begin') || lower.includes('setup')) {
-            response = CHAT_RESPONSES.how_to_start.a;
-        } else if (lower.includes('find') || lower.includes('search') || lower.includes('professor')) {
-            response = (lower.includes('machine learning') || lower.includes('ml') || lower.includes('ai lab'))
-                ? CHAT_RESPONSES.find_ml_professors.a
-                : CHAT_RESPONSES.find_professors.a;
-        } else if (lower.includes('generat') || lower.includes('email') || lower.includes('draft') || lower.includes('template')) {
-            response = CHAT_RESPONSES.generate_emails.a;
-        } else if (lower.includes('send') || lower.includes('gmail') || lower.includes('smtp')) {
-            response = CHAT_RESPONSES.send_emails.a;
-        } else if (lower.includes('score') || lower.includes('quality') || lower.includes('rating')) {
-            response = CHAT_RESPONSES.quality_scores.a;
-        } else if (lower.includes('tutorial') || lower.includes('tour') || lower.includes('guide') || lower.includes('help')) {
-            response = CHAT_RESPONSES.tutorial.a;
-            setTimeout(() => { if (typeof startTutorial === 'function') { toggleChat(); startTutorial(); } }, 1000);
-        } else if (lower.includes('bug') || lower.includes('issue') || lower.includes('broken') || lower.includes('error')) {
-            response = 'Sounds like you ran into a problem. You can use the "Report a bug" button to submit a detailed report, or describe the issue here and I will do my best to help.';
-        } else if (lower.includes('suppression') || lower.includes('block') || lower.includes('unsubscribe')) {
-            response = 'The suppression list prevents repeated outreach to the same address.\n\nUse Setup to review who is blocked, and keep the list current whenever a contact should no longer receive messages.';
-        } else if (lower.includes('csv') || lower.includes('import') || lower.includes('export')) {
-            response = 'Exports are available from the Export page for draft records and handoff files.\n\nKeep the export columns clean if you are reviewing outside the app.';
-        } else if (lower.includes('setting') || lower.includes('config') || lower.includes('api key')) {
-            response = 'Open Setup to configure writing model, sender address, SMTP credentials, and delivery behavior. That page is the control desk for how drafts are written and how approved messages leave the queue.';
-        } else {
-            response = 'I can help with search, faculty review, draft generation, sending, and setup. Try a keyword like "search", "draft", "send", "score", or "settings".';
+        const typing = addMessage('…', true);
+        const set = (t) => {
+            typing.querySelector('.chat-msg-content').textContent = t;
+            document.getElementById('chat-body').scrollTop = 1e9;
+        };
+        try {
+            const res = await fetch('/api/chat', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({message: text, history: chatHistory.slice(-8)}),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (data.success && data.reply) {
+                set(data.reply);
+                chatHistory.push({role: 'user', content: text});
+                chatHistory.push({role: 'bot', content: data.reply});
+            } else {
+                const fb = cannedFallback(text);
+                set(fb);
+                logChat(text, fb, null);
+            }
+        } catch (e) {
+            const fb = cannedFallback(text);
+            set(fb);
+            logChat(text, fb, null);
         }
-
-        setTimeout(() => {
-            addMessage(response, true);
-            logChat(text, response, null);
-        }, 360);
     }
 
     function showBugForm() {
