@@ -351,6 +351,19 @@ def _migrate_schema(conn: Any) -> None:
             except Exception as exc:
                 logger.warning("Could not add workspace_id to %s: %s", table, exc)
 
+    # Newer sender-profile detail columns (awards/skills/goal/age) on databases
+    # created before they existed.
+    sp_cols = _column_names(conn, "sender_profiles")
+    if sp_cols:
+        for col in ("awards", "skills", "goal", "age"):
+            if col not in sp_cols:
+                try:
+                    conn.execute(
+                        f"ALTER TABLE sender_profiles ADD COLUMN {col} TEXT NOT NULL DEFAULT ''"
+                    )
+                except Exception as exc:
+                    logger.warning("Could not add %s to sender_profiles: %s", col, exc)
+
     # app_settings needs a composite primary key; rebuild if it still has the
     # legacy single-column (key) primary key.
     settings_cols = _column_names(conn, "app_settings")
@@ -422,6 +435,10 @@ CREATE TABLE IF NOT EXISTS sender_profiles (
     interests       TEXT    NOT NULL DEFAULT '',
     background      TEXT    NOT NULL DEFAULT '',
     graduation_year TEXT,
+    awards          TEXT    NOT NULL DEFAULT '',
+    skills          TEXT    NOT NULL DEFAULT '',
+    goal            TEXT    NOT NULL DEFAULT '',
+    age             TEXT    NOT NULL DEFAULT '',
     created_at      TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -1215,13 +1232,14 @@ def insert_sender_profile(conn: Any, profile: SenderProfile) -> int:
             """
             INSERT INTO sender_profiles (
                 workspace_id, name, school, grade, email, interests, background,
-                graduation_year, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                graduation_year, awards, skills, goal, age, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 _ws(conn), profile.name, profile.school, profile.grade, profile.email,
-                profile.interests, profile.background,
-                profile.graduation_year, profile.created_at,
+                profile.interests, profile.background, profile.graduation_year,
+                profile.awards, profile.skills, profile.goal, profile.age,
+                profile.created_at,
             ),
         )
         conn.commit()

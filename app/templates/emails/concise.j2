@@ -2,7 +2,11 @@
 
 I am {{ sender_name }}, a {{ sender_grade }} student at {{ sender_school }}. {{ opener }}
 
-{{ transition }} {{ hook }}. {{ ask }}
+{{ transition }} {{ hook }}.
+
+{% if credentials %}{{ credentials }}
+
+{% endif %}{{ ask }}
 
 {{ fallback }}
 
