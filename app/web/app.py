@@ -559,6 +559,7 @@ def create_app() -> Flask:
         *, password_hash: Optional[str] = None, key_value: Optional[str] = None,
     ) -> tuple[str, int]:
         """Create the user_signups row + access key + workspace identity."""
+        email = (email or "").strip().lower()  # emails are case-insensitive
         if password_hash is None:  # Google users never set a password (login is by key)
             password_hash = generate_password_hash(
                 "ao_" + secrets.token_hex(16), method="pbkdf2:sha256")
@@ -816,25 +817,48 @@ def create_app() -> Flask:
             flash("Your Google account email isn't verified.", "error")
             return redirect(url_for("login"))
 
+        email = email.strip().lower()
+        name = (name or "").strip() or email.split("@")[0]
+
         conn = _auth_conn()
         try:
             key_row = find_workspace_by_owner_email(conn, email)
+
+            # Existing workspace → log in.
+            if key_row:
+                if key_row.get("role") == "admin":
+                    flash("Admin accounts must use the admin login.", "error")
+                    return redirect(url_for("login"))
+                _complete_user_login(key_row)
+                _log_activity("user_login", category="auth",
+                              details={"label": key_row.get("label", ""),
+                                       "email": email, "via": "google"})
+                return redirect(url_for("dashboard"))
+
+            # New Google identity → auto-provision a workspace. Google sign-in is
+            # self-sufficient: no invite code, no access key needed.
+            try:
+                _, key_id = _create_signup_account(conn, email, name)
+            except Exception as exc:
+                # Almost certainly a races/duplicate email — recover by mapping.
+                logger.warning("Google auto-provision fell back to lookup: %s", exc)
+                key_row = find_workspace_by_owner_email(conn, email)
+                if not key_row:
+                    flash("Could not finish creating your workspace. Please try again.", "error")
+                    return redirect(url_for("login"))
+                _complete_user_login(key_row)
+                _log_activity("user_login", category="auth",
+                              details={"email": email, "via": "google"})
+                return redirect(url_for("dashboard"))
         finally:
             conn.close()
 
-        if key_row:
-            if key_row.get("role") == "admin":
-                flash("Admin accounts must use the admin login.", "error")
-                return redirect(url_for("login"))
-            _complete_user_login(key_row)
-            _log_activity("user_login", category="auth",
-                          details={"label": key_row.get("label", ""), "via": "google"})
-            return redirect(url_for("dashboard"))
-
-        # New email → invite-gated signup with the address pre-verified by Google.
-        session["pending_google"] = {"email": email, "name": name}
-        flash("Google verified your email — enter the invite code to finish creating your workspace.", "success")
-        return redirect(url_for("signup"))
+        _complete_user_login({"id": key_id, "label": name, "role": "user"})
+        _log_activity("user_login", category="auth",
+                      details={"email": email, "name": name, "via": "google",
+                               "new_workspace": True})
+        flash("Welcome! Your workspace is ready.", "success")
+        return redirect(url_for("dashboard"))
 
     @app.route("/logout")
     def logout():

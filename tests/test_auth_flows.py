@@ -185,13 +185,45 @@ class GoogleSignInTests(AuthFlowTestBase):
             self.assertTrue(sess.get("authenticated"))
             self.assertEqual(sess.get("key_id"), key_id)
 
-    def test_new_user_routed_to_signup(self):
+    def test_new_user_auto_provisions_and_logs_in(self):
+        # Google sign-in is self-sufficient: a brand-new email gets a workspace
+        # created automatically (no invite code) and is logged straight in.
         resp = self._callback("stranger@gmail.com")
         self.assertEqual(resp.status_code, 302)
-        self.assertTrue(resp.headers["Location"].endswith("/signup"))
+        self.assertTrue(resp.headers["Location"].endswith("/dashboard"))
         with self.client.session_transaction() as sess:
-            self.assertFalse(sess.get("authenticated"))
-            self.assertEqual(sess.get("pending_google", {}).get("email"), "stranger@gmail.com")
+            self.assertTrue(sess.get("authenticated"))
+            self.assertTrue(sess.get("key_id"))
+        # The new workspace is owned by that email, and a signup row was recorded.
+        conn = get_connection(self.db_path)
+        try:
+            row = conn.execute(
+                "SELECT email FROM user_signups WHERE LOWER(email) = ?",
+                ("stranger@gmail.com",),
+            ).fetchone()
+            self.assertIsNotNone(row)
+        finally:
+            conn.close()
+
+    def test_existing_user_matched_case_insensitively(self):
+        # A workspace owned by lowercase email must still match a mixed-case
+        # Google email (the old bug: exact match treated returning users as new).
+        conn = get_connection(self.db_path)
+        try:
+            key_id = create_access_key(conn, "ao_user_case", "Member", "user", "test")
+        finally:
+            conn.close()
+        ws = get_connection(self.db_path, workspace_id=key_id)
+        try:
+            set_settings_bulk(ws, {"workspace_owner_email": "casey@gmail.com"})
+        finally:
+            ws.close()
+
+        resp = self._callback("Casey@Gmail.com")
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(resp.headers["Location"].endswith("/dashboard"))
+        with self.client.session_transaction() as sess:
+            self.assertEqual(sess.get("key_id"), key_id)
 
     def test_unverified_google_email_rejected(self):
         resp = self._callback("unverified@gmail.com", verified=False)
