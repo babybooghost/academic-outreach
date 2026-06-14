@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 from app.config import load_config
 from app.database import get_connection, init_db
-from app.enricher import extract_email_from_html
+from app.enricher import _find_contact_link, extract_email_from_html
 from app.models import Draft, Professor, SenderProfile
 from app.sender import SafeSender
 
@@ -21,6 +21,17 @@ class EmailExtractionTests(unittest.TestCase):
             extract_email_from_html(html, "John Smith", "Stanford University"),
             "jsmith@stanford.edu",
         )
+
+    def test_finds_contact_link_absolute(self) -> None:
+        html = '<a href="research.html">Research</a> <a href="/people/contact">Contact</a>'
+        self.assertEqual(
+            _find_contact_link(html, "https://lab.edu/~prof/index.html"),
+            "https://lab.edu/people/contact",
+        )
+
+    def test_no_contact_link_returns_none(self) -> None:
+        html = '<a href="/research">Research</a> <a href="mailto:x@y.edu">mail</a>'
+        self.assertIsNone(_find_contact_link(html, "https://lab.edu/"))
 
     def test_deobfuscates_text(self) -> None:
         html = "<p>jane [at] mit [dot] edu</p>"

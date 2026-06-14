@@ -13,7 +13,7 @@ import sqlite3
 import time
 import urllib.robotparser
 from typing import Optional
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 import requests
 from bs4 import BeautifulSoup
@@ -219,7 +219,44 @@ def find_professor_email(
         resp.raise_for_status()
     except requests.exceptions.RequestException:
         return None
-    return extract_email_from_html(resp.text, name=name, university=university)
+
+    email = extract_email_from_html(resp.text, name=name, university=university)
+    if email:
+        return email
+
+    # Many faculty profiles hide the address one click away (a "Contact" or
+    # "People"/"Directory" page). Follow one such link and try once more.
+    follow = _find_contact_link(resp.text, url)
+    if follow and follow != url and _is_allowed_by_robots(follow, _DEFAULT_USER_AGENT):
+        try:
+            r2 = requests.get(follow, headers={"User-Agent": _DEFAULT_USER_AGENT}, timeout=timeout)
+            r2.raise_for_status()
+            return extract_email_from_html(r2.text, name=name, university=university)
+        except requests.exceptions.RequestException:
+            return None
+    return None
+
+
+# Link text/href hints that usually lead to a page where an email is published.
+_CONTACT_HINTS = ("contact", "people", "directory", "faculty", "email", "profile", "members", "staff")
+
+
+def _find_contact_link(html: str, base_url: str) -> Optional[str]:
+    """Return an absolute URL of the most likely contact/people page, or None."""
+    try:
+        soup = BeautifulSoup(html, "html.parser")
+    except Exception:
+        return None
+    for a in soup.find_all("a", href=True):
+        href = a["href"].strip()
+        if not href or href.startswith(("mailto:", "javascript:", "#")):
+            continue
+        haystack = (href + " " + a.get_text(" ", strip=True)).lower()
+        if any(h in haystack for h in _CONTACT_HINTS):
+            absolute = urljoin(base_url, href)
+            if absolute.startswith(("http://", "https://")):
+                return absolute
+    return None
 
 
 # ---------------------------------------------------------------------------

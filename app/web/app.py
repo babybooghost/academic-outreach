@@ -715,7 +715,12 @@ def create_app() -> Flask:
                                     invite_required=bool(required_invite),
                                 )
                             delete_email_verification(conn, email)
-                            error = "Could not send the verification email. Try again in a moment."
+                            error = (
+                                "The system mailbox is configured but the send was rejected. "
+                                "Check SMTP_PASSWORD is a Gmail App Password (not your account "
+                                "password) and that SENDER_EMAIL matches SMTP_USER. The exact SMTP "
+                                "error is in the server logs."
+                            )
                         else:
                             # No system mailbox configured — create directly (fallback).
                             _create_signup_account(conn, email, display_name,
