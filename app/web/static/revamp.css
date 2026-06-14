@@ -226,7 +226,9 @@ body.app-shell {
 
 .app-shell .logo-text span,
 .app-shell .nav-icon {
-    display: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .app-shell .nav-links {
@@ -3060,3 +3062,7 @@ body.ap-auth .flash-error {
     background: rgba(217,126,114,0.14); border: 1px solid rgba(217,126,114,0.34);
     color: #e8b9b0; border-radius: 10px;
 }
+
+/* Crafted SVG nav icons (app + admin) — inherit the link's color. */
+.nav-icon { display: inline-flex; align-items: center; justify-content: center; }
+.nav-icon svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.85; stroke-linecap: round; stroke-linejoin: round; }
