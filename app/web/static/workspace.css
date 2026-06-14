@@ -7,10 +7,11 @@
 
 /* ---- Helper tokens (layout/fonts) available everywhere ---- */
 :root {
-    --ws-sidebar: 264px;
-    --ws-serif: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
+    --ws-sidebar: 248px;
+    /* Minimal redesign: one clean sans for everything (no serif display). */
+    --ws-serif: 'Manrope', 'Segoe UI', system-ui, sans-serif;
     --ws-sans: 'Manrope', 'Segoe UI', system-ui, sans-serif;
-    --ws-maxw: 1240px;
+    --ws-maxw: 1180px;
 }
 
 /* ---- Warm editorial palette ----
@@ -61,10 +62,7 @@ html[data-theme="light"] body.app-shell {
 
 /* -------------------------------- Base ---------------------------------- */
 body.app-shell {
-    background:
-        radial-gradient(1200px 620px at 82% -8%, rgba(199, 155, 98, 0.10), transparent 60%),
-        radial-gradient(900px 520px at -6% 4%, rgba(149, 166, 183, 0.06), transparent 55%),
-        var(--ao-bg);
+    background: var(--ao-bg);  /* flat, no decorative gradients */
     color: var(--ao-text);
     font-family: var(--ws-sans);
     -webkit-font-smoothing: antialiased;
@@ -90,29 +88,32 @@ body.app-shell {
 }
 
 .app-shell .page-title,
+.app-shell .workspace-title,
 .app-shell .editorial-hero h1 {
-    font-size: clamp(2.1rem, 4.2vw, 3.2rem);
-    line-height: 1.04;
+    font-size: clamp(1.5rem, 2.4vw, 2rem);
+    line-height: 1.15;
+    font-weight: 650;
+    letter-spacing: -0.01em;
 }
 
-/* Uppercase kicker labels ("WORKSPACE DESK", "GETTING STARTED"). */
+/* Uppercase kicker labels — kept but quieter (less letter-spacing, dimmer). */
 .app-shell .panel-kicker,
 .app-shell .hero-kicker,
 .app-shell .surface-panel-header .panel-kicker,
 .app-shell .eyebrow {
     font-family: var(--ws-sans);
     text-transform: uppercase;
-    letter-spacing: 0.18em;
-    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    font-size: 0.68rem;
     font-weight: 700;
-    color: var(--ao-primary-light);
+    color: var(--ao-text-dim);
 }
 
 .app-shell .lead,
 .app-shell .hero-copy {
     color: var(--ao-text-muted);
-    font-size: 1.04rem;
-    line-height: 1.6;
+    font-size: 0.95rem;
+    line-height: 1.55;
 }
 
 /* ============================ Responsive shell ==========================
@@ -294,22 +295,23 @@ body.app-shell {
 .app-shell .empty-state,
 .app-shell .info-card,
 .app-shell .step-card {
-    background: linear-gradient(180deg, color-mix(in srgb, var(--ao-surface) 92%, transparent), var(--ao-panel));
+    background: var(--ao-panel);  /* flat surface, no gradient */
     border: 1px solid var(--ao-border);
-    border-radius: var(--ao-radius, 22px);
-    box-shadow: 0 22px 60px rgba(0, 0, 0, 0.28);
+    border-radius: 10px;
+    box-shadow: none;
 }
 
-.app-shell .surface-panel { padding: 1.6rem 1.7rem; }
+.app-shell .surface-panel { padding: 1.25rem 1.35rem; }
 
-.app-shell .metric-card { padding: 1.3rem 1.4rem; }
+.app-shell .metric-card { padding: 1rem 1.1rem; }
 .app-shell .metric-card .metric-value,
 .app-shell .metric-value,
 .app-shell .stat-value,
 .app-shell .stat-number {
-    font-family: var(--ws-serif);
-    font-weight: 600;
-    font-size: 2.2rem;
+    font-family: var(--ws-sans);
+    font-weight: 680;
+    font-size: 1.7rem;
+    letter-spacing: -0.01em;
     color: var(--ao-text);
 }
 
@@ -396,3 +398,57 @@ body.app-shell {
 @media (min-width: 1024px) {
     .app-shell .app-footer { padding-left: 1rem; }
 }
+
+/* =========================================================================
+   Minimal redesign overrides (loaded last) — flat, dense, utilitarian.
+   ========================================================================= */
+
+/* Stock hero photos: gone. They were the biggest "AI template" tell. */
+.app-shell .image-card,
+.app-shell .editorial-hero .image-card { display: none !important; }
+
+/* Heroes collapse to a single tight column (no more two-column photo layout). */
+.app-shell .editorial-hero,
+.app-shell .workspace-header-top {
+    display: block;
+    padding: 0;
+    margin-bottom: 1.1rem;
+}
+.app-shell .editorial-hero { border: 0; box-shadow: none; background: none; }
+.app-shell .workspace-header { margin-bottom: 1.25rem; }
+
+/* Tighter, calmer controls: smaller radii instead of full pills. */
+.app-shell .btn,
+.app-shell input,
+.app-shell select,
+.app-shell textarea {
+    border-radius: 8px;
+    font-family: var(--ws-sans);
+}
+.app-shell .pill-button,
+.app-shell .chip,
+.app-shell .badge { border-radius: 6px; }
+.app-shell input,
+.app-shell select,
+.app-shell textarea { background: var(--ao-surface-2); }
+
+/* Quieter section dividers + denser tables. */
+.app-shell .surface-panel-header { margin-bottom: 0.9rem; padding-bottom: 0.7rem; }
+.app-shell table th {
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-size: 0.7rem;
+    color: var(--ao-text-dim);
+}
+.app-shell table td, .app-shell table th { padding: 0.6rem 0.7rem; }
+
+/* Sidebar: flatter active state. */
+.app-shell .nav-links a.active {
+    background: var(--ao-surface-2);
+    color: var(--ao-text);
+    box-shadow: none;
+}
+
+/* Kill leftover decorative glows/gradients on cards in the app. */
+.app-shell .surface-panel::before,
+.app-shell .editorial-hero::before { display: none !important; }
