@@ -73,6 +73,12 @@
                     <div class="form-hint">Comma-separated journal names or ISSNs. Pulls recent corresponding authors from those journals via Crossref — works for any journal, paywalled or open. Leave the topic blank to search journals only.</div>
                 </div>
 
+                <div class="form-group">
+                    <label for="arxiv_categories">arXiv sub-fields (optional)</label>
+                    <input type="text" id="arxiv_categories" placeholder="e.g. cs.LG, math.CO, quant-ph, hep-th">
+                    <div class="form-hint">Comma-separated arXiv categories — browses each sub-field's most recent preprints. On save, emails are pulled straight from the arXiv PDF headers.</div>
+                </div>
+
                 <div id="selected-unis" class="chip-row"></div>
 
                 <div class="chip-row">
@@ -224,9 +230,11 @@ async function runSearch() {
     const query = document.getElementById('scholar_query').value.trim();
     const journals = (document.getElementById('journals').value || '')
         .split(',').map(s => s.trim()).filter(Boolean);
+    const arxivCategories = (document.getElementById('arxiv_categories').value || '')
+        .split(',').map(s => s.trim()).filter(Boolean);
 
-    if (!query && journals.length === 0) {
-        status.textContent = 'Enter a research topic or a journal name/ISSN.';
+    if (!query && journals.length === 0 && arxivCategories.length === 0) {
+        status.textContent = 'Enter a research topic, a journal name/ISSN, or an arXiv category.';
         status.style.color = 'var(--ao-danger)';
         return;
     }
@@ -258,6 +266,7 @@ async function runSearch() {
                 max_results: maxResults,
                 sources: sources,
                 journals: journals,
+                arxiv_categories: arxivCategories,
             }),
         });
         const data = await res.json();

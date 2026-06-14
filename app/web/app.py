@@ -2106,9 +2106,10 @@ def create_app() -> Flask:
         max_results = min(int(data.get("max_results", 25)), 50)
         sources = data.get("sources") or None  # None = all sources
         journals = [j.strip() for j in (data.get("journals") or []) if j and j.strip()]
+        arxiv_categories = [c.strip() for c in (data.get("arxiv_categories") or []) if c and c.strip()]
 
-        if not query and not journals:
-            return jsonify({"success": False, "error": "Enter a research topic or a journal name/ISSN."})
+        if not query and not journals and not arxiv_categories:
+            return jsonify({"success": False, "error": "Enter a research topic, a journal name/ISSN, or an arXiv category."})
 
         try:
             professors, warnings = find_professors(
@@ -2118,6 +2119,7 @@ def create_app() -> Flask:
                 max_scholar_results=max_results,
                 sources=sources,
                 journals=journals or None,
+                arxiv_categories=arxiv_categories or None,
             )
 
             results = []
