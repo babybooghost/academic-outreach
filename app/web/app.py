@@ -2105,9 +2105,10 @@ def create_app() -> Flask:
         field = data.get("field", "").strip()
         max_results = min(int(data.get("max_results", 25)), 50)
         sources = data.get("sources") or None  # None = all sources
+        journals = [j.strip() for j in (data.get("journals") or []) if j and j.strip()]
 
-        if not query:
-            return jsonify({"success": False, "error": "Enter a search query (e.g. 'blockchain fintech AI')."})
+        if not query and not journals:
+            return jsonify({"success": False, "error": "Enter a research topic or a journal name/ISSN."})
 
         try:
             professors, warnings = find_professors(
@@ -2116,6 +2117,7 @@ def create_app() -> Flask:
                 field=field,
                 max_scholar_results=max_results,
                 sources=sources,
+                journals=journals or None,
             )
 
             results = []

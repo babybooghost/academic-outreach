@@ -67,6 +67,12 @@
                     </div>
                 </div>
 
+                <div class="form-group">
+                    <label for="journals">Specific journals (optional)</label>
+                    <input type="text" id="journals" placeholder="e.g. Nature Machine Intelligence, 2522-5839, Physical Review X">
+                    <div class="form-hint">Comma-separated journal names or ISSNs. Pulls recent corresponding authors from those journals via Crossref — works for any journal, paywalled or open. Leave the topic blank to search journals only.</div>
+                </div>
+
                 <div id="selected-unis" class="chip-row"></div>
 
                 <div class="chip-row">
@@ -216,9 +222,11 @@ async function runSearch() {
     const btn = document.getElementById('search-btn');
     const status = document.getElementById('search-status');
     const query = document.getElementById('scholar_query').value.trim();
+    const journals = (document.getElementById('journals').value || '')
+        .split(',').map(s => s.trim()).filter(Boolean);
 
-    if (!query) {
-        status.textContent = 'Enter a research topic to search for.';
+    if (!query && journals.length === 0) {
+        status.textContent = 'Enter a research topic or a journal name/ISSN.';
         status.style.color = 'var(--ao-danger)';
         return;
     }
@@ -232,8 +240,8 @@ async function runSearch() {
     const maxResults = parseInt(document.getElementById('max_results').value) || 25;
     const sources = Array.from(document.querySelectorAll('.source-cb:checked')).map(cb => cb.value);
 
-    if (sources.length === 0) {
-        status.textContent = 'Pick at least one source.';
+    if (query && sources.length === 0) {
+        status.textContent = 'Pick at least one source (or search journals only).';
         status.style.color = 'var(--ao-danger)';
         btn.disabled = false; btn.textContent = 'Build faculty list';
         return;
@@ -249,6 +257,7 @@ async function runSearch() {
                 field: field,
                 max_results: maxResults,
                 sources: sources,
+                journals: journals,
             }),
         });
         const data = await res.json();
