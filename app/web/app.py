@@ -7,6 +7,8 @@ admin hub, and dark-themed dashboard.
 from __future__ import annotations
 
 import base64
+import glob
+import hashlib
 import json
 import os
 import secrets
@@ -192,6 +194,28 @@ def create_app() -> Flask:
 
     app.jinja_env.filters["prettydt"] = _pretty_dt
     app.jinja_env.filters["prettydate"] = lambda v: _pretty_dt(v, with_time=False)
+
+    # Static cache-busting: append ?v=<hash-of-static-mtimes> to every
+    # url_for('static', ...). The hash changes whenever a CSS/JS file changes
+    # (each deploy), so browsers/CDN fetch fresh assets instead of serving a
+    # stale style.css — the reason redeploys "looked like nothing changed".
+    def _compute_static_version() -> str:
+        try:
+            files = sorted(
+                glob.glob(os.path.join(app.static_folder or "", "*.css"))
+                + glob.glob(os.path.join(app.static_folder or "", "*.js"))
+            )
+            stamp = "|".join(str(os.path.getmtime(f)) for f in files)
+            return hashlib.md5(stamp.encode()).hexdigest()[:8] if stamp else _APP_VERSION
+        except Exception:
+            return _APP_VERSION
+
+    _static_version = _compute_static_version()
+
+    @app.url_defaults
+    def _static_cache_bust(endpoint: str, values: dict) -> None:
+        if endpoint == "static" and values is not None and "filename" in values:
+            values.setdefault("v", _static_version)
 
     # Context processor
     @app.context_processor
@@ -398,10 +422,17 @@ def create_app() -> Flask:
     _LOG_SKIP_PATHS = {"/health", "/favicon.ico", "/admin/logs", "/admin/logs/api"}
 
     def _redact_map(data: dict[str, Any]) -> dict[str, Any]:
-        return {
-            k: ("***" if k.lower() in _REDACT_FIELDS else v)
-            for k, v in (data or {}).items()
-        }
+        out: dict[str, Any] = {}
+        for k, v in (data or {}).items():
+            if k.lower() in _REDACT_FIELDS:
+                out[k] = "***"
+            elif isinstance(v, dict):
+                out[k] = _redact_map(v)  # recurse: catch nested secrets
+            elif isinstance(v, list):
+                out[k] = [_redact_map(i) if isinstance(i, dict) else i for i in v]
+            else:
+                out[k] = v
+        return out
 
     @app.before_request
     def _log_request_start():
@@ -1885,7 +1916,11 @@ def create_app() -> Flask:
             return redirect(url_for("settings_page"))
 
         import base64 as _b64
-        filename = os.path.basename(upload.filename)[:160]
+        # Strip path and control chars (newlines etc.) so the name is safe to
+        # place in an email Content-Disposition header later.
+        filename = "".join(
+            ch for ch in os.path.basename(upload.filename) if ch >= " " and ch != "\x7f"
+        )[:160] or "attachment"
         conn = _workspace_conn()
         try:
             set_settings_bulk(conn, {
