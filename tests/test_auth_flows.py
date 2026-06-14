@@ -180,7 +180,7 @@ class GoogleSignInTests(AuthFlowTestBase):
 
         resp = self._callback("member@gmail.com")
         self.assertEqual(resp.status_code, 302)
-        self.assertTrue(resp.headers["Location"].endswith("/dashboard"))
+        self.assertTrue(resp.headers["Location"].endswith("/desk"))
         with self.client.session_transaction() as sess:
             self.assertTrue(sess.get("authenticated"))
             self.assertEqual(sess.get("key_id"), key_id)
@@ -190,7 +190,7 @@ class GoogleSignInTests(AuthFlowTestBase):
         # created automatically (no invite code) and is logged straight in.
         resp = self._callback("stranger@gmail.com")
         self.assertEqual(resp.status_code, 302)
-        self.assertTrue(resp.headers["Location"].endswith("/dashboard"))
+        self.assertTrue(resp.headers["Location"].endswith("/desk"))
         with self.client.session_transaction() as sess:
             self.assertTrue(sess.get("authenticated"))
             self.assertTrue(sess.get("key_id"))
@@ -221,7 +221,7 @@ class GoogleSignInTests(AuthFlowTestBase):
 
         resp = self._callback("Casey@Gmail.com")
         self.assertEqual(resp.status_code, 302)
-        self.assertTrue(resp.headers["Location"].endswith("/dashboard"))
+        self.assertTrue(resp.headers["Location"].endswith("/desk"))
         with self.client.session_transaction() as sess:
             self.assertEqual(sess.get("key_id"), key_id)
 

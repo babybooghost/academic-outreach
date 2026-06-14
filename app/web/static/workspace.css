@@ -452,3 +452,47 @@ body.app-shell {
 /* Kill leftover decorative glows/gradients on cards in the app. */
 .app-shell .surface-panel::before,
 .app-shell .editorial-hero::before { display: none !important; }
+
+/* =========================================================================
+   Polish pass — subtle depth + smooth, GPU-only transitions (transform/
+   opacity/border/filter only, so it stays buttery, never laggy).
+   ========================================================================= */
+.app-shell .surface-panel,
+.app-shell .metric-card,
+.app-shell .empty-state {
+    box-shadow: 0 1px 3px rgba(0,0,0,0.25), 0 12px 34px rgba(0,0,0,0.15);
+    transition: border-color .2s ease, transform .22s cubic-bezier(.22,1,.36,1);
+}
+.app-shell .metric-card:hover { transform: translateY(-2px); border-color: var(--ao-border-light); }
+
+.app-shell .btn {
+    transition: transform .16s cubic-bezier(.22,1,.36,1), filter .16s ease, background .16s ease, border-color .16s ease, color .16s ease;
+}
+.app-shell .btn:hover { transform: translateY(-1px); filter: brightness(1.04); }
+.app-shell .btn:active { transform: translateY(0); }
+.app-shell .btn-primary { box-shadow: 0 6px 16px rgba(199,155,98,0.20); }
+
+.app-shell input, .app-shell select, .app-shell textarea {
+    transition: border-color .18s ease, box-shadow .18s ease, background .18s ease;
+}
+.app-shell input:focus, .app-shell select:focus, .app-shell textarea:focus {
+    border-color: var(--ao-primary); outline: none;
+    box-shadow: 0 0 0 3px var(--ao-primary-glow);
+}
+
+.app-shell .nav-links a { transition: color .18s ease, background .18s ease, transform .12s ease; }
+.app-shell .pill-button { transition: border-color .18s ease, color .18s ease, background .18s ease, transform .12s ease; }
+.app-shell .pill-button:hover { transform: translateY(-1px); border-color: var(--ao-primary); color: var(--ao-text); }
+
+.app-shell tr.clickable-row { transition: background .15s ease; cursor: pointer; }
+.app-shell tr.clickable-row:hover { background: var(--ao-surface-2); }
+
+.app-shell .badge, .app-shell .chip { transition: background .15s ease, border-color .15s ease; }
+
+/* Gentle one-time entrance for the page content (GPU-only). */
+.app-shell .page-content { animation: ao-fade-up .42s cubic-bezier(.22,1,.36,1) both; }
+@keyframes ao-fade-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+    .app-shell *, .app-shell .page-content { animation: none !important; transition: none !important; }
+}

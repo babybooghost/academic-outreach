@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Academic Outreach</title>
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+    <script>document.documentElement.classList.add('js');</script>
     <style>
         :root {
             --ap-bg: #060606;
@@ -13,7 +14,8 @@
             --ap-text: #f5f5f7;
             --ap-muted: #a1a1a6;
             --ap-dim: #6e6e73;
-            --ap-accent: #2997ff;
+            --ap-accent: #e2bd85;
+            --ap-accent-2: #c79b62;
             --ap-border: rgba(255,255,255,0.09);
             --ap-font: 'Manrope', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
         }
@@ -52,11 +54,15 @@
         .ap-link:hover { color: var(--ap-text); }
         .ap-btn {
             display: inline-flex; align-items: center; gap: 6px;
-            font-size: 14px; font-weight: 600; padding: 8px 16px; border-radius: 980px;
-            background: var(--ap-accent); color: #fff; transition: filter .2s, transform .1s;
+            font-size: 14px; font-weight: 650; padding: 8px 18px; border-radius: 980px;
+            background: linear-gradient(135deg, var(--ap-accent-2), var(--ap-accent));
+            color: #1a1207;
+            transition: transform .18s cubic-bezier(.22,1,.36,1), box-shadow .18s ease, filter .18s ease;
+            box-shadow: 0 6px 18px rgba(199,155,98,0.18);
         }
-        .ap-btn:hover { filter: brightness(1.08); }
-        .ap-btn-ghost { background: transparent; border: 1px solid var(--ap-border); color: var(--ap-text); }
+        .ap-btn:hover { transform: translateY(-1px); filter: brightness(1.05); box-shadow: 0 10px 26px rgba(199,155,98,0.28); }
+        .ap-btn:active { transform: translateY(0); }
+        .ap-btn-ghost { background: transparent; border: 1px solid var(--ap-border); color: var(--ap-text); box-shadow: none; }
 
         /* ---- Hero ---- */
         .ap-hero { text-align: center; padding: 92px 22px 80px; max-width: 900px; margin: 0 auto; }
@@ -85,6 +91,21 @@
         .ap-card {
             background: var(--ap-card); border: 1px solid var(--ap-border);
             border-radius: 20px; padding: 30px 28px;
+            transition: transform .25s cubic-bezier(.22,1,.36,1), border-color .25s ease, box-shadow .25s ease;
+        }
+        .ap-card:hover {
+            transform: translateY(-4px);
+            border-color: rgba(226,189,133,0.35);
+            box-shadow: 0 18px 40px rgba(0,0,0,0.35);
+        }
+
+        /* Scroll-reveal — GPU-only (opacity + transform). Scoped to .js so a
+           no-JS load still shows everything (no hidden content). */
+        .js .reveal { opacity: 0; transform: translateY(18px); transition: opacity .6s ease, transform .6s cubic-bezier(.22,1,.36,1); will-change: opacity, transform; }
+        .js .reveal.in { opacity: 1; transform: none; }
+        @media (prefers-reduced-motion: reduce) {
+            .js .reveal { opacity: 1; transform: none; transition: none; }
+            .ap-card, .ap-btn { transition: none; }
         }
         .ap-card .ap-ico { font-size: 26px; margin-bottom: 14px; display: block; }
         .ap-card h3 { font-size: 22px; font-weight: 650; letter-spacing: -0.01em; }
@@ -186,5 +207,17 @@
     <footer class="ap-footer">
         Academic Outreach · for students writing to real labs · v{{ app_version }}
     </footer>
+
+    <script>
+    (function () {
+        var targets = document.querySelectorAll('.ap-section-head, .ap-card, .ap-step, .ap-final h2, .ap-final p, .ap-final .ap-hero-cta');
+        targets.forEach(function (el, i) { el.classList.add('reveal'); el.style.transitionDelay = (Math.min(i % 4, 3) * 60) + 'ms'; });
+        if (!('IntersectionObserver' in window)) { targets.forEach(function (el) { el.classList.add('in'); }); return; }
+        var io = new IntersectionObserver(function (entries) {
+            entries.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+        }, { threshold: 0.12, rootMargin: '0px 0px -8% 0px' });
+        targets.forEach(function (el) { io.observe(el); });
+    })();
+    </script>
 </body>
 </html>

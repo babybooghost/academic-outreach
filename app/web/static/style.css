@@ -4,21 +4,22 @@
 
 /* --- Dark Theme (default) --- */
 :root, [data-theme="dark"] {
-    --ao-bg: #10151c;
-    --ao-surface: #171e27;
-    --ao-surface-2: #202a35;
-    --ao-surface-3: #293544;
-    --ao-border: #354252;
-    --ao-border-light: #455469;
-    --ao-text: #eef2f6;
-    --ao-text-muted: #a8b4c3;
-    --ao-text-dim: #718095;
-    --ao-primary: #7f5a3d;
-    --ao-primary-light: #d1b38f;
-    --ao-primary-dark: #63442c;
-    --ao-primary-glow: rgba(209, 179, 143, 0.12);
-    --ao-accent: #8da9c4;
-    --ao-accent-glow: rgba(141, 169, 196, 0.12);
+    /* Warm-dark palette + gold accent — matches the user app (workspace.css). */
+    --ao-bg: #14110c;
+    --ao-surface: #1f1a13;
+    --ao-surface-2: #272118;
+    --ao-surface-3: #2f281d;
+    --ao-border: rgba(217, 196, 158, 0.14);
+    --ao-border-light: rgba(217, 196, 158, 0.26);
+    --ao-text: #f5efe2;
+    --ao-text-muted: #cabfab;
+    --ao-text-dim: #8f836e;
+    --ao-primary: #c79b62;
+    --ao-primary-light: #e2bd85;
+    --ao-primary-dark: #9a6f3c;
+    --ao-primary-glow: rgba(226, 189, 133, 0.16);
+    --ao-accent: #c79b62;
+    --ao-accent-glow: rgba(226, 189, 133, 0.14);
     --ao-success: #7eb48f;
     --ao-success-bg: rgba(126, 180, 143, 0.14);
     --ao-warning: #d3a867;
@@ -47,12 +48,12 @@
     --ao-text: #1d2630;
     --ao-text-muted: #5a6573;
     --ao-text-dim: #86909a;
-    --ao-primary: #7a573a;
-    --ao-primary-light: #8f6541;
-    --ao-primary-dark: #62452e;
-    --ao-primary-glow: rgba(122, 87, 58, 0.1);
-    --ao-accent: #5d7c95;
-    --ao-accent-glow: rgba(93, 124, 149, 0.08);
+    --ao-primary: #9a6f3c;
+    --ao-primary-light: #b0824a;
+    --ao-primary-dark: #7c5832;
+    --ao-primary-glow: rgba(154, 111, 60, 0.12);
+    --ao-accent: #9a6f3c;
+    --ao-accent-glow: rgba(154, 111, 60, 0.1);
     --ao-success: #5f8f72;
     --ao-success-bg: rgba(95, 143, 114, 0.1);
     --ao-warning: #b88342;
