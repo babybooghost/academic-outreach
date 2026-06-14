@@ -1982,9 +1982,12 @@ def create_app() -> Flask:
                 r = probe_openrouter(api_key, m)
                 all_ok = all_ok and r["ok"]
                 if r["ok"]:
-                    served = r["served_model"] or m
-                    mismatch = "" if served == m else f" (⚠ OpenRouter served “{served}”)"
-                    results.append(f"{label}: {m} ✓{mismatch}")
+                    # OpenRouter resolves a slug to its dated snapshot (e.g.
+                    # claude-sonnet-4.6 -> claude-4.6-sonnet-20260217); that's
+                    # normal, so show it as info, not a warning.
+                    served = r["served_model"]
+                    info = f" (served {served})" if served and served != m else ""
+                    results.append(f"{label}: {m} ✓{info}")
                 else:
                     results.append(f"{label}: {m} ✗ — {r['error']}")
 
