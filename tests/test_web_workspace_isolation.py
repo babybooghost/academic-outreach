@@ -102,7 +102,7 @@ class WebWorkspaceIsolationTests(unittest.TestCase):
         self.assertEqual(save_response.status_code, 200)
 
         settings_one = client_one.get("/settings").get_data(as_text=True)
-        professors_one = client_one.get("/professors").get_data(as_text=True)
+        professors_one = client_one.get("/faculty").get_data(as_text=True)
         self.assertIn("user-one@example.com", settings_one)
         self.assertIn("Prof Workspace One", professors_one)
 
@@ -114,7 +114,7 @@ class WebWorkspaceIsolationTests(unittest.TestCase):
         )
 
         settings_two = client_two.get("/settings").get_data(as_text=True)
-        professors_two = client_two.get("/professors").get_data(as_text=True)
+        professors_two = client_two.get("/faculty").get_data(as_text=True)
 
         self.assertIn(user_two_email, settings_two)
         self.assertIn("This workspace sends for", settings_two)

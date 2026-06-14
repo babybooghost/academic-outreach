@@ -14,10 +14,10 @@
     --ao-text: #f6f1e8;
     --ao-text-muted: #c8beb0;
     --ao-text-dim: #94897a;
-    --ao-primary: #b18456;
-    --ao-primary-light: #d9ad7a;
-    --ao-primary-dark: #835c37;
-    --ao-primary-glow: rgba(217, 173, 122, 0.16);
+    --ao-primary: #c79b62;
+    --ao-primary-light: #e2bd85;
+    --ao-primary-dark: #9a6f3c;
+    --ao-primary-glow: rgba(226, 189, 133, 0.16);
     --ao-accent: #99abb6;
     --ao-accent-glow: rgba(153, 171, 182, 0.18);
     --ao-success: #8faa8c;
@@ -2099,14 +2099,14 @@ tbody tr:hover td {
 }
 
 .admin-shell {
-    --ao-primary: #8d3b36;
-    --ao-primary-light: #cf766b;
-    --ao-primary-dark: #622b27;
-    --ao-primary-glow: rgba(207, 118, 107, 0.14);
+    --ao-primary: #c79b62;
+    --ao-primary-light: #e2bd85;
+    --ao-primary-dark: #9a6f3c;
+    --ao-primary-glow: rgba(226, 189, 133, 0.16);
 }
 
 .admin-shell .logo-icon {
-    background: linear-gradient(135deg, #7b312c, #c36b61 56%, #8a9fb2);
+    background: linear-gradient(135deg, #9a6f3c, #e2bd85 60%, #c9b79c);
 }
 
 .admin-note {
@@ -3033,7 +3033,7 @@ body.ap-auth .auth-form-card {
     border-radius: 22px; padding: 38px 34px; box-shadow: none;
 }
 body.ap-auth .auth-kicker {
-    color: #2997ff; font-weight: 600; text-transform: none;
+    color: #e2bd85; font-weight: 600; text-transform: none;
     letter-spacing: 0; font-size: 15px; margin-bottom: 6px;
 }
 body.ap-auth .auth-title,
@@ -3047,11 +3047,11 @@ body.ap-auth input {
     color: #f5f5f7; border-radius: 10px;
 }
 body.ap-auth input::placeholder { color: #6e6e73; }
-body.ap-auth input:focus { border-color: #2997ff; outline: none; box-shadow: 0 0 0 3px rgba(41,151,255,0.25); }
-body.ap-auth .btn-primary { background: #2997ff !important; color: #fff !important; border: 0; border-radius: 980px; font-weight: 600; }
-body.ap-auth .btn-primary:hover { filter: brightness(1.08); }
+body.ap-auth input:focus { border-color: #e2bd85; outline: none; box-shadow: 0 0 0 3px rgba(226,189,133,0.22); }
+body.ap-auth .btn-primary { background: linear-gradient(135deg, #c79b62, #e2bd85) !important; color: #1a1207 !important; border: 0; border-radius: 980px; font-weight: 650; transition: transform .18s cubic-bezier(.22,1,.36,1), filter .18s ease; }
+body.ap-auth .btn-primary:hover { filter: brightness(1.05); transform: translateY(-1px); }
 body.ap-auth .btn-outline { border: 1px solid rgba(255,255,255,0.2); color: #f5f5f7; border-radius: 980px; background: transparent; }
-body.ap-auth a { color: #2997ff; }
+body.ap-auth a { color: #e2bd85; }
 body.ap-auth .auth-note,
 body.ap-auth .auth-key-card {
     background: #0e0e0f; border: 1px solid rgba(255,255,255,0.08); border-radius: 14px;

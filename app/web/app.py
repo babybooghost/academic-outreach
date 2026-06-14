@@ -496,6 +496,18 @@ def create_app() -> Flask:
         # Logged-in users can view the homepage too (not trapped in the app).
         return render_template("homepage.html")
 
+    # Friendly page URLs — old paths permanently redirect to the renamed ones so
+    # existing bookmarks keep working. (Sub-routes like /finder/search are
+    # unchanged; only the top-level page paths moved.)
+    def _legacy_redirect(target_endpoint: str):
+        return lambda: redirect(url_for(target_endpoint))
+
+    for _old_path, _target in (
+        ("/dashboard", "dashboard"), ("/finder", "finder_page"),
+        ("/followups", "followups_page"), ("/professors", "professors_list"),
+    ):
+        app.add_url_rule(_old_path, f"legacy_{_target}", _legacy_redirect(_target))
+
     # ------------------------------------------------------------------
     # Auth routes
     # ------------------------------------------------------------------
@@ -1004,7 +1016,7 @@ def create_app() -> Flask:
     # ------------------------------------------------------------------
     # Dashboard
     # ------------------------------------------------------------------
-    @app.route("/dashboard")
+    @app.route("/desk")
     @login_required
     def dashboard():
         workspace_conn = _workspace_conn()
@@ -1047,7 +1059,7 @@ def create_app() -> Flask:
     # ------------------------------------------------------------------
     # Professors
     # ------------------------------------------------------------------
-    @app.route("/professors")
+    @app.route("/faculty")
     @login_required
     def professors_list():
         conn = _workspace_conn()
@@ -1659,7 +1671,7 @@ def create_app() -> Flask:
                 eligible.append(d)
         return followups, eligible
 
-    @app.route("/followups")
+    @app.route("/follow-ups")
     @login_required
     def followups_page():
         conn = _workspace_conn()
@@ -2087,7 +2099,7 @@ def create_app() -> Flask:
     # Professor Finder
     # ------------------------------------------------------------------
 
-    @app.route("/finder")
+    @app.route("/search")
     @login_required
     def finder_page():
         from app.finder import list_known_universities
