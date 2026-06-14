@@ -2988,3 +2988,27 @@ html[data-theme="dark"] .app-shell .logo-icon {
         grid-template-columns: 1fr;
     }
 }
+
+/* =========================================================================
+   Minimal redesign — global (login / signup / admin / landing pages).
+   Loaded after the serif rules above; the app shell (workspace.css) handles
+   the authenticated pages separately.
+   ========================================================================= */
+h1, h2, h3,
+.page-title, .panel-title, .landing-title, .auth-title, .logo-text,
+.stat-number, .hp-section-title, .hero-title {
+    font-family: 'Manrope', 'Segoe UI', system-ui, sans-serif;
+    letter-spacing: -0.01em;
+}
+/* Stock photos out everywhere. */
+.image-card, .auth-visual, .hp-hero-visual { display: none !important; }
+/* Auth pages: drop the photo stage, center the form card. */
+.auth-stage { display: none !important; }
+.auth-layout {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    min-height: 100svh;
+    padding: 2rem;
+}
+.auth-panel { width: 100%; max-width: 440px; margin: 0 auto; }
