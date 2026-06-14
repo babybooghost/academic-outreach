@@ -164,6 +164,21 @@ def _build_context(
     signoff: str = rng.choice(pools.signoffs)
     closing: str = rng.choice(pools.closings)
 
+    # --- Richer sender detail: a credibility line + a specific, bounded ask ---
+    cred_parts: list[str] = []
+    if sender.awards.strip():
+        cred_parts.append(f"A bit about my background: {sender.awards.strip().rstrip('.')}.")
+    if sender.skills.strip():
+        cred_parts.append(
+            f"On the technical side I'm comfortable with {sender.skills.strip().rstrip('.')}, "
+            "which I'd gladly put to use."
+        )
+    credentials: str = " ".join(cred_parts)
+
+    # If the student named a specific ask, use it instead of the generic one.
+    if sender.goal.strip():
+        ask = f"Specifically, I'd be grateful for {sender.goal.strip().rstrip('.')}."
+
     context: dict[str, Any] = {
         # Professor fields
         "professor_name": prof.name,
@@ -189,6 +204,11 @@ def _build_context(
         "sender_email": sender.email,
         "sender_interests": sender.interests,
         "sender_background": sender.background,
+        "sender_awards": sender.awards,
+        "sender_skills": sender.skills,
+        "sender_goal": sender.goal,
+        "sender_age": sender.age,
+        "credentials": credentials,
         "area": area,
         "connection": connection,
         # Variation pool selections

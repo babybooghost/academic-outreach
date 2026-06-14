@@ -56,6 +56,11 @@ class SenderProfile:
     interests: str = ""
     background: str = ""
     graduation_year: Optional[str] = None
+    # Extra detail that makes outreach more credible/specific.
+    awards: str = ""       # competitions, honors, accolades
+    skills: str = ""       # concrete skills the student can contribute (Python, etc.)
+    goal: str = ""         # the specific ask (e.g. "a 15-minute chat about X")
+    age: str = ""          # optional age/context
     created_at: str = dc_field(default_factory=_now_iso)
 
     # -- serialization -------------------------------------------------------
@@ -75,6 +80,10 @@ class SenderProfile:
             interests=data.get("interests", ""),
             background=data.get("background", ""),
             graduation_year=data.get("graduation_year"),
+            awards=data.get("awards", "") or "",
+            skills=data.get("skills", "") or "",
+            goal=data.get("goal", "") or "",
+            age=data.get("age", "") or "",
             created_at=data.get("created_at", _now_iso()),
         )
 

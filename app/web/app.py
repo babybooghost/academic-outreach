@@ -2079,6 +2079,10 @@ def create_app() -> Flask:
                 interests=request.form.get("interests", "").strip(),
                 background=request.form.get("background", "").strip(),
                 graduation_year=request.form.get("graduation_year", "").strip() or None,
+                awards=request.form.get("awards", "").strip(),
+                skills=request.form.get("skills", "").strip(),
+                goal=request.form.get("goal", "").strip(),
+                age=request.form.get("age", "").strip(),
             )
             if not profile.name or not profile.school or not profile.grade or not profile.email:
                 flash("Name, school, grade, and email are required for a sender profile.", "error")

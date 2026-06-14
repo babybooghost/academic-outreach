@@ -4,7 +4,9 @@ My name is {{ sender_name }}, and I am a {{ sender_grade }} student at {{ sender
 
 {{ transition }} {{ hook }}. {{ interest_connector }}
 
-{{ ask }}
+{% if credentials %}{{ credentials }}
+
+{% endif %}{{ ask }}
 
 {{ fallback }}
 
