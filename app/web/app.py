@@ -2573,6 +2573,13 @@ def create_app() -> Flask:
 
     _VALID_VARIANTS = {"formal", "enthusiastic", "concise", "research_focused"}
 
+    def _as_int(value, default: int = 0) -> int:
+        """Coerce model/client-supplied values to int without raising."""
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return default
+
     def _chat_confirm_payload(name: str, args: dict, conn):
         """Build the user-facing confirmation for a gated (token-spending) action.
 
@@ -2581,7 +2588,7 @@ def create_app() -> Flask:
         model can recover (e.g. by looking up a real professor id).
         """
         if name == "generate_draft":
-            pid = int(args.get("professor_id", 0) or 0)
+            pid = _as_int(args.get("professor_id"))
             prof = get_professor(conn, pid) if pid else None
             if not prof:
                 return ("error", {"error": "professor not found — call list_faculty to get a valid id"})
@@ -2725,7 +2732,7 @@ def create_app() -> Flask:
             return jsonify({"success": False, "error": "no_ai"})
 
         if action == "generate_draft":
-            pid = int(args.get("professor_id", 0) or 0)
+            pid = _as_int(args.get("professor_id"))
             variant = str(args.get("variant", "")).strip().lower() or None
             if variant not in (None, "formal", "enthusiastic", "concise", "research_focused"):
                 variant = None

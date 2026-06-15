@@ -167,6 +167,16 @@ class ChatApiTests(unittest.TestCase):
         self.assertEqual(r.status_code, 400)
         self.assertFalse(r.get_json()["success"])
 
+    def test_confirm_malformed_professor_id_degrades_gracefully(self):
+        # A non-numeric professor_id must not 500 — it should report "not found".
+        self._seed_faculty_and_sender()
+        r = self.client.post("/api/chat/confirm",
+                             json={"action": "generate_draft", "args": {"professor_id": "not-a-number"}})
+        self.assertEqual(r.status_code, 200)
+        data = r.get_json()
+        self.assertFalse(data["success"])
+        self.assertIn("not found", data["error"].lower())
+
     def test_agentic_tool_loop(self):
         # Model asks for a tool, we run it, model answers from the result.
         from app.database import set_settings_bulk
