@@ -339,14 +339,63 @@
         document.getElementById('chat-fab-icon').innerHTML = chatOpen ? CHAT_CLOSE_SVG : CHAT_FAB_SVG;
     }
 
+    // Minimal, XSS-safe markdown: escape first, then add only our own tags.
+    function escapeHtml(s) {
+        return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+    function renderMarkdown(text) {
+        let html = escapeHtml(text);
+        html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+        html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+        html = html.replace(/(^|[^*])\*([^*\s][^*\n]*?)\*(?!\*)/g, '$1<em>$2</em>');
+        html = html.replace(/^(\s*)[-•]\s+/gm, '$1• ');
+        return html;
+    }
+
+    // Reveal a markdown reply progressively. Time-based (not fixed-step) so it
+    // always finishes in ~DURATION regardless of frame/timer throttling.
+    function typeMarkdownInto(contentEl, fullText, onDone) {
+        const body = document.getElementById('chat-body');
+        const total = (fullText || '').length;
+        if (!total) { contentEl.innerHTML = ''; if (onDone) onDone(); return; }
+        const duration = Math.min(1500, Math.max(300, total * 8)); // 0.3–1.5s
+        const start = (window.performance && performance.now) ? performance.now() : Date.now();
+        const raf = window.requestAnimationFrame || ((f) => setTimeout(() => f(), 16));
+        contentEl.innerHTML = '';
+        const tick = () => {
+            const now = (window.performance && performance.now) ? performance.now() : Date.now();
+            const frac = Math.min(1, (now - start) / duration);
+            let chunk = fullText.slice(0, Math.max(1, Math.floor(frac * total)));
+            // Hide a dangling, not-yet-closed "**" so asterisks don't flash.
+            if (((chunk.match(/\*\*/g) || []).length) % 2 === 1) {
+                const k = chunk.lastIndexOf('**');
+                if (k !== -1) chunk = chunk.slice(0, k) + chunk.slice(k + 2);
+            }
+            contentEl.innerHTML = renderMarkdown(chunk);
+            body.scrollTop = body.scrollHeight;
+            if (frac < 1) {
+                raf(tick);
+            } else {
+                contentEl.innerHTML = renderMarkdown(fullText);
+                body.scrollTop = body.scrollHeight;
+                if (onDone) onDone();
+            }
+        };
+        raf(tick);
+    }
+
     function addMessage(text, isBot) {
         const body = document.getElementById('chat-body');
         const msg = document.createElement('div');
         msg.className = 'chat-msg ' + (isBot ? 'chat-msg-bot' : 'chat-msg-user');
         const content = document.createElement('div');
         content.className = 'chat-msg-content';
-        content.textContent = text;
-        if (isBot) content.style.whiteSpace = 'pre-wrap';
+        if (isBot) {
+            content.innerHTML = renderMarkdown(text);
+            content.style.whiteSpace = 'pre-wrap';
+        } else {
+            content.textContent = text;
+        }
         msg.appendChild(content);
         body.appendChild(msg);
         body.scrollTop = body.scrollHeight;
@@ -405,10 +454,7 @@
         document.getElementById('chat-prompts').style.display = 'none';
         addMessage(text, false);
         const typing = addMessage('…', true);
-        const set = (t) => {
-            typing.querySelector('.chat-msg-content').textContent = t;
-            document.getElementById('chat-body').scrollTop = 1e9;
-        };
+        const contentEl = typing.querySelector('.chat-msg-content');
         try {
             const res = await fetch('/api/chat', {
                 method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -416,22 +462,22 @@
             });
             const data = await res.json().catch(() => ({}));
             if (data.success && data.confirm) {
-                set(data.reply || 'Want me to go ahead?');
-                renderConfirm(typing, data.confirm);
+                typeMarkdownInto(contentEl, data.reply || 'Want me to go ahead?',
+                    () => renderConfirm(typing, data.confirm));
                 chatHistory.push({role: 'user', content: text});
                 chatHistory.push({role: 'bot', content: data.reply || ''});
             } else if (data.success && data.reply) {
-                set(data.reply);
+                typeMarkdownInto(contentEl, data.reply);
                 chatHistory.push({role: 'user', content: text});
                 chatHistory.push({role: 'bot', content: data.reply});
             } else {
                 const fb = cannedFallback(text);
-                set(fb);
+                typeMarkdownInto(contentEl, fb);
                 logChat(text, fb, null);
             }
         } catch (e) {
             const fb = cannedFallback(text);
-            set(fb);
+            typeMarkdownInto(contentEl, fb);
             logChat(text, fb, null);
         }
     }
@@ -474,7 +520,7 @@
         wrap.querySelectorAll('button').forEach(b => b.disabled = true);
         const working = addMessage('Generating your draft… this can take a few seconds.', true);
         const wc = working.querySelector('.chat-msg-content');
-        const set = (t) => { wc.textContent = t; document.getElementById('chat-body').scrollTop = 1e9; };
+        const setNow = (t) => { wc.innerHTML = renderMarkdown(t); document.getElementById('chat-body').scrollTop = 1e9; };
         try {
             const res = await fetch('/api/chat/confirm', {
                 method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -482,23 +528,24 @@
             });
             const data = await res.json().catch(() => ({}));
             if (data.success && data.reply) {
-                set(data.reply);
-                if (data.draft_url) {
-                    const a = document.createElement('a');
-                    a.href = data.draft_url;
-                    a.textContent = 'Open the draft →';
-                    a.className = 'chat-confirm-link';
-                    wc.appendChild(document.createElement('br'));
-                    wc.appendChild(a);
-                }
+                typeMarkdownInto(wc, data.reply, () => {
+                    if (data.draft_url) {
+                        const a = document.createElement('a');
+                        a.href = data.draft_url;
+                        a.textContent = 'Open the draft →';
+                        a.className = 'chat-confirm-link';
+                        wc.appendChild(document.createElement('br'));
+                        wc.appendChild(a);
+                    }
+                });
                 chatHistory.push({role: 'bot', content: data.reply});
             } else if (data.error === 'no_ai') {
-                set('I need an OpenRouter model configured first (Setup → AI model) before I can generate.');
+                setNow('I need an OpenRouter model configured first (Setup → AI model) before I can generate.');
             } else {
-                set("That didn't go through — you can generate it from the Drafts page instead.");
+                setNow("That didn't go through — you can generate it from the Drafts page instead.");
             }
         } catch (e) {
-            set("That didn't go through — you can generate it from the Drafts page instead.");
+            setNow("That didn't go through — you can generate it from the Drafts page instead.");
         }
         wrap.remove();
     }
