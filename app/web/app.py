@@ -2965,6 +2965,44 @@ def create_app() -> Flask:
             headers={"Content-Disposition": f"attachment; filename=ao_backup_{ts}.json"},
         )
 
+    @app.route("/admin/bugs")
+    @admin_required
+    def admin_bugs():
+        """Inbox of user-submitted bug reports (read the full details, triage)."""
+        from app.database import get_bug_reports, get_bug_report_stats
+        status = request.args.get("status") or None
+        if status not in (None, "open", "resolved"):
+            status = None
+        conn = _auth_conn()
+        try:
+            reports = get_bug_reports(conn, status=status)
+            stats = get_bug_report_stats(conn)
+        finally:
+            conn.close()
+        _log_activity("admin_view_bugs", category="admin", is_admin=True)
+        return render_template("admin_bugs.html", reports=reports, stats=stats,
+                               current_status=status or "")
+
+    @app.route("/admin/bugs/<int:report_id>/status", methods=["POST"])
+    @admin_required
+    def admin_bug_status(report_id: int):
+        from app.database import set_bug_report_status
+        new_status = request.form.get("status", "")
+        conn = _auth_conn()
+        try:
+            set_bug_report_status(conn, report_id, new_status)
+            _log_activity("bug_report_status", category="support", is_admin=True,
+                          target_type="bug_report", target_id=str(report_id),
+                          details={"status": new_status})
+            flash(f"Bug report #{report_id} marked {new_status}.", "success")
+        except ValueError:
+            flash("Invalid status.", "error")
+        except Exception as exc:
+            flash(f"Could not update report: {exc}", "error")
+        finally:
+            conn.close()
+        return redirect(url_for("admin_bugs", status=request.args.get("status") or ""))
+
     @app.route("/admin/keys/dismiss", methods=["POST"])
     @admin_required
     def admin_dismiss_key():

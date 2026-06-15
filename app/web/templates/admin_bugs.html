@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bug Reports | Admin Hub</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon-admin.svg') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='revamp.css') }}">
+</head>
+<body class="admin-shell">
+    <nav class="navbar">
+        <div class="navbar-inner">
+            <a href="{{ url_for('admin_hub') }}" class="logo">
+                <div class="logo-icon">AO</div>
+                <div class="logo-text">Admin<span>Hub</span></div>
+            </a>
+            <ul class="nav-links">
+                <li><a href="{{ url_for('admin_hub') }}"><span class="nav-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span> Overview</a></li>
+                <li><a href="{{ url_for('admin_activity') }}"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h8"/></svg></span> Activity Log</a></li>
+                <li><a href="{{ url_for('admin_logs') }}"><span class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></span> Request Logs</a></li>
+                <li><a href="{{ url_for('admin_bugs') }}" class="active"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="m8 2 1.88 1.88"/><path d="M14.12 3.88 16 2"/><path d="M9 7.13v-1a3.003 3.003 0 1 1 6 0v1"/><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6"/><path d="M12 20v-9"/></svg></span> Bug reports</a></li>
+            </ul>
+            <div class="nav-user">
+                <span class="badge badge-admin">Admin</span>
+                <span>{{ session.get('admin_key_label', 'Admin') }}</span>
+                <a href="{{ url_for('admin_logout') }}" class="btn btn-ghost btn-sm">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="app-main">
+        <div class="container page-content">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="flash flash-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <div class="editorial-page">
+                <section class="editorial-hero animate-in">
+                    <div class="hero-copy">
+                        <div class="eyebrow">Support inbox</div>
+                        <h1 class="page-title">Bug reports from the assistant widget.</h1>
+                        <p class="lead">Read the full report, see who sent it and from where, and move it from open to resolved. Reports persist with the rest of your data and are included in backups.</p>
+                        <div class="hero-metrics">
+                            <div class="metric-card"><span>Open</span><strong>{{ stats.open }}</strong></div>
+                            <div class="metric-card"><span>Resolved</span><strong>{{ stats.resolved }}</strong></div>
+                            <div class="metric-card"><span>Total</span><strong>{{ stats.total }}</strong></div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="surface-panel animate-in animate-in-1">
+                    <div class="surface-panel-header">
+                        <div>
+                            <div class="panel-kicker">Reports</div>
+                            <div class="panel-title">Newest first</div>
+                        </div>
+                        <div class="filter-bar">
+                            <a href="{{ url_for('admin_bugs') }}" class="btn btn-sm {{ 'btn-primary' if not current_status else 'btn-outline' }}">All</a>
+                            <a href="{{ url_for('admin_bugs', status='open') }}" class="btn btn-sm {{ 'btn-primary' if current_status == 'open' else 'btn-outline' }}">Open</a>
+                            <a href="{{ url_for('admin_bugs', status='resolved') }}" class="btn btn-sm {{ 'btn-primary' if current_status == 'resolved' else 'btn-outline' }}">Resolved</a>
+                        </div>
+                    </div>
+
+                    {% if reports %}
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Severity</th>
+                                    <th>Report</th>
+                                    <th>Reporter</th>
+                                    <th>Submitted</th>
+                                    <th>Status</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for r in reports %}
+                                <tr>
+                                    <td>#{{ r.id }}</td>
+                                    <td>
+                                        {% if r.severity == 'high' %}<span class="badge badge-rejected">High</span>
+                                        {% elif r.severity == 'low' %}<span class="badge badge-approved">Low</span>
+                                        {% else %}<span class="badge">Medium</span>{% endif %}
+                                    </td>
+                                    <td>
+                                        <strong>{{ r.title }}</strong>
+                                        {% if r.details %}<div class="form-hint" style="margin-top:0.35rem; white-space:pre-wrap;">{{ r.details }}</div>{% endif %}
+                                    </td>
+                                    <td>
+                                        {{ r.user_label or 'unknown' }}
+                                        {% if r.ip_address %}<div class="form-hint">{{ r.ip_address }}</div>{% endif %}
+                                    </td>
+                                    <td>{{ r.created_at | prettydt }}</td>
+                                    <td>
+                                        {% if r.status == 'resolved' %}<span class="badge badge-approved">Resolved</span>
+                                        {% else %}<span class="badge badge-rejected">Open</span>{% endif %}
+                                    </td>
+                                    <td>
+                                        <form method="POST" action="{{ url_for('admin_bug_status', report_id=r.id, status=current_status) }}" style="margin:0;">
+                                            {% if r.status == 'resolved' %}
+                                                <input type="hidden" name="status" value="open">
+                                                <button type="submit" class="btn btn-ghost btn-sm">Reopen</button>
+                                            {% else %}
+                                                <input type="hidden" name="status" value="resolved">
+                                                <button type="submit" class="btn btn-primary btn-sm">Mark resolved</button>
+                                            {% endif %}
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="empty-state">
+                        <div class="empty-icon">&#10003;</div>
+                        <p>No bug reports{% if current_status %} with status &ldquo;{{ current_status }}&rdquo;{% endif %} yet.</p>
+                    </div>
+                    {% endif %}
+                </section>
+            </div>
+        </div>
+    </main>
+</body>
+</html>

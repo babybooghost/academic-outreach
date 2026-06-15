@@ -1752,6 +1752,55 @@ def get_admin_activity_stats(conn: sqlite3.Connection) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# Bug reports (support inbox)
+# ---------------------------------------------------------------------------
+
+VALID_BUG_STATUSES: tuple[str, ...] = ("open", "resolved")
+
+
+def get_bug_reports(conn: Any, status: Optional[str] = None, limit: int = 200) -> list[dict[str, Any]]:
+    """Return submitted bug reports (newest first), optionally filtered by status.
+
+    Pass an unscoped connection — bug reports are global support data keyed by
+    the reporter's access key, not per-workspace.
+    """
+    try:
+        query = "SELECT * FROM bug_reports"
+        params: list[Any] = []
+        if status:
+            query += " WHERE status = ?"
+            params.append(status)
+        query += " ORDER BY id DESC LIMIT ?"
+        params.append(int(limit))
+        rows = conn.execute(query, params).fetchall()
+        return [{k: r[k] for k in r.keys()} for r in rows]
+    except sqlite3.Error as exc:
+        logger.warning("get_bug_reports failed: %s", exc)
+        return []
+
+
+def get_bug_report_stats(conn: Any) -> dict[str, int]:
+    """Counts of bug reports by status (open / resolved / total)."""
+    try:
+        rows = conn.execute(
+            "SELECT status, COUNT(*) AS c FROM bug_reports GROUP BY status"
+        ).fetchall()
+        by = {r["status"]: r["c"] for r in rows}
+        return {"open": by.get("open", 0), "resolved": by.get("resolved", 0),
+                "total": sum(by.values())}
+    except sqlite3.Error:
+        return {"open": 0, "resolved": 0, "total": 0}
+
+
+def set_bug_report_status(conn: Any, report_id: int, status: str) -> None:
+    """Move a bug report between open/resolved."""
+    if status not in VALID_BUG_STATUSES:
+        raise ValueError(f"invalid bug status: {status!r}")
+    conn.execute("UPDATE bug_reports SET status = ? WHERE id = ?", (status, int(report_id)))
+    conn.commit()
+
+
+# ---------------------------------------------------------------------------
 # Full-database backup (restorable snapshot)
 # ---------------------------------------------------------------------------
 
@@ -1759,6 +1808,7 @@ def get_admin_activity_stats(conn: sqlite3.Connection) -> dict[str, Any]:
 _BACKUP_TABLES: tuple[str, ...] = (
     "access_keys", "sender_profiles", "professors", "sessions", "drafts",
     "send_log", "suppression_list", "followups", "app_settings", "user_signups",
+    "bug_reports",
 )
 _BACKUP_REDACT: dict[str, set[str]] = {
     "access_keys": {"key_value"},                      # the login credential
