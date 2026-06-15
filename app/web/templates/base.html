@@ -82,7 +82,13 @@
             <div>Private workspace for research-led faculty outreach.</div>
             <div class="app-footer-tools">
                 <button type="button" class="footer-link-btn" onclick="startTutorial()">Quick tour</button>
-                <div class="chat-widget" id="chat-widget">
+            </div>
+        </div>
+    </footer>
+
+    <!-- Floating assistant — kept outside the app-shell footer (which is hidden)
+         so it stays reachable on every page. -->
+    <div class="chat-widget" id="chat-widget">
                     <button type="button" class="chat-fab" id="chat-fab" onclick="toggleChat()" title="Support">
                         <span id="chat-fab-icon">&#128172;</span>
                         <span>Assistant</span>
@@ -131,10 +137,7 @@
                             <button type="button" class="chat-send-btn" onclick="sendMessage()" title="Send">&#10148;</button>
                         </div>
                     </div>
-                </div>
-            </div>
-        </div>
-    </footer>
+    </div>
 
     <div class="tutorial-overlay" id="tutorial-overlay">
         <div class="tutorial-card" id="tutorial-card">
@@ -410,7 +413,12 @@
                 body: JSON.stringify({message: text, history: chatHistory.slice(-8)}),
             });
             const data = await res.json().catch(() => ({}));
-            if (data.success && data.reply) {
+            if (data.success && data.confirm) {
+                set(data.reply || 'Want me to go ahead?');
+                renderConfirm(typing, data.confirm);
+                chatHistory.push({role: 'user', content: text});
+                chatHistory.push({role: 'bot', content: data.reply || ''});
+            } else if (data.success && data.reply) {
                 set(data.reply);
                 chatHistory.push({role: 'user', content: text});
                 chatHistory.push({role: 'bot', content: data.reply});
@@ -424,6 +432,73 @@
             set(fb);
             logChat(text, fb, null);
         }
+    }
+
+    // Render an inline Confirm/Cancel control for a gated action (e.g. generate
+    // a draft, which spends AI tokens). Nothing runs until the user clicks.
+    function renderConfirm(msgEl, confirm) {
+        const content = msgEl.querySelector('.chat-msg-content');
+        const wrap = document.createElement('div');
+        wrap.className = 'chat-confirm';
+        if (confirm.note) {
+            const note = document.createElement('div');
+            note.className = 'chat-confirm-note';
+            note.textContent = confirm.note;
+            wrap.appendChild(note);
+        }
+        const row = document.createElement('div');
+        row.className = 'chat-confirm-actions';
+        const yes = document.createElement('button');
+        yes.type = 'button';
+        yes.className = 'chat-confirm-yes';
+        yes.textContent = 'Generate';
+        const no = document.createElement('button');
+        no.type = 'button';
+        no.className = 'chat-confirm-no';
+        no.textContent = 'Not now';
+        yes.onclick = () => runConfirm(confirm, wrap);
+        no.onclick = () => {
+            wrap.remove();
+            addMessage('Okay — cancelled, nothing was generated. You can generate from the Drafts page anytime.', true);
+        };
+        row.appendChild(yes);
+        row.appendChild(no);
+        wrap.appendChild(row);
+        content.appendChild(wrap);
+        document.getElementById('chat-body').scrollTop = 1e9;
+    }
+
+    async function runConfirm(confirm, wrap) {
+        wrap.querySelectorAll('button').forEach(b => b.disabled = true);
+        const working = addMessage('Generating your draft… this can take a few seconds.', true);
+        const wc = working.querySelector('.chat-msg-content');
+        const set = (t) => { wc.textContent = t; document.getElementById('chat-body').scrollTop = 1e9; };
+        try {
+            const res = await fetch('/api/chat/confirm', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({action: confirm.action, args: confirm.args}),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (data.success && data.reply) {
+                set(data.reply);
+                if (data.draft_url) {
+                    const a = document.createElement('a');
+                    a.href = data.draft_url;
+                    a.textContent = 'Open the draft →';
+                    a.className = 'chat-confirm-link';
+                    wc.appendChild(document.createElement('br'));
+                    wc.appendChild(a);
+                }
+                chatHistory.push({role: 'bot', content: data.reply});
+            } else if (data.error === 'no_ai') {
+                set('I need an OpenRouter model configured first (Setup → AI model) before I can generate.');
+            } else {
+                set("That didn't go through — you can generate it from the Drafts page instead.");
+            }
+        } catch (e) {
+            set("That didn't go through — you can generate it from the Drafts page instead.");
+        }
+        wrap.remove();
     }
 
     function showBugForm() {

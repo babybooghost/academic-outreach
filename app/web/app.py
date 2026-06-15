@@ -2441,9 +2441,12 @@ def create_app() -> Flask:
         "professor's reply, or approve/reject a draft. Use tools when the question needs real data "
         "or a change; otherwise just answer. Before approving/rejecting or marking a reply, make "
         "sure you have the right draft id (list drafts first if unsure), and confirm what you did "
-        "afterward. After a tool runs, summarize plainly — don't dump raw JSON. You CANNOT generate "
-        "drafts or send email — those cost tokens / leave the user's inbox, so tell the user to do "
-        "those from the Drafts and Delivery pages themselves."
+        "afterward. After a tool runs, summarize plainly — don't dump raw JSON. "
+        "You may also generate ONE draft for a saved professor with generate_draft — but this costs "
+        "the user's AI tokens, so the app will pause and ask the user to confirm before it runs; "
+        "just call the tool with the professor id (look it up with search/list first) and the app "
+        "handles the confirmation. You CANNOT send email — that leaves the user's inbox, so always "
+        "tell the user to review and send from the Delivery page themselves."
     )
 
     # Read-only tools the assistant may call. No writes, no sends, no token spend
@@ -2457,6 +2460,10 @@ def create_app() -> Flask:
                 "universities": {"type": "array", "items": {"type": "string"}},
                 "limit": {"type": "integer"},
             }, "required": ["query"]}}},
+        {"type": "function", "function": {
+            "name": "list_faculty",
+            "description": "List the professors the user has SAVED to their workspace (id, name, university, field, and whether a draft already exists). Use this to get a professor's id before generate_draft.",
+            "parameters": {"type": "object", "properties": {}}}},
         {"type": "function", "function": {
             "name": "outreach_stats",
             "description": "The workspace's outreach funnel: sent, replied, reply rate, meetings.",
@@ -2481,7 +2488,17 @@ def create_app() -> Flask:
             "parameters": {"type": "object", "properties": {
                 "draft_id": {"type": "integer"}, "action": {"type": "string"}},
                 "required": ["draft_id", "action"]}}},
+        {"type": "function", "function": {
+            "name": "generate_draft",
+            "description": "Generate ONE outreach draft for a SAVED professor (get the id from list_faculty first). This spends the user's AI tokens, so the app pauses and asks the user to confirm before it actually runs — you don't need to ask separately, just call it. Optional variant: formal | enthusiastic | concise | research_focused.",
+            "parameters": {"type": "object", "properties": {
+                "professor_id": {"type": "integer"}, "variant": {"type": "string"}},
+                "required": ["professor_id"]}}},
     ]
+
+    # Actions the assistant may request but that must NOT auto-run — they spend
+    # tokens, so the user confirms first via /api/chat/confirm.
+    _CHAT_CONFIRM_ACTIONS = {"generate_draft"}
 
     def _run_chat_tool(name: str, args: dict, conn) -> dict:
         """Execute one read-only assistant tool, scoped to *conn*'s workspace."""
@@ -2495,6 +2512,18 @@ def create_app() -> Flask:
                 )
                 return {"results": [{"name": p.name, "affiliation": p.university, "field": p.field}
                                     for p in profs[:15]], "warnings": warns[:2]}
+            if name == "list_faculty":
+                profs = get_professors(conn)[:40]
+                drafted = set()
+                if profs:
+                    rows = conn.execute(
+                        "SELECT DISTINCT professor_id FROM drafts WHERE workspace_id = ?",
+                        (conn.workspace_id,),
+                    ).fetchall()
+                    drafted = {r["professor_id"] for r in rows}
+                return {"faculty": [{"id": p.id, "name": p.name, "university": p.university,
+                                     "field": p.field, "has_draft": p.id in drafted}
+                                    for p in profs]}
             if name == "outreach_stats":
                 return get_outreach_stats(conn)
             if name == "list_drafts":
@@ -2530,10 +2559,47 @@ def create_app() -> Flask:
                 new_status = "approved" if act == "approve" else "rejected"
                 update_draft_status(conn, d.id, new_status)
                 return {"ok": True, "draft_id": d.id, "status": new_status}
+            if name == "generate_draft":
+                # Valid calls are intercepted for user confirmation before they
+                # reach here; reaching this branch means the target was invalid.
+                pid = int(args.get("professor_id", 0) or 0)
+                if not (pid and get_professor(conn, pid)):
+                    return {"error": "professor not found — call list_faculty to get a valid saved-professor id"}
+                return {"error": "generate_draft needs user confirmation; the app will prompt the user"}
             return {"error": f"unknown tool: {name}"}
         except Exception as exc:
             logger.warning("chat tool %s failed: %s", name, exc)
             return {"error": str(exc)[:200]}
+
+    _VALID_VARIANTS = {"formal", "enthusiastic", "concise", "research_focused"}
+
+    def _chat_confirm_payload(name: str, args: dict, conn):
+        """Build the user-facing confirmation for a gated (token-spending) action.
+
+        Returns ``("confirm", payload)`` when the target is valid and the app
+        should pause for the user's explicit OK, or ``("error", {...})`` so the
+        model can recover (e.g. by looking up a real professor id).
+        """
+        if name == "generate_draft":
+            pid = int(args.get("professor_id", 0) or 0)
+            prof = get_professor(conn, pid) if pid else None
+            if not prof:
+                return ("error", {"error": "professor not found — call list_faculty to get a valid id"})
+            variant = str(args.get("variant", "")).strip().lower()
+            if variant not in _VALID_VARIANTS:
+                variant = ""
+            label = f"Generate a draft to {prof.name}"
+            if variant:
+                label += f" ({variant} style)"
+            label += "?"
+            return ("confirm", {
+                "action": "generate_draft",
+                "args": {"professor_id": prof.id, "variant": variant},
+                "label": label,
+                "note": "Uses your AI tokens. The draft is saved for your review — nothing is sent.",
+                "_default_text": f"I can draft an email to {prof.name}. Generating uses your AI tokens — want me to go ahead?",
+            })
+        return ("error", {"error": f"unknown gated action: {name}"})
 
     @app.route("/api/chat", methods=["POST"])
     @login_required
@@ -2580,6 +2646,22 @@ def create_app() -> Flask:
                 if not tool_calls:
                     reply = (am.get("content") or "").strip()
                     break
+                # Gated actions (token spend) pause for the user's explicit OK
+                # instead of running inline.
+                gated = next((tc for tc in tool_calls
+                              if tc.get("function", {}).get("name") in _CHAT_CONFIRM_ACTIONS), None)
+                if gated is not None:
+                    gfn = gated.get("function", {})
+                    try:
+                        gargs = json.loads(gfn.get("arguments") or "{}")
+                    except Exception:
+                        gargs = {}
+                    kind, payload = _chat_confirm_payload(gfn.get("name", ""), gargs, tool_conn)
+                    if kind == "confirm":
+                        lead = (am.get("content") or "").strip() or payload.get("_default_text", "")
+                        payload.pop("_default_text", None)
+                        return jsonify({"success": True, "reply": lead, "confirm": payload})
+                    # invalid target -> fall through; model gets an error tool result
                 msgs.append({"role": "assistant", "content": am.get("content") or "", "tool_calls": tool_calls})
                 for tc in tool_calls:
                     fn = tc.get("function", {})
@@ -2619,6 +2701,115 @@ def create_app() -> Flask:
         finally:
             conn.close()
         return jsonify({"success": True, "reply": reply})
+
+    @app.route("/api/chat/confirm", methods=["POST"])
+    @login_required
+    def chat_confirm_api():
+        """Run a gated assistant action after the user explicitly confirmed it in
+        the chat widget. Only token-spending generation is gated here — sending
+        email is never agent-driven; it stays manual on the Delivery page."""
+        data = request.get_json(silent=True) or {}
+        action = (data.get("action") or "").strip()
+        args = data.get("args") or {}
+        if action not in _CHAT_CONFIRM_ACTIONS:
+            return jsonify({"success": False, "error": "Unsupported action"}), 400
+
+        conn = _workspace_conn()
+        try:
+            cfg = _workspace_config(conn)
+        finally:
+            conn.close()
+        provider = (cfg.llm_provider or "").strip()
+        api_key = (cfg.llm_api_key or os.environ.get("LLM_API_KEY", "")).strip()
+        if provider != "openrouter" or not api_key:
+            return jsonify({"success": False, "error": "no_ai"})
+
+        if action == "generate_draft":
+            pid = int(args.get("professor_id", 0) or 0)
+            variant = str(args.get("variant", "")).strip().lower() or None
+            if variant not in (None, "formal", "enthusiastic", "concise", "research_focused"):
+                variant = None
+
+            wsconn = _workspace_conn()
+            try:
+                prof = get_professor(wsconn, pid)
+                profiles = get_sender_profiles(wsconn) if prof else []
+            finally:
+                wsconn.close()
+            if not prof:
+                return jsonify({"success": False, "error": "Professor not found."})
+            if not profiles:
+                return jsonify({"success": True,
+                                "reply": "Set up your sender identity first (Setup → sender details), "
+                                         "then I can draft for you."})
+            sender_profile_id = profiles[-1].id  # most recent sender profile
+
+            try:
+                summary = run_generation_pipeline(
+                    db_path=cfg.db_path, config=cfg,
+                    sender_profile_id=sender_profile_id, professor_ids=[pid],
+                    variant=variant, workspace_id=_workspace_id(),
+                )
+            except Exception as exc:
+                logger.warning("agent generate_draft failed: %s", exc)
+                return jsonify({"success": False, "error": "generation_failed"})
+
+            new_draft = None
+            wsconn = _workspace_conn()
+            try:
+                row = wsconn.execute(
+                    "SELECT id, overall_score FROM drafts WHERE workspace_id = ? AND session_id = ? "
+                    "AND professor_id = ? ORDER BY id DESC LIMIT 1",
+                    (wsconn.workspace_id, summary.session_id, pid),
+                ).fetchone()
+                if row:
+                    new_draft = (int(row["id"]), float(row["overall_score"] or 0))
+            finally:
+                wsconn.close()
+
+            _log_activity("draft_generate", category="drafts",
+                          target_type="professor", target_id=str(pid),
+                          details={"via": "assistant", "session": summary.session_id,
+                                   "created": summary.created, "variant": variant or "auto"})
+
+            if not new_draft:
+                warn = summary.warnings[0] if summary.warnings else \
+                    "the professor may need a richer research summary."
+                reply = (f"I couldn't create a draft for {prof.name} — {warn} "
+                         "You can try again from the Drafts page.")
+                draft_url = None
+            else:
+                did, score = new_draft
+                reply = (f"Drafted an email to {prof.name} (quality {round(score, 1)}/10). "
+                         "Review and edit it on the Drafts page — nothing is sent until you "
+                         "send it yourself from Delivery.")
+                draft_url = url_for("draft_detail", draft_id=did)
+
+            # Record the AI turn in chat_logs for the audit trail.
+            try:
+                logconn = _auth_conn()
+                ip = request.headers.get("X-Forwarded-For", request.remote_addr)
+                if ip and "," in ip:
+                    ip = ip.split(",")[0].strip()
+                logconn.execute(
+                    """INSERT INTO chat_logs
+                       (user_key_id, user_label, user_message, bot_response, prompt_key, ip_address, created_at)
+                       VALUES (?, ?, ?, ?, 'ai', ?, ?)""",
+                    (session.get("key_id"), session.get("key_label", ""),
+                     f"[confirmed] generate_draft professor_id={pid}", reply[:5000], ip,
+                     datetime.utcnow().isoformat()),
+                )
+                logconn.commit()
+                logconn.close()
+            except Exception as exc:
+                logger.warning("chat confirm log failed: %s", exc)
+
+            payload = {"success": True, "reply": reply}
+            if draft_url:
+                payload["draft_url"] = draft_url
+            return jsonify(payload)
+
+        return jsonify({"success": False, "error": "Unsupported action"}), 400
 
     @app.route("/api/bug-report", methods=["POST"])
     @login_required

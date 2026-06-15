@@ -100,6 +100,73 @@ class ChatApiTests(unittest.TestCase):
         finally:
             ws.close()
 
+    def _seed_faculty_and_sender(self):
+        """Save one professor + sender profile and configure the LLM."""
+        from app.database import (get_connection as gc, insert_sender_profile,
+                                  set_settings_bulk, upsert_professor)
+        from app.models import Professor, SenderProfile
+        ws = gc(self.db, workspace_id=self.kid)
+        pid = upsert_professor(ws, Professor(name="Jane Doe", email="j@x.edu",
+                                             university="MIT", field="ML"))
+        sp = insert_sender_profile(ws, SenderProfile(name="Me", school="HS", grade="12",
+                                                     email="me@x.com"))
+        set_settings_bulk(ws, {"llm_provider": "openrouter"})
+        ws.close()
+        os.environ["LLM_API_KEY"] = "k"
+        self.addCleanup(lambda: os.environ.pop("LLM_API_KEY", None))
+        return pid, sp
+
+    def test_generate_draft_pauses_for_confirmation(self):
+        # The agent calling generate_draft must NOT generate inline — it returns a
+        # confirm payload and waits for the user.
+        pid, _sp = self._seed_faculty_and_sender()
+        turn = {"content": "", "tool_calls": [{"id": "c1", "function": {
+            "name": "generate_draft", "arguments": '{"professor_id": %d}' % pid}}]}
+        with mock.patch("app.summarizer.chat_with_tools", return_value=turn), \
+                mock.patch("app.web.app.run_generation_pipeline") as gen:
+            r = self.client.post("/api/chat", json={"message": "draft Jane an email"})
+        data = r.get_json()
+        self.assertTrue(data.get("success"), data)
+        self.assertEqual(data["confirm"]["action"], "generate_draft")
+        self.assertEqual(data["confirm"]["args"]["professor_id"], pid)
+        gen.assert_not_called()  # nothing generated until the user confirms
+
+    def test_confirm_endpoint_generates_draft(self):
+        from app.database import (create_session, get_connection as gc, insert_draft)
+        from app.generation_service import GenerationSummary
+        from app.models import Draft
+        pid, sp = self._seed_faculty_and_sender()
+
+        def fake_pipeline(**kw):
+            c = gc(kw["db_path"], workspace_id=kw["workspace_id"])
+            sid = create_session(c, kw["sender_profile_id"], notes="t")
+            insert_draft(c, Draft(professor_id=kw["professor_ids"][0],
+                                  sender_profile_id=kw["sender_profile_id"], session_id=sid,
+                                  subject_lines='["Hi"]', body="b", status="generated",
+                                  overall_score=8.0))
+            c.close()
+            return GenerationSummary(session_id=sid, created=1)
+
+        with mock.patch("app.web.app.run_generation_pipeline", side_effect=fake_pipeline):
+            r = self.client.post("/api/chat/confirm",
+                                 json={"action": "generate_draft", "args": {"professor_id": pid}})
+        data = r.get_json()
+        self.assertTrue(data.get("success"), data)
+        self.assertIn("Jane Doe", data["reply"])
+        self.assertIn("draft_url", data)
+        # A draft now exists for that professor.
+        ws = gc(self.db, workspace_id=self.kid)
+        try:
+            n = ws.execute("SELECT COUNT(*) c FROM drafts WHERE professor_id = ?", (pid,)).fetchone()["c"]
+        finally:
+            ws.close()
+        self.assertEqual(n, 1)
+
+    def test_confirm_rejects_unknown_action(self):
+        r = self.client.post("/api/chat/confirm", json={"action": "send_email", "args": {}})
+        self.assertEqual(r.status_code, 400)
+        self.assertFalse(r.get_json()["success"])
+
     def test_agentic_tool_loop(self):
         # Model asks for a tool, we run it, model answers from the result.
         from app.database import set_settings_bulk

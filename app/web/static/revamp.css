@@ -1537,8 +1537,7 @@ tbody tr:hover td {
     transition: background var(--ao-transition), border-color var(--ao-transition), color var(--ao-transition), transform var(--ao-transition);
 }
 
-.app-shell .footer-link-btn,
-.app-shell .chat-fab {
+.app-shell .footer-link-btn {
     padding: 0;
     border: 0;
     background: transparent;
@@ -1548,8 +1547,13 @@ tbody tr:hover td {
     box-shadow: none;
 }
 
-.app-shell .chat-fab span:first-child {
-    display: none;
+/* Floating assistant FAB on app pages: a solid pill that stands off the page. */
+.app-shell .chat-fab {
+    background: var(--ao-primary);
+    color: #1a1206;
+    border: 0;
+    box-shadow: var(--ao-shadow-lg);
+    padding: 0.7rem 1.05rem;
 }
 
 .footer-link-btn:hover,
@@ -1561,14 +1565,20 @@ tbody tr:hover td {
 }
 
 .chat-widget {
-    position: relative;
-    z-index: 20;
+    position: fixed;
+    right: 1.5rem;
+    bottom: 1.5rem;
+    z-index: 1000;
 }
 
-.app-shell .footer-link-btn:hover,
-.app-shell .chat-fab:hover {
+.app-shell .footer-link-btn:hover {
     background: transparent;
     color: var(--ao-text);
+}
+
+.app-shell .chat-fab:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.05);
 }
 
 .chat-panel {
@@ -1691,6 +1701,58 @@ tbody tr:hover td {
 
 .chat-bug-form {
     border-top: 1px solid var(--ao-border);
+}
+
+.chat-confirm {
+    margin-top: 0.6rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.chat-confirm-note {
+    font-size: 0.72rem;
+    color: var(--ao-text-muted);
+}
+
+.chat-confirm-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.chat-confirm-yes,
+.chat-confirm-no {
+    border-radius: 999px;
+    padding: 0.42rem 0.95rem;
+    font-size: 0.76rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.chat-confirm-yes {
+    border: 0;
+    background: var(--ao-primary);
+    color: #1a1206;
+}
+
+.chat-confirm-no {
+    border: 1px solid var(--ao-border);
+    background: transparent;
+    color: var(--ao-text-muted);
+}
+
+.chat-confirm-yes:disabled,
+.chat-confirm-no:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.chat-confirm-link {
+    display: inline-block;
+    margin-top: 0.35rem;
+    color: var(--ao-primary);
+    font-weight: 700;
+    text-decoration: none;
 }
 
 .tutorial-overlay {
