@@ -40,6 +40,35 @@ class ProfileEnrichmentTests(unittest.TestCase):
         self.assertNotIn("A bit about my background", body)
         self.assertNotIn("On the technical side", body)
 
+    def _affiliation_is_grammatical(self, body: str, variant: str):
+        # Never the broken forms a blank grade/school used to produce.
+        self.assertNotIn("a  student", body, variant)      # blank grade
+        self.assertNotIn("student at .", body, variant)    # blank school
+        self.assertNotIn("student at  ", body, variant)
+        self.assertNotIn(" at .", body, variant)
+
+    def test_blank_grade_reads_cleanly(self):
+        s = self._sender(grade="")
+        for variant in ("formal", "concise", "enthusiastic", "research_focused"):
+            body = render_email(self.prof, s, self.cfg, session_id=1, variant=variant).body
+            self._affiliation_is_grammatical(body, variant)
+            self.assertIn("a student at Jordan HS", body, variant)
+
+    def test_blank_school_reads_cleanly(self):
+        s = self._sender(school="")
+        for variant in ("formal", "concise", "enthusiastic", "research_focused"):
+            body = render_email(self.prof, s, self.cfg, session_id=1, variant=variant).body
+            self._affiliation_is_grammatical(body, variant)
+            self.assertIn("a 11th grade student", body, variant)
+            self.assertNotIn("11th grade student at", body, variant)  # no dangling 'at'
+
+    def test_both_blank_reads_cleanly(self):
+        s = self._sender(grade="", school="")
+        for variant in ("formal", "concise", "enthusiastic", "research_focused"):
+            body = render_email(self.prof, s, self.cfg, session_id=1, variant=variant).body
+            self._affiliation_is_grammatical(body, variant)
+            self.assertIn("a student", body, variant)
+
 
 if __name__ == "__main__":
     unittest.main()

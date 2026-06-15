@@ -37,6 +37,26 @@ def _filter_last_name(full_name: str) -> str:
     return parts[-1] if parts else full_name
 
 
+def _affiliation_phrase(grade: str, school: str) -> str:
+    """Build a grammatical self-introduction noun phrase.
+
+    Always renders cleanly even when grade and/or school are blank, so a
+    missing field never produces ``a  student at .``  Returns forms like
+    ``a 12th grade student at MIT``, ``a student at MIT``, ``a high school
+    student``, or ``a student``.
+    """
+    grade = (grade or "").strip()
+    school = (school or "").strip()
+    if grade:
+        article = "an" if grade[0].lower() in "aeiou" else "a"
+        noun = f"{article} {grade} student"
+    else:
+        noun = "a student"
+    if school:
+        noun += f" at {school}"
+    return noun
+
+
 def _filter_humanize_list(items: list[str]) -> str:
     """Format a list as 'X, Y, and Z'."""
     if not items:
@@ -201,6 +221,7 @@ def _build_context(
         "sender_name": sender.name,
         "sender_school": sender.school,
         "sender_grade": sender.grade,
+        "affiliation": _affiliation_phrase(sender.grade, sender.school),
         "sender_email": sender.email,
         "sender_interests": sender.interests,
         "sender_background": sender.background,
