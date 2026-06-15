@@ -201,13 +201,37 @@ def _clean_name(raw: str) -> str:
 
 
 def _clean_institution(raw: str) -> str:
-    """Clean up institution name."""
+    """Reduce a raw affiliation string to the core institution name.
+
+    Crossref/arXiv often hand back a full postal affiliation like
+    ``"Fakultät für Informatik, Technische Universität München, 80290 München,
+    Germany"``.  Pick the segment that actually names the institution (a
+    university, then an institute/college/lab) and drop sub-departments and
+    trailing postal/country segments, so faculty cards read cleanly.
+    """
     if not raw:
         return ""
     clean = raw.strip()
+    parts = [p.strip() for p in clean.split(",") if p.strip()]
+    if len(parts) > 1:
+        primary = ("universit", "polytechnic", "college", "academy", "académie")
+        secondary = ("institut", "school", "laborator", "centre", "center", "hospital")
+        match = next((p for p in parts if any(k in p.lower() for k in primary)), None)
+        if match is None:
+            match = next(
+                (p for p in parts
+                 if any(k in p.lower() for k in secondary)
+                 and not p.lower().startswith(("school of", "department", "faculty", "fakultät", "dept"))),
+                None,
+            )
+        if match is None:
+            # No keyword hit: drop segments that look like postal codes / countries.
+            candidates = [p for p in parts if not re.search(r"\d{4,}", p)]
+            match = candidates[0] if candidates else parts[0]
+        clean = match
     if len(clean) > 120:
         clean = clean[:120].rsplit(",", 1)[0]
-    return clean
+    return clean.strip()
 
 
 def _institution_matches(author_institutions: list[dict], target_inst_id: str) -> bool:
