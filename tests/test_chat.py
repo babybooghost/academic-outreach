@@ -53,7 +53,8 @@ class ChatApiTests(unittest.TestCase):
         os.environ["LLM_API_KEY"] = "k"
         self.addCleanup(lambda: os.environ.pop("LLM_API_KEY", None))
 
-        with mock.patch("app.summarizer.chat_openrouter", return_value="Try Search; pick 3 plausible labs."):
+        with mock.patch("app.summarizer.chat_with_tools",
+                        return_value={"content": "Try Search; pick 3 plausible labs.", "tool_calls": []}):
             r = self.client.post("/api/chat", json={"message": "who should I contact?", "history": []})
         data = r.get_json()
         self.assertTrue(data.get("success"), data)
@@ -65,6 +66,29 @@ class ChatApiTests(unittest.TestCase):
         finally:
             conn.close()
         self.assertEqual(row["prompt_key"], "ai")
+
+
+    def test_agentic_tool_loop(self):
+        # Model asks for a tool, we run it, model answers from the result.
+        from app.database import set_settings_bulk
+        ws = get_connection(self.db, workspace_id=self.kid)
+        set_settings_bulk(ws, {"llm_provider": "openrouter"})
+        ws.close()
+        os.environ["LLM_API_KEY"] = "k"
+        self.addCleanup(lambda: os.environ.pop("LLM_API_KEY", None))
+
+        turns = [
+            {"content": "", "tool_calls": [
+                {"id": "c1", "function": {"name": "outreach_stats", "arguments": "{}"}}]},
+            {"content": "You've sent 0 so far — nothing to report yet.", "tool_calls": []},
+        ]
+        with mock.patch("app.summarizer.chat_with_tools", side_effect=turns) as m:
+            r = self.client.post("/api/chat", json={"message": "how's my reply rate?"})
+        data = r.get_json()
+        self.assertTrue(data.get("success"), data)
+        self.assertIn("sent 0", data["reply"])
+        # Two model turns: one to request the tool, one to answer from the result.
+        self.assertEqual(m.call_count, 2)
 
 
 if __name__ == "__main__":
