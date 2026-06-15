@@ -3,7 +3,7 @@ import unittest
 
 from app.config import load_config
 from app.models import Professor, SenderProfile
-from app.template_engine import render_email
+from app.template_engine import generate_subject_lines, render_email
 
 
 class ProfileEnrichmentTests(unittest.TestCase):
@@ -68,6 +68,19 @@ class ProfileEnrichmentTests(unittest.TestCase):
             body = render_email(self.prof, s, self.cfg, session_id=1, variant=variant).body
             self._affiliation_is_grammatical(body, variant)
             self.assertIn("a student", body, variant)
+
+    def test_subject_lines_grade_aware(self):
+        # Blank grade must never leave a dangling "- student" or double space,
+        # and a non-high-school grade must not be mislabeled "high school".
+        for seed in range(12):
+            blanks = generate_subject_lines(self.prof, self._sender(grade=""), self.cfg, seed=seed)
+            for s in blanks:
+                self.assertNotIn(" - student", s, s)
+                self.assertNotIn("-  student", s, s)
+                self.assertNotIn("  ", s, s)
+            ug = generate_subject_lines(self.prof, self._sender(grade="undergraduate"), self.cfg, seed=seed)
+            for s in ug:
+                self.assertNotIn("high school", s.lower(), s)
 
 
 if __name__ == "__main__":

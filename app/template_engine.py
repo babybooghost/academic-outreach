@@ -285,11 +285,19 @@ def generate_subject_lines(
     if len(topic.split()) > 5:
         topic = prof.field
 
+    # Grade-aware descriptor so subjects stay grammatical when grade is blank
+    # (no dangling "- student") and don't hardcode "high school" for, say, an
+    # undergraduate who supplied a different grade.
+    grade: str = (sender.grade or "").strip()
+    descriptor: str = f"{grade} student" if grade else "student"
+    descriptor_cap: str = descriptor[0].upper() + descriptor[1:]
+    interest_tail: str = f" - {grade} student" if grade else ""
+
     templates: list[str] = [
-        "High school student interested in your research on {topic}",
+        "{descriptor_cap} interested in your research on {topic}",
         "Question about research opportunities in {field}",
-        "{field} research inquiry from a high school student",
-        "Interest in your {topic} research - {grade} student",
+        "{field} research inquiry from a {descriptor}",
+        "Interest in your {topic} research{interest_tail}",
         "Aspiring researcher interested in {field}",
         "Research opportunity inquiry - {topic}",
     ]
@@ -303,6 +311,9 @@ def generate_subject_lines(
             field=prof.field,
             grade=sender.grade,
             last_name=last_name,
+            descriptor=descriptor,
+            descriptor_cap=descriptor_cap,
+            interest_tail=interest_tail,
         )
         for t in selected
     ]
