@@ -2432,8 +2432,68 @@ def create_app() -> Flask:
         "humble, and non-spammy, with a bounded ask (e.g. a 15-minute conversation). Use an "
         "authentic student voice: no flattery, no fabricated papers, results, or credentials. "
         "Keep replies short and practical. Don't invent professor details. If asked something "
-        "off-topic, gently steer back to outreach."
+        "off-topic, gently steer back to outreach. "
+        "You can call tools to look up the user's live workspace data (their funnel stats, their "
+        "drafts, who's due for a follow-up) and to search for faculty. Use them when the question "
+        "needs real data; otherwise just answer. After a tool runs, summarize the result plainly — "
+        "don't dump raw JSON. You cannot send email, generate drafts, or change data."
     )
+
+    # Read-only tools the assistant may call. No writes, no sends, no token spend
+    # beyond the chat itself — everything is scoped to the user's workspace.
+    _CHAT_TOOLS = [
+        {"type": "function", "function": {
+            "name": "search_faculty",
+            "description": "Find professors by research topic, optionally at specific universities. Returns candidate names, affiliations, and fields. Does NOT save them — tell the user to save from the Search page.",
+            "parameters": {"type": "object", "properties": {
+                "query": {"type": "string", "description": "research topic, e.g. 'graph neural networks'"},
+                "universities": {"type": "array", "items": {"type": "string"}},
+                "limit": {"type": "integer"},
+            }, "required": ["query"]}}},
+        {"type": "function", "function": {
+            "name": "outreach_stats",
+            "description": "The workspace's outreach funnel: sent, replied, reply rate, meetings.",
+            "parameters": {"type": "object", "properties": {}}}},
+        {"type": "function", "function": {
+            "name": "list_drafts",
+            "description": "List the user's drafts (id, professor, status, score, reply outcome), optionally filtered by status: generated|edited|approved|rejected|sent.",
+            "parameters": {"type": "object", "properties": {"status": {"type": "string"}}}}},
+        {"type": "function", "function": {
+            "name": "followups_due",
+            "description": "Sent drafts due for a follow-up nudge (already excludes professors who replied).",
+            "parameters": {"type": "object", "properties": {"days_since": {"type": "integer"}}}}},
+    ]
+
+    def _run_chat_tool(name: str, args: dict, conn) -> dict:
+        """Execute one read-only assistant tool, scoped to *conn*'s workspace."""
+        try:
+            if name == "search_faculty":
+                from app.finder import find_professors
+                profs, warns = find_professors(
+                    query=str(args.get("query", "")),
+                    universities=args.get("universities") or None,
+                    max_scholar_results=min(int(args.get("limit", 8) or 8), 15),
+                )
+                return {"results": [{"name": p.name, "affiliation": p.university, "field": p.field}
+                                    for p in profs[:15]], "warnings": warns[:2]}
+            if name == "outreach_stats":
+                return get_outreach_stats(conn)
+            if name == "list_drafts":
+                ds = get_drafts(conn, status=args.get("status") or None)[:30]
+                pmap = get_professors_by_ids(conn, {d.professor_id for d in ds})
+                return {"drafts": [{"id": d.id, "professor": (pmap.get(d.professor_id).name if pmap.get(d.professor_id) else "?"),
+                                    "status": d.status, "score": round(d.overall_score, 1),
+                                    "outcome": d.outcome or "awaiting"} for d in ds]}
+            if name == "followups_due":
+                from app.delivery import _eligible_followup_drafts
+                ds = _eligible_followup_drafts(conn, int(args.get("days_since", 7) or 7), 30)
+                pmap = get_professors_by_ids(conn, {d.professor_id for d in ds})
+                return {"due": [{"id": d.id, "professor": (pmap.get(d.professor_id).name if pmap.get(d.professor_id) else "?")}
+                                for d in ds], "count": len(ds)}
+            return {"error": f"unknown tool: {name}"}
+        except Exception as exc:
+            logger.warning("chat tool %s failed: %s", name, exc)
+            return {"error": str(exc)[:200]}
 
     @app.route("/api/chat", methods=["POST"])
     @login_required
@@ -2466,12 +2526,38 @@ def create_app() -> Flask:
                 msgs.append({"role": role, "content": content})
         msgs.append({"role": "user", "content": message[:2000]})
 
+        from app.summarizer import chat_with_tools, chat_openrouter
+        tool_conn = _workspace_conn()
         try:
-            from app.summarizer import chat_openrouter
-            reply = chat_openrouter(api_key, cfg.llm_model, msgs)
-        except Exception as exc:
-            logger.warning("AI chat failed: %s", exc)
-            return jsonify({"success": False, "error": "ai_error"})
+            reply = ""
+            for _ in range(4):  # cap tool rounds to bound tokens/latency
+                try:
+                    am = chat_with_tools(api_key, cfg.llm_model, msgs, _CHAT_TOOLS)
+                except Exception as exc:
+                    logger.warning("AI chat failed: %s", exc)
+                    return jsonify({"success": False, "error": "ai_error"})
+                tool_calls = am.get("tool_calls") or []
+                if not tool_calls:
+                    reply = (am.get("content") or "").strip()
+                    break
+                msgs.append({"role": "assistant", "content": am.get("content") or "", "tool_calls": tool_calls})
+                for tc in tool_calls:
+                    fn = tc.get("function", {})
+                    try:
+                        targs = json.loads(fn.get("arguments") or "{}")
+                    except Exception:
+                        targs = {}
+                    result = _run_chat_tool(fn.get("name", ""), targs, tool_conn)
+                    msgs.append({"role": "tool", "tool_call_id": tc.get("id"),
+                                 "content": json.dumps(result)[:4000]})
+            else:
+                # Ran out of tool rounds without a text answer — force a summary.
+                try:
+                    reply = chat_openrouter(api_key, cfg.llm_model, msgs)
+                except Exception:
+                    reply = ""
+        finally:
+            tool_conn.close()
         if not reply:
             return jsonify({"success": False, "error": "empty"})
 

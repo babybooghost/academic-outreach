@@ -337,6 +337,23 @@ class LLMSummarizer:
 DEFAULT_PARSE_MODEL: str = "google/gemini-3.5-flash"
 
 
+def chat_with_tools(api_key: str, model: str, messages: list[dict], tools: list[dict],
+                    max_tokens: int = 700) -> dict[str, Any]:
+    """One chat turn that may request tool calls. Returns the assistant message
+    dict (with ``content`` and/or ``tool_calls``)."""
+    resp = http_requests.post(
+        "https://openrouter.ai/api/v1/chat/completions",
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        json={"model": model, "messages": messages, "tools": tools,
+              "temperature": 0.4, "max_tokens": max_tokens},
+        timeout=40,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    choices = data.get("choices") or []
+    return choices[0].get("message", {}) if choices else {}
+
+
 def chat_openrouter(api_key: str, model: str, messages: list[dict[str, str]], max_tokens: int = 600) -> str:
     """Multi-turn chat completion via OpenRouter. Returns the assistant text."""
     resp = http_requests.post(
