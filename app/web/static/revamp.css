@@ -1547,13 +1547,32 @@ tbody tr:hover td {
     box-shadow: none;
 }
 
-/* Floating assistant FAB on app pages: a solid pill that stands off the page. */
+/* Floating assistant FAB on app pages: a clean circular button. */
 .app-shell .chat-fab {
+    width: 56px;
+    height: 56px;
+    padding: 0;
+    gap: 0;
+    border: 0;
+    border-radius: 50%;
     background: var(--ao-primary);
     color: #1a1206;
-    border: 0;
     box-shadow: var(--ao-shadow-lg);
-    padding: 0.7rem 1.05rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.app-shell .chat-fab .chat-fab-glyph {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.app-shell .chat-fab svg {
+    width: 26px;
+    height: 26px;
+    display: block;
 }
 
 .footer-link-btn:hover,
