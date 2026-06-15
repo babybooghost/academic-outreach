@@ -24,6 +24,7 @@ import requests
 
 from flask import (
     Flask,
+    Response,
     flash,
     g,
     jsonify,
@@ -286,6 +287,40 @@ def create_app() -> Flask:
             raise RuntimeError("Application config not loaded")
 
         return build_workspace_config(base_cfg, conn)
+
+    # --- Per-workspace daily spend caps (protect the OpenRouter budget) ---
+    # Generous for a small trusted group; override via env if needed.
+    _AI_CHAT_DAILY_LIMIT = int(os.environ.get("AI_CHAT_DAILY_LIMIT", "150"))
+    _GENERATION_DAILY_LIMIT = int(os.environ.get("GENERATION_DAILY_LIMIT", "80"))
+
+    def _utc_day_start() -> str:
+        return datetime.utcnow().strftime("%Y-%m-%dT00:00:00")
+
+    def _ai_chats_today() -> int:
+        """Count AI assistant replies logged for this user since midnight UTC."""
+        conn = _auth_conn()
+        try:
+            row = conn.execute(
+                "SELECT COUNT(*) AS c FROM chat_logs WHERE user_key_id = ? "
+                "AND prompt_key = 'ai' AND created_at >= ?",
+                (session.get("key_id"), _utc_day_start()),
+            ).fetchone()
+            return int(row["c"]) if row else 0
+        except Exception:
+            return 0
+        finally:
+            conn.close()
+
+    def _drafts_today(conn) -> int:
+        """Count drafts generated in this workspace since midnight UTC."""
+        try:
+            row = conn.execute(
+                "SELECT COUNT(*) AS c FROM drafts WHERE workspace_id = ? AND created_at >= ?",
+                (conn.workspace_id, _utc_day_start()),
+            ).fetchone()
+            return int(row["c"]) if row else 0
+        except Exception:
+            return 0
 
     def _storage_status() -> dict[str, Any]:
         cfg = app.config.get("APP_CFG")
@@ -1356,9 +1391,17 @@ def create_app() -> Flask:
             if professor_count == 0:
                 flash("Save at least one professor before generating drafts.", "error")
                 return redirect(url_for("finder_page"))
+            over_cap = _drafts_today(conn) >= _GENERATION_DAILY_LIMIT
             cfg = _workspace_config(conn)
         finally:
             conn.close()
+        if over_cap:
+            flash(
+                f"You've reached today's generation limit ({_GENERATION_DAILY_LIMIT} drafts). "
+                "It resets at midnight UTC.",
+                "warning",
+            )
+            return redirect(url_for("drafts_list"))
 
         try:
             summary = run_generation_pipeline(
@@ -1433,9 +1476,17 @@ def create_app() -> Flask:
                 flash("Save at least one professor before generating a sample.", "warning")
                 return redirect(url_for("finder_page"))
             target_id = int(row["id"])
+            over_cap = _drafts_today(conn) >= _GENERATION_DAILY_LIMIT
             cfg = _workspace_config(conn)
         finally:
             conn.close()
+        if over_cap:
+            flash(
+                f"You've reached today's generation limit ({_GENERATION_DAILY_LIMIT} drafts). "
+                "It resets at midnight UTC.",
+                "warning",
+            )
+            return redirect(url_for("drafts_list"))
 
         try:
             summary = run_generation_pipeline(
@@ -2629,6 +2680,12 @@ def create_app() -> Flask:
             # No model configured — tell the client to use its built-in canned help.
             return jsonify({"success": False, "error": "no_ai"})
 
+        if _ai_chats_today() >= _AI_CHAT_DAILY_LIMIT:
+            return jsonify({"success": True, "reply": (
+                f"You've reached today's assistant limit ({_AI_CHAT_DAILY_LIMIT} messages) for this "
+                "workspace — it resets at midnight UTC. You can still use Search, Drafts, and Delivery "
+                "in the meantime.")})
+
         msgs = [{"role": "system", "content": _CHAT_SYSTEM}]
         for h in history[-8:]:
             if not isinstance(h, dict):
@@ -2741,8 +2798,13 @@ def create_app() -> Flask:
             try:
                 prof = get_professor(wsconn, pid)
                 profiles = get_sender_profiles(wsconn) if prof else []
+                over_cap = _drafts_today(wsconn) >= _GENERATION_DAILY_LIMIT
             finally:
                 wsconn.close()
+            if over_cap:
+                return jsonify({"success": True, "reply": (
+                    f"You've hit today's generation limit ({_GENERATION_DAILY_LIMIT} drafts) for this "
+                    "workspace — it resets at midnight UTC.")})
             if not prof:
                 return jsonify({"success": False, "error": "Professor not found."})
             if not profiles:
@@ -2879,6 +2941,29 @@ def create_app() -> Flask:
                                    stats=stats, recent_activity=recent_activity)
         finally:
             conn.close()
+
+    @app.route("/admin/backup")
+    @admin_required
+    def admin_backup():
+        """Download a full, restorable JSON snapshot of all workspaces' data.
+
+        Password hashes are redacted. Use it as a manual safety net, or hit it
+        on a schedule (external cron) to keep off-box backups.
+        """
+        from app.database import dump_database
+        conn = _auth_conn()  # unscoped -> all workspaces
+        try:
+            dump = dump_database(conn)
+        finally:
+            conn.close()
+        _log_activity("backup_export", category="admin", is_admin=True,
+                      details={"row_counts": dump["meta"]["row_counts"]})
+        payload = json.dumps(dump, indent=2, default=str)
+        ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        return Response(
+            payload, mimetype="application/json",
+            headers={"Content-Disposition": f"attachment; filename=ao_backup_{ts}.json"},
+        )
 
     @app.route("/admin/keys/dismiss", methods=["POST"])
     @admin_required

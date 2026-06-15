@@ -1749,3 +1749,53 @@ def get_admin_activity_stats(conn: sqlite3.Connection) -> dict[str, Any]:
     except sqlite3.Error as exc:
         logger.error("get_admin_activity_stats failed: %s", exc)
         return {"total_events": 0, "today_events": 0, "unique_actors": 0, "unique_ips": 0, "by_category": {}, "by_action": {}}
+
+
+# ---------------------------------------------------------------------------
+# Full-database backup (restorable snapshot)
+# ---------------------------------------------------------------------------
+
+# Content + config tables worth backing up. Sensitive columns are redacted.
+_BACKUP_TABLES: tuple[str, ...] = (
+    "access_keys", "sender_profiles", "professors", "sessions", "drafts",
+    "send_log", "suppression_list", "followups", "app_settings", "user_signups",
+)
+_BACKUP_REDACT: dict[str, set[str]] = {
+    "access_keys": {"key_value"},                      # the login credential
+    "user_signups": {"password_hash", "key_value"},    # signup secrets
+}
+
+
+def dump_database(conn: Any) -> dict[str, Any]:
+    """Serialize the backup-worthy tables to a JSON-able dict.
+
+    Pass an *unscoped* connection (no ``workspace_id``) for a full, all-workspace
+    snapshot. Password hashes are redacted so the dump is safe to download and
+    store. The result round-trips through ``json.dumps(..., default=str)``.
+    """
+    data: dict[str, list[dict[str, Any]]] = {}
+    counts: dict[str, int] = {}
+    for table in _BACKUP_TABLES:
+        try:
+            rows = conn.execute(f"SELECT * FROM {table}").fetchall()
+        except sqlite3.Error as exc:
+            logger.warning("dump_database: skipping %s (%s)", table, exc)
+            continue
+        redact = _BACKUP_REDACT.get(table, set())
+        serialized: list[dict[str, Any]] = []
+        for r in rows:
+            d = {k: r[k] for k in r.keys()}
+            for col in redact:
+                if col in d:
+                    d[col] = "***redacted***"
+            serialized.append(d)
+        data[table] = serialized
+        counts[table] = len(serialized)
+    return {
+        "meta": {
+            "generated_at": datetime.utcnow().isoformat(),
+            "tables": list(data.keys()),
+            "row_counts": counts,
+        },
+        "data": data,
+    }

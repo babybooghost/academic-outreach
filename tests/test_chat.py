@@ -162,6 +162,45 @@ class ChatApiTests(unittest.TestCase):
             ws.close()
         self.assertEqual(n, 1)
 
+    def _client_with_env(self, **env):
+        """Fresh app/client with env overrides applied (limits are read at app build)."""
+        for k, v in env.items():
+            os.environ[k] = str(v)
+            self.addCleanup(lambda k=k: os.environ.pop(k, None))
+        from app.web.app import create_app
+        app = create_app()
+        app.config["TESTING"] = True
+        c = app.test_client()
+        with c.session_transaction() as s:
+            s.update({"authenticated": True, "key_id": self.kid, "key_label": "T", "role": "user"})
+        return c
+
+    def test_chat_daily_limit_blocks_without_calling_model(self):
+        from app.database import set_settings_bulk
+        ws = get_connection(self.db, workspace_id=self.kid)
+        set_settings_bulk(ws, {"llm_provider": "openrouter"})
+        ws.close()
+        os.environ["LLM_API_KEY"] = "k"
+        self.addCleanup(lambda: os.environ.pop("LLM_API_KEY", None))
+        c = self._client_with_env(AI_CHAT_DAILY_LIMIT=0)
+        with mock.patch("app.summarizer.chat_with_tools") as m:
+            r = c.post("/api/chat", json={"message": "hi"})
+        data = r.get_json()
+        self.assertTrue(data["success"], data)
+        self.assertIn("limit", data["reply"].lower())
+        m.assert_not_called()
+
+    def test_generation_daily_limit_blocks_confirm(self):
+        pid, _sp = self._seed_faculty_and_sender()
+        c = self._client_with_env(GENERATION_DAILY_LIMIT=0)
+        with mock.patch("app.web.app.run_generation_pipeline") as gen:
+            r = c.post("/api/chat/confirm",
+                       json={"action": "generate_draft", "args": {"professor_id": pid}})
+        data = r.get_json()
+        self.assertTrue(data["success"], data)
+        self.assertIn("limit", data["reply"].lower())
+        gen.assert_not_called()
+
     def test_confirm_rejects_unknown_action(self):
         r = self.client.post("/api/chat/confirm", json={"action": "send_email", "args": {}})
         self.assertEqual(r.status_code, 400)
