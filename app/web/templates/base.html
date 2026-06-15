@@ -352,19 +352,25 @@
         return html;
     }
 
-    // Reveal a markdown reply progressively. Time-based (not fixed-step) so it
-    // always finishes in ~DURATION regardless of frame/timer throttling.
+    // Reveal a markdown reply progressively. setInterval gives reliable
+    // intermediate steps (unlike requestAnimationFrame, which can be paused or
+    // coalesced and jump straight to the end); the reveal is time-based so it
+    // still always completes in ~duration even if ticks are throttled.
     function typeMarkdownInto(contentEl, fullText, onDone) {
         const body = document.getElementById('chat-body');
         const total = (fullText || '').length;
         if (!total) { contentEl.innerHTML = ''; if (onDone) onDone(); return; }
-        const duration = Math.min(1500, Math.max(300, total * 8)); // 0.3–1.5s
-        const start = (window.performance && performance.now) ? performance.now() : Date.now();
-        const raf = window.requestAnimationFrame || ((f) => setTimeout(() => f(), 16));
+        const duration = Math.min(1600, Math.max(450, total * 9)); // 0.45–1.6s
+        const startTs = Date.now();
         contentEl.innerHTML = '';
-        const tick = () => {
-            const now = (window.performance && performance.now) ? performance.now() : Date.now();
-            const frac = Math.min(1, (now - start) / duration);
+        const finish = (timer) => {
+            clearInterval(timer);
+            contentEl.innerHTML = renderMarkdown(fullText);
+            body.scrollTop = body.scrollHeight;
+            if (onDone) onDone();
+        };
+        const timer = setInterval(() => {
+            const frac = Math.min(1, (Date.now() - startTs) / duration);
             let chunk = fullText.slice(0, Math.max(1, Math.floor(frac * total)));
             // Hide a dangling, not-yet-closed "**" so asterisks don't flash.
             if (((chunk.match(/\*\*/g) || []).length) % 2 === 1) {
@@ -373,15 +379,9 @@
             }
             contentEl.innerHTML = renderMarkdown(chunk);
             body.scrollTop = body.scrollHeight;
-            if (frac < 1) {
-                raf(tick);
-            } else {
-                contentEl.innerHTML = renderMarkdown(fullText);
-                body.scrollTop = body.scrollHeight;
-                if (onDone) onDone();
-            }
-        };
-        raf(tick);
+            if (frac >= 1) finish(timer);
+        }, 28);
+        return timer;
     }
 
     function addMessage(text, isBot) {
