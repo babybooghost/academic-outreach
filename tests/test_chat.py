@@ -68,6 +68,38 @@ class ChatApiTests(unittest.TestCase):
         self.assertEqual(row["prompt_key"], "ai")
 
 
+    def test_agentic_write_tool_marks_reply(self):
+        # The agent can call the reversible mark_reply write tool.
+        from app.database import (create_session, get_draft, get_connection as gc,
+                                  insert_draft, insert_sender_profile, set_settings_bulk,
+                                  upsert_professor)
+        from app.models import Draft, Professor, SenderProfile
+        ws = gc(self.db, workspace_id=self.kid)
+        pid = upsert_professor(ws, Professor(name="P", email="p@x.edu", university="U", field="ML"))
+        sp = insert_sender_profile(ws, SenderProfile(name="Me", school="HS", grade="12", email="me@x.com"))
+        sid = create_session(ws, sp, notes="t")
+        did = insert_draft(ws, Draft(professor_id=pid, sender_profile_id=sp, session_id=sid,
+                                     subject_lines='["Hi"]', body="b", status="sent"))
+        set_settings_bulk(ws, {"llm_provider": "openrouter"})
+        ws.close()
+        os.environ["LLM_API_KEY"] = "k"
+        self.addCleanup(lambda: os.environ.pop("LLM_API_KEY", None))
+
+        turns = [
+            {"content": "", "tool_calls": [{"id": "c1", "function": {
+                "name": "mark_reply", "arguments": '{"draft_id": %d, "outcome": "replied"}' % did}}]},
+            {"content": "Marked it replied — they'll be skipped for follow-ups.", "tool_calls": []},
+        ]
+        with mock.patch("app.summarizer.chat_with_tools", side_effect=turns):
+            r = self.client.post("/api/chat", json={"message": "mark draft %d as replied" % did})
+        self.assertTrue(r.get_json().get("success"))
+        # The write actually happened.
+        ws = gc(self.db, workspace_id=self.kid)
+        try:
+            self.assertEqual(get_draft(ws, did).outcome, "replied")
+        finally:
+            ws.close()
+
     def test_agentic_tool_loop(self):
         # Model asks for a tool, we run it, model answers from the result.
         from app.database import set_settings_bulk

@@ -66,6 +66,17 @@ class ReplyTrackingTests(unittest.TestCase):
         self.assertEqual(stats["replied"], 1)
         self.assertEqual(stats["meetings"], 1)
 
+    def test_quality_outcome_matrix(self):
+        from app.database import get_quality_outcome_matrix
+        self.ws.execute("UPDATE drafts SET overall_score = 8.0 WHERE id = ?", (self.did,))
+        self.ws.commit()
+        set_draft_outcome(self.ws, self.did, "replied")
+        m = get_quality_outcome_matrix(self.ws, threshold=7.0)
+        self.assertEqual(m["high_replied"], 1)
+        self.assertEqual(m["high_noreply"], 0)
+        self.assertEqual(m["high_rate"], 100)
+        self.assertEqual(m["total"], 1)
+
     def test_clearing_outcome_re_enables_followup(self):
         set_draft_outcome(self.ws, self.did, "replied")
         set_draft_outcome(self.ws, self.did, "")

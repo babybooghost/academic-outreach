@@ -53,6 +53,7 @@ from app.database import (
     get_draft,
     get_drafts,
     get_outreach_stats,
+    get_quality_outcome_matrix,
     get_email_verification,
     get_professor,
     get_professors,
@@ -1081,6 +1082,7 @@ def create_app() -> Flask:
             ).fetchall()
 
             outreach = get_outreach_stats(workspace_conn)
+            matrix = get_quality_outcome_matrix(workspace_conn)
 
             return render_template(
                 "dashboard.html",
@@ -1090,6 +1092,7 @@ def create_app() -> Flask:
                 total_drafts=total_drafts,
                 recent_sends=[dict(r) for r in recent_sends],
                 outreach=outreach,
+                matrix=matrix,
             )
         finally:
             workspace_conn.close()
@@ -2433,10 +2436,14 @@ def create_app() -> Flask:
         "authentic student voice: no flattery, no fabricated papers, results, or credentials. "
         "Keep replies short and practical. Don't invent professor details. If asked something "
         "off-topic, gently steer back to outreach. "
-        "You can call tools to look up the user's live workspace data (their funnel stats, their "
-        "drafts, who's due for a follow-up) and to search for faculty. Use them when the question "
-        "needs real data; otherwise just answer. After a tool runs, summarize the result plainly — "
-        "don't dump raw JSON. You cannot send email, generate drafts, or change data."
+        "You can call tools to look up the user's live workspace data (funnel stats, their drafts, "
+        "who's due for a follow-up), to search for faculty, and to make reversible changes: mark a "
+        "professor's reply, or approve/reject a draft. Use tools when the question needs real data "
+        "or a change; otherwise just answer. Before approving/rejecting or marking a reply, make "
+        "sure you have the right draft id (list drafts first if unsure), and confirm what you did "
+        "afterward. After a tool runs, summarize plainly — don't dump raw JSON. You CANNOT generate "
+        "drafts or send email — those cost tokens / leave the user's inbox, so tell the user to do "
+        "those from the Drafts and Delivery pages themselves."
     )
 
     # Read-only tools the assistant may call. No writes, no sends, no token spend
@@ -2462,6 +2469,18 @@ def create_app() -> Flask:
             "name": "followups_due",
             "description": "Sent drafts due for a follow-up nudge (already excludes professors who replied).",
             "parameters": {"type": "object", "properties": {"days_since": {"type": "integer"}}}}},
+        {"type": "function", "function": {
+            "name": "mark_reply",
+            "description": "Record a professor's reply on a draft (excludes them from follow-ups). Reversible. outcome: replied | meeting | declined | '' (to clear).",
+            "parameters": {"type": "object", "properties": {
+                "draft_id": {"type": "integer"}, "outcome": {"type": "string"}},
+                "required": ["draft_id", "outcome"]}}},
+        {"type": "function", "function": {
+            "name": "set_draft_status",
+            "description": "Approve or reject a draft (reversible status change; does NOT send). action: approve | reject.",
+            "parameters": {"type": "object", "properties": {
+                "draft_id": {"type": "integer"}, "action": {"type": "string"}},
+                "required": ["draft_id", "action"]}}},
     ]
 
     def _run_chat_tool(name: str, args: dict, conn) -> dict:
@@ -2490,6 +2509,27 @@ def create_app() -> Flask:
                 pmap = get_professors_by_ids(conn, {d.professor_id for d in ds})
                 return {"due": [{"id": d.id, "professor": (pmap.get(d.professor_id).name if pmap.get(d.professor_id) else "?")}
                                 for d in ds], "count": len(ds)}
+            # --- write tools (reversible only; no spend, no send) ---
+            if name == "mark_reply":
+                from app.database import VALID_OUTCOMES
+                oc = str(args.get("outcome", ""))
+                if oc not in VALID_OUTCOMES:
+                    return {"error": "outcome must be one of: replied, meeting, declined, or empty"}
+                d = get_draft(conn, int(args.get("draft_id", 0) or 0))
+                if not d:
+                    return {"error": "draft not found"}
+                set_draft_outcome(conn, d.id, oc)
+                return {"ok": True, "draft_id": d.id, "outcome": oc or "cleared"}
+            if name == "set_draft_status":
+                act = str(args.get("action", ""))
+                if act not in ("approve", "reject"):
+                    return {"error": "action must be 'approve' or 'reject'"}
+                d = get_draft(conn, int(args.get("draft_id", 0) or 0))
+                if not d:
+                    return {"error": "draft not found"}
+                new_status = "approved" if act == "approve" else "rejected"
+                update_draft_status(conn, d.id, new_status)
+                return {"ok": True, "draft_id": d.id, "status": new_status}
             return {"error": f"unknown tool: {name}"}
         except Exception as exc:
             logger.warning("chat tool %s failed: %s", name, exc)

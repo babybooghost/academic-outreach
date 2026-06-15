@@ -1148,6 +1148,38 @@ def get_outreach_stats(conn: Any) -> dict[str, int]:
     }
 
 
+def get_quality_outcome_matrix(conn: Any, threshold: float = 7.0) -> dict[str, Any]:
+    """Confusion matrix: did the AI quality score predict real replies?
+
+    Among SENT drafts, cross predicted quality (overall_score >= threshold =
+    "high") with the actual outcome (any reply vs none). Lets the user see
+    whether high-scored emails actually land replies.
+    """
+    wid = _ws(conn)
+
+    def _count(where: str, *params: Any) -> int:
+        try:
+            return int(conn.execute(
+                f"SELECT COUNT(*) AS c FROM drafts WHERE workspace_id = ? AND status = 'sent' AND {where}",
+                (wid, *params),
+            ).fetchone()["c"])
+        except sqlite3.Error:
+            return 0
+
+    hi_rep = _count("overall_score >= ? AND outcome != ''", threshold)
+    hi_no = _count("overall_score >= ? AND outcome = ''", threshold)
+    lo_rep = _count("overall_score < ? AND outcome != ''", threshold)
+    lo_no = _count("overall_score < ? AND outcome = ''", threshold)
+    return {
+        "threshold": threshold,
+        "high_replied": hi_rep, "high_noreply": hi_no,
+        "low_replied": lo_rep, "low_noreply": lo_no,
+        "high_rate": round(100 * hi_rep / (hi_rep + hi_no)) if (hi_rep + hi_no) else 0,
+        "low_rate": round(100 * lo_rep / (lo_rep + lo_no)) if (lo_rep + lo_no) else 0,
+        "total": hi_rep + hi_no + lo_rep + lo_no,
+    }
+
+
 # ---------------------------------------------------------------------------
 # SendRecord
 # ---------------------------------------------------------------------------

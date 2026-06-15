@@ -42,13 +42,55 @@
                         <div class="panel-title">How your outreach is landing</div>
                     </div>
                 </div>
-                <div class="workspace-stats" style="margin:0;">
+                <div class="workspace-stats" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:0.9rem; margin:0;">
                     <div class="workspace-stat"><span>Sent</span><strong>{{ outreach.sent }}</strong></div>
                     <div class="workspace-stat"><span>Replied</span><strong>{{ outreach.replied }}</strong></div>
                     <div class="workspace-stat"><span>Reply rate</span><strong>{{ outreach.reply_rate }}%</strong></div>
                     <div class="workspace-stat"><span>Meetings</span><strong>{{ outreach.meetings }}</strong></div>
                 </div>
                 <p class="form-hint" style="margin-top:0.8rem;">Mark replies on each draft (or the faculty file) so follow-ups skip anyone who already wrote back.</p>
+            </article>
+            {% endif %}
+
+            {% if matrix and matrix.total %}
+            <article class="surface-panel animate-in animate-in-2">
+                <div class="surface-panel-header">
+                    <div>
+                        <div class="panel-kicker">Score vs replies</div>
+                        <div class="panel-title">Does the quality score predict replies?</div>
+                    </div>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Quality</th>
+                                <th>Replied</th>
+                                <th>No reply</th>
+                                <th>Reply rate</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><span class="badge badge-approved">High (&ge;{{ matrix.threshold|int }})</span></td>
+                                <td>{{ matrix.high_replied }}</td>
+                                <td>{{ matrix.high_noreply }}</td>
+                                <td><strong>{{ matrix.high_rate }}%</strong></td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge badge-rejected">Low (&lt;{{ matrix.threshold|int }})</span></td>
+                                <td>{{ matrix.low_replied }}</td>
+                                <td>{{ matrix.low_noreply }}</td>
+                                <td><strong>{{ matrix.low_rate }}%</strong></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p class="form-hint" style="margin-top:0.8rem;">
+                    {% if matrix.high_rate > matrix.low_rate %}Higher-scored emails are replying more — the score is tracking real interest.
+                    {% elif matrix.total < 8 %}Send and mark a few more replies to see whether the score predicts responses.
+                    {% else %}Score isn't separating replies yet — lean on specificity over the raw number.{% endif %}
+                </p>
             </article>
             {% endif %}
 
