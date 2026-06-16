@@ -1673,6 +1673,56 @@ def create_app() -> Flask:
             conn.close()
         return redirect(url_for("drafts_list", session=session_id or "", status=status_filter or ""))
 
+    @app.route("/drafts/bulk-delete", methods=["POST"])
+    @login_required
+    def drafts_bulk_delete():
+        """Permanently remove selected drafts (or all rejected) from the queue."""
+        from app.database import delete_drafts
+        ids = request.form.getlist("draft_ids", type=int)
+        return_status = request.form.get("return_status") or ""
+        return_session = request.form.get("return_session") or ""
+        # Convenience: "delete all rejected in view" without per-row selection.
+        if not ids and request.form.get("scope") == "rejected":
+            conn = _workspace_conn()
+            try:
+                session_id = request.form.get("session", type=int)
+                rejected = get_drafts(conn, session_id=session_id, status="rejected")
+                ids = [d.id for d in rejected]
+            finally:
+                conn.close()
+        if not ids:
+            flash("Select at least one draft to delete.", "warning")
+            return redirect(url_for("drafts_list", status=return_status, session=return_session))
+        conn = _workspace_conn()
+        try:
+            removed = delete_drafts(conn, ids)
+            _log_activity("drafts_bulk_delete", category="drafts", details={"count": removed})
+            flash(f"Deleted {removed} draft(s)." if removed else "Nothing was deleted.",
+                  "success" if removed else "warning")
+        except Exception as exc:
+            flash(f"Could not delete the selected drafts: {exc}", "error")
+        finally:
+            conn.close()
+        return redirect(url_for("drafts_list", status=return_status, session=return_session))
+
+    @app.route("/drafts/<int:draft_id>/delete", methods=["POST"])
+    @login_required
+    def draft_delete(draft_id: int):
+        """Permanently remove a single draft."""
+        from app.database import delete_drafts
+        conn = _workspace_conn()
+        try:
+            removed = delete_drafts(conn, [draft_id])
+            _log_activity("draft_delete", category="drafts",
+                          target_type="draft", target_id=str(draft_id))
+            flash("Draft deleted." if removed else "Draft not found.",
+                  "success" if removed else "warning")
+        except Exception as exc:
+            flash(f"Could not delete the draft: {exc}", "error")
+        finally:
+            conn.close()
+        return redirect(url_for("drafts_list"))
+
     @app.route("/drafts/<int:draft_id>/edit", methods=["POST"])
     @login_required
     def edit_draft_route(draft_id: int):

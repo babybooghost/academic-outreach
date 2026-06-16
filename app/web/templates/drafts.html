@@ -125,14 +125,28 @@
                     <input type="hidden" name="status" value="{{ current_status }}">
                     <button type="submit" class="btn btn-outline btn-sm">Reject all in view</button>
                 </form>
+                <button type="submit" form="draft-delete-form" class="btn btn-danger btn-sm"
+                        onclick="return confirmDraftDelete(event)">Delete selected</button>
+                <form method="POST" action="{{ url_for('drafts_bulk_delete') }}"
+                      onsubmit="return confirm('Permanently delete all rejected drafts in this view? This cannot be undone.');">
+                    <input type="hidden" name="scope" value="rejected">
+                    <input type="hidden" name="session" value="{{ current_session }}">
+                    <input type="hidden" name="return_status" value="{{ current_status }}">
+                    <input type="hidden" name="return_session" value="{{ current_session }}">
+                    <button type="submit" class="btn btn-danger btn-sm">Delete rejected</button>
+                </form>
             </div>
             {% endif %}
         </div>
         {% if drafts %}
+        <form id="draft-delete-form" method="POST" action="{{ url_for('drafts_bulk_delete') }}">
+            <input type="hidden" name="return_status" value="{{ current_status }}">
+            <input type="hidden" name="return_session" value="{{ current_session }}">
         <div class="table-wrap">
             <table>
                 <thead>
                     <tr>
+                        <th style="width:36px; text-align:center;"><input type="checkbox" id="select-all-drafts" onclick="toggleAllDrafts(this)" title="Select all"></th>
                         <th>ID</th>
                         <th>Professor</th>
                         <th>Subject</th>
@@ -146,6 +160,9 @@
                 <tbody>
                     {% for d in drafts %}
                     <tr class="clickable-row" onclick="window.location='{{ url_for('draft_detail', draft_id=d.id) }}'">
+                        <td style="text-align:center;" onclick="event.stopPropagation()">
+                            <input type="checkbox" class="draft-check" name="draft_ids" value="{{ d.id }}" data-status="{{ d.status }}" form="draft-delete-form">
+                        </td>
                         <td>#{{ d.id }}</td>
                         <td>{{ prof_map.get(d.professor_id, 'Unknown') }}</td>
                         <td>{{ d.subject_lines_list[0] if d.subject_lines_list else '(no subject)' }}</td>
@@ -164,6 +181,8 @@
                 </tbody>
             </table>
         </div>
+        </form>
+        <p class="form-hint" style="margin-top:0.7rem;">Tick rows and use <strong>Delete selected</strong>, or <strong>Delete rejected</strong> to clear every rejected draft in this view. Deleting a draft is permanent.</p>
         {% else %}
         <div class="empty-state">
             <div class="empty-icon">&#9998;</div>
@@ -172,4 +191,23 @@
         {% endif %}
     </section>
 </div>
+
+<script>
+    function toggleAllDrafts(master) {
+        document.querySelectorAll('.draft-check').forEach(cb => { cb.checked = master.checked; });
+    }
+    function confirmDraftDelete(event) {
+        const n = document.querySelectorAll('.draft-check:checked').length;
+        if (n === 0) {
+            event.preventDefault();
+            alert('Tick at least one draft to delete (or use "Delete rejected").');
+            return false;
+        }
+        if (!confirm('Permanently delete ' + n + ' draft(s)? This cannot be undone.')) {
+            event.preventDefault();
+            return false;
+        }
+        return true;
+    }
+</script>
 {% endblock %}

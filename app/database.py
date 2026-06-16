@@ -946,6 +946,34 @@ def delete_professors(conn: Any, professor_ids: Any) -> int:
         raise
 
 
+def delete_drafts(conn: Any, draft_ids: Any) -> int:
+    """Delete drafts (and their follow-ups / send-log rows) in the active workspace.
+
+    FK-safe order; scoped to the connection's workspace. Returns how many drafts
+    were removed. Lets the user clear rejected/unwanted drafts out of the queue.
+    """
+    ids = [int(i) for i in {i for i in draft_ids if i is not None}]
+    if not ids:
+        return 0
+    ws = _ws(conn)
+    placeholders = ",".join("?" for _ in ids)
+    params = [ws] + ids
+    try:
+        row = conn.execute(
+            f"SELECT COUNT(*) AS c FROM drafts WHERE workspace_id = ? AND id IN ({placeholders})",
+            params,
+        ).fetchone()
+        count = int(row["c"]) if row else 0
+        conn.execute(f"DELETE FROM followups WHERE workspace_id = ? AND original_draft_id IN ({placeholders})", params)
+        conn.execute(f"DELETE FROM send_log WHERE workspace_id = ? AND draft_id IN ({placeholders})", params)
+        conn.execute(f"DELETE FROM drafts   WHERE workspace_id = ? AND id IN ({placeholders})", params)
+        conn.commit()
+        return count
+    except sqlite3.Error as exc:
+        logger.error("delete_drafts failed: %s", exc)
+        raise
+
+
 def get_professors_by_ids(conn: Any, ids: Any) -> dict[int, Professor]:
     """Fetch many professors by id in a single query, keyed by id.
 

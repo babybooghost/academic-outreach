@@ -16,6 +16,10 @@
                 <button type="button" class="btn btn-danger" onclick="draftAction({{ draft.id }}, 'reject')">Reject draft</button>
             </div>
             {% endif %}
+            <form method="POST" action="{{ url_for('draft_delete', draft_id=draft.id) }}" style="margin-top:0.5rem;"
+                  onsubmit="return confirm('Permanently delete this draft? This cannot be undone.');">
+                <button type="submit" class="btn btn-outline btn-sm">Delete draft</button>
+            </form>
         </div>
         {% if draft.status == 'sent' %}
         <div class="workspace-actions" style="margin-top:0.4rem;">
