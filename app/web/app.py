@@ -2476,6 +2476,13 @@ def create_app() -> Flask:
                 created_at TEXT NOT NULL DEFAULT (datetime('now'))
             )""")
             conn.commit()
+            # One-shot, token-gated hard reset (set HARD_RESET_TOKEN to wipe all
+            # user data once on the next deploy; keeps schema + admin + global config).
+            reset_token = os.environ.get("HARD_RESET_TOKEN", "").strip()
+            if reset_token:
+                from app.database import maybe_hard_reset
+                if maybe_hard_reset(conn, reset_token):
+                    logger.warning("Startup hard reset executed (token consumed).")
             conn.close()
         except Exception:
             pass

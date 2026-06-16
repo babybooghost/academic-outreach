@@ -1784,6 +1784,58 @@ def get_admin_activity_stats(conn: sqlite3.Connection) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# One-shot hard reset (token-gated)
+# ---------------------------------------------------------------------------
+
+def maybe_hard_reset(conn: Any, token: str) -> bool:
+    """One-time, token-gated wipe of all user data for a clean slate.
+
+    Keeps the schema, admin access keys (``role='admin'``), and global settings
+    (``workspace_id = 0``: the API key, SMTP, defaults). Wipes every user
+    account, all workspace content, and the logs.
+
+    Idempotent: the consumed token is recorded in ``system_flags`` so the same
+    token never wipes twice (even across redeploys). Setting a *new* token value
+    triggers a fresh wipe. Returns True if a wipe was performed.
+    """
+    token = (token or "").strip()
+    if not token:
+        return False
+    try:
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS system_flags (key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAULT '')"
+        )
+        row = conn.execute(
+            "SELECT value FROM system_flags WHERE key = 'hard_reset_token'"
+        ).fetchone()
+        if row and str(row["value"]) == token:
+            return False  # this token already ran
+
+        conn.execute("DELETE FROM access_keys WHERE role != 'admin'")
+        for table in (
+            "user_signups", "email_verifications", "sender_profiles", "professors",
+            "sessions", "drafts", "send_log", "suppression_list", "followups",
+            "audit_log", "chat_logs", "bug_reports", "request_log", "admin_activity_log",
+        ):
+            try:
+                conn.execute(f"DELETE FROM {table}")
+            except sqlite3.Error as exc:
+                logger.warning("hard_reset: skipped %s (%s)", table, exc)
+        conn.execute("DELETE FROM app_settings WHERE workspace_id != 0")
+        conn.execute(
+            "INSERT INTO system_flags (key, value) VALUES ('hard_reset_token', ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            (token,),
+        )
+        conn.commit()
+        logger.warning("HARD RESET performed — all user data wiped (admin + global config kept).")
+        return True
+    except sqlite3.Error as exc:
+        logger.error("maybe_hard_reset failed: %s", exc)
+        return False
+
+
+# ---------------------------------------------------------------------------
 # Bug reports (support inbox)
 # ---------------------------------------------------------------------------
 
