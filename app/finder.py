@@ -76,6 +76,25 @@ def _get_with_retry(
             raise
     return resp  # type: ignore[return-value]
 
+
+def _friendly_source_error(source: str, exc: Exception) -> str:
+    """A human-readable, non-leaky warning when one source fails.
+
+    Keeps raw exception reprs (e.g. ``('Connection aborted.',
+    ConnectionResetError(104, ...))``) out of the UI — the full error is still
+    logged. Reassures the user the other sources still ran.
+    """
+    if isinstance(exc, requests.exceptions.Timeout):
+        reason = "timed out"
+    elif isinstance(exc, requests.exceptions.ConnectionError):
+        reason = "couldn't be reached"
+    elif (isinstance(exc, requests.exceptions.HTTPError)
+          and getattr(getattr(exc, "response", None), "status_code", None) == 429):
+        return f"{source} is rate-limiting right now — the other sources still ran."
+    else:
+        reason = "returned an error"
+    return f"{source} {reason} and was skipped — the other sources still ran."
+
 # University names — use EXACT OpenAlex display names so filtering works.
 _TOP_UNIVERSITIES: list[str] = [
     # --- Ivy League ---
@@ -334,7 +353,7 @@ def search_openalex_works(
         data = resp.json()
     except requests.RequestException as exc:
         logger.error("OpenAlex works search failed: %s", exc)
-        warnings.append(f"OpenAlex API error: {exc}")
+        warnings.append(_friendly_source_error("OpenAlex", exc))
         return [], warnings
 
     professors: list[Professor] = []
@@ -447,7 +466,7 @@ def search_openalex_authors(
         data = resp.json()
     except requests.RequestException as exc:
         logger.error("OpenAlex author search failed: %s", exc)
-        warnings.append(f"OpenAlex author API error: {exc}")
+        warnings.append(_friendly_source_error("OpenAlex", exc))
         return [], warnings
 
     professors: list[Professor] = []
@@ -541,7 +560,7 @@ def search_semantic_scholar(
         data = resp.json()
     except requests.RequestException as exc:
         logger.error("Semantic Scholar search failed: %s", exc)
-        warnings.append(f"Semantic Scholar API error: {exc}")
+        warnings.append(_friendly_source_error("Semantic Scholar", exc))
         return [], warnings
 
     professors: list[Professor] = []
@@ -612,7 +631,7 @@ def search_crossref(
         data = resp.json()
     except requests.RequestException as exc:
         logger.error("Crossref search failed: %s", exc)
-        warnings.append(f"Crossref API error: {exc}")
+        warnings.append(_friendly_source_error("Crossref", exc))
         return [], warnings
 
     professors: list[Professor] = []
@@ -743,7 +762,7 @@ def search_journal(
         data = resp.json()
     except requests.RequestException as exc:
         logger.error("Journal search failed for %s: %s", journal, exc)
-        warnings.append(f"Journal '{journal}' search error: {exc}")
+        warnings.append(_friendly_source_error(f"The journal '{journal}'", exc))
         return [], warnings
 
     professors: list[Professor] = []
@@ -823,7 +842,7 @@ def search_dblp(
         data = resp.json()
     except requests.RequestException as exc:
         logger.error("DBLP search failed: %s", exc)
-        warnings.append(f"DBLP API error: {exc}")
+        warnings.append(_friendly_source_error("DBLP", exc))
         return [], warnings
 
     professors: list[Professor] = []
@@ -926,7 +945,7 @@ def search_arxiv(
         resp.raise_for_status()
     except requests.RequestException as exc:
         logger.error("arXiv search failed: %s", exc)
-        warnings.append(f"arXiv API error: {exc}")
+        warnings.append(_friendly_source_error("arXiv", exc))
         return [], warnings
 
     # arXiv returns Atom XML — parse it
@@ -1093,7 +1112,7 @@ def find_professors(
                 all_professors.extend(profs)
                 warnings.extend(warns)
             except Exception as exc:
-                warnings.append(f"{label} source failed: {exc}")
+                warnings.append(_friendly_source_error(label, exc))
                 logger.warning("Finder source %s failed: %s", label, exc)
 
     # Deduplicate by name
@@ -1110,6 +1129,10 @@ def find_professors(
         m = re.search(r"Citations:\s*(\d+)", p.notes or "")
         return int(m.group(1)) if m else 0
     unique.sort(key=_cit, reverse=True)
+
+    # Collapse duplicate warnings (e.g. two OpenAlex sub-calls failing the same
+    # way) while preserving order.
+    warnings = list(dict.fromkeys(warnings))
 
     return unique[:max_scholar_results], warnings
 
