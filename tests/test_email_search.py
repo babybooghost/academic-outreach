@@ -46,6 +46,33 @@ class EmailSearchTests(unittest.TestCase):
         self.assertNotIn(".placeholder", rows[0]["email"])
         self.assertEqual(rows[0]["status"], "needs_email")
 
+    def test_multiple_needs_email_professors_coexist(self):
+        # Regression: empty emails must not collide under the unique index
+        # (it's partial, WHERE email != '').
+        c = self._client()
+        r = c.post("/finder/save", json={"professors": [
+            {"name": "Dr. A", "university": "MIT", "field": "ML"},
+            {"name": "Dr. B", "university": "MIT", "field": "ML"},
+            {"name": "Dr. C", "university": "Stanford", "field": "NLP"},
+        ]})
+        self.assertTrue(r.get_json()["success"], r.get_json())
+        rows = self.ws.execute("SELECT email FROM professors").fetchall()
+        self.assertEqual(len(rows), 3)
+        self.assertTrue(all(row["email"] == "" for row in rows))
+
+    def test_migration_blanks_multiple_placeholders(self):
+        from app.database import _migrate_schema
+        a = upsert_professor(self.ws, Professor(name="P1", email="", university="MIT", field="ML"))
+        b = upsert_professor(self.ws, Professor(name="P2", email="", university="MIT", field="ML"))
+        # Force legacy placeholders (bypass the partial index by dropping it first).
+        self.ws.execute("DROP INDEX IF EXISTS ux_professors_ws_email")
+        self.ws.execute("UPDATE professors SET email = ? WHERE id = ?", ("p1@mit.placeholder", a))
+        self.ws.execute("UPDATE professors SET email = ? WHERE id = ?", ("p2@mit.placeholder", b))
+        self.ws.commit()
+        _migrate_schema(self.ws)   # must not raise, must blank both
+        self.assertEqual(get_professor(self.ws, a).email, "")
+        self.assertEqual(get_professor(self.ws, b).email, "")
+
     def test_find_email_with_pasted_url(self):
         pid = upsert_professor(self.ws, Professor(name="Dr. X", email="", university="MIT", field="ML", status="needs_email"))
         c = self._client()

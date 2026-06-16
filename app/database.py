@@ -364,14 +364,6 @@ def _migrate_schema(conn: Any) -> None:
                 except Exception as exc:
                     logger.warning("Could not add %s to sender_profiles: %s", col, exc)
 
-    # Retire legacy fake "<slug>@<uni>.placeholder" emails: blank them so the UI
-    # shows a clean "needs email" state and the on-site search can fill them in.
-    if _column_names(conn, "professors"):
-        try:
-            conn.execute("UPDATE professors SET email = '' WHERE email LIKE '%.placeholder'")
-        except Exception as exc:
-            logger.warning("Could not clear placeholder emails: %s", exc)
-
     # Reply-tracking columns on drafts (databases created before they existed).
     draft_cols = _column_names(conn, "drafts")
     if draft_cols:
@@ -408,9 +400,20 @@ def _migrate_schema(conn: Any) -> None:
         except Exception as exc:
             logger.warning("Could not migrate app_settings: %s", exc)
 
+    # The professor email-uniqueness index must be PARTIAL (skip blank emails) so
+    # any number of "needs email" professors can coexist while real addresses stay
+    # deduped per workspace. Older DBs have a full index; drop it, blank legacy
+    # "<slug>@<uni>.placeholder" addresses, then recreate as partial.
+    if _column_names(conn, "professors"):
+        try:
+            conn.execute("DROP INDEX IF EXISTS ux_professors_ws_email")
+            conn.execute("UPDATE professors SET email = '' WHERE email LIKE '%.placeholder'")
+        except Exception as exc:
+            logger.warning("Could not retire placeholder emails: %s", exc)
+
     # Composite uniqueness for tenant-scoped natural keys.
     for stmt in (
-        "CREATE UNIQUE INDEX IF NOT EXISTS ux_professors_ws_email ON professors(workspace_id, email)",
+        "CREATE UNIQUE INDEX IF NOT EXISTS ux_professors_ws_email ON professors(workspace_id, email) WHERE email != ''",
         "CREATE UNIQUE INDEX IF NOT EXISTS ux_suppression_ws_email ON suppression_list(workspace_id, email)",
     ):
         try:
@@ -828,13 +831,23 @@ def find_workspace_by_owner_email(conn: Any, email: str) -> Optional[dict[str, A
 # ---------------------------------------------------------------------------
 
 def upsert_professor(conn: Any, prof: Professor) -> int:
-    """Insert or update a professor by (workspace, email).  Returns the row id."""
+    """Insert or update a professor.  Matches by (workspace, email) when an email
+    is present; when it's blank, matches by (workspace, name, university) so that
+    distinct "needs email" professors don't collapse into one row.  Returns the id."""
     wid = _ws(conn)
     try:
-        existing = conn.execute(
-            "SELECT id FROM professors WHERE workspace_id = ? AND email = ?",
-            (wid, prof.email),
-        ).fetchone()
+        email = (prof.email or "").strip()
+        if email:
+            existing = conn.execute(
+                "SELECT id FROM professors WHERE workspace_id = ? AND email = ?",
+                (wid, email),
+            ).fetchone()
+        else:
+            existing = conn.execute(
+                "SELECT id FROM professors WHERE workspace_id = ? AND name = ? "
+                "AND university = ? AND (email IS NULL OR email = '')",
+                (wid, prof.name, prof.university),
+            ).fetchone()
         if existing:
             row_id = existing["id"]
             conn.execute(
