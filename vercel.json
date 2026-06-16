@@ -1,29 +1,11 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "api/index.py",
-      "use": "@vercel/python",
-      "config": {
-        "maxLambdaSize": "50mb"
-      }
+  "functions": {
+    "api/index.py": {
+      "maxDuration": 60
     }
-  ],
-  "routes": [
-    {
-      "src": "/static/(.*)",
-      "dest": "/api/index.py"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/api/index.py",
-      "headers": {
-        "X-Content-Type-Options": "nosniff",
-        "X-Frame-Options": "DENY",
-        "Referrer-Policy": "strict-origin-when-cross-origin",
-        "Strict-Transport-Security": "max-age=31536000; includeSubDomains"
-      }
-    }
+  },
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/api/index.py" }
   ],
   "crons": [
     {

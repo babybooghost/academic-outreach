@@ -37,6 +37,14 @@ class HardeningTests(unittest.TestCase):
         html = self.client.get("/login").get_data(as_text=True)
         self.assertRegex(html, r"static/[\w.]+\.css\?v=[0-9a-f]+")
 
+    def test_security_headers_present(self):
+        # Set by Flask, so they survive the vercel.json schema change.
+        r = self.client.get("/login")
+        self.assertEqual(r.headers.get("X-Content-Type-Options"), "nosniff")
+        self.assertEqual(r.headers.get("X-Frame-Options"), "DENY")
+        self.assertEqual(r.headers.get("Referrer-Policy"), "strict-origin-when-cross-origin")
+        self.assertIn("max-age=", r.headers.get("Strict-Transport-Security", ""))
+
     def test_nested_secret_redacted_in_request_log(self):
         self._login()
         self.client.post("/api/bug-report", json={
