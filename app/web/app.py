@@ -1240,32 +1240,42 @@ def create_app() -> Flask:
     @app.route("/professors/<int:prof_id>/find-email", methods=["POST"])
     @login_required
     def professor_find_email(prof_id: int):
-        """On-demand: scrape the professor's profile page for a real email."""
+        """On-demand: scrape a faculty/profile page for a real email.
+
+        Searches the professor's profile URL, or a URL the user pastes in
+        (so it works even when no profile URL was captured). Never guesses.
+        """
         from app.enricher import find_professor_email
+        data = request.get_json(silent=True) or {}
+        search_url = (data.get("url") or "").strip()
         conn = _workspace_conn()
         try:
             prof = get_professor(conn, prof_id)
             if prof is None:
                 return jsonify({"success": False, "error": "Professor not found."}), 404
-            if not prof.profile_url:
+            url = search_url or (prof.profile_url or "")
+            if not url:
                 return jsonify({
                     "success": False,
-                    "error": "No profile URL on file. Add an email manually instead.",
+                    "error": "Paste the professor's faculty/lab page URL to search it, or enter the email manually.",
                 })
-            found = find_professor_email(prof.profile_url, prof.name, prof.university or "")
+            found = find_professor_email(url, prof.name, prof.university or "")
             if not found:
                 _log_activity("professor_find_email", category="finder",
                               target_type="professor", target_id=str(prof_id),
                               details={"result": "not_found"})
                 return jsonify({
                     "success": False,
-                    "error": "No published email found on that page. Add one manually.",
+                    "error": "No published email found on that page. Try the lab's "
+                             "\"People/Contact\" page URL, or enter the email manually.",
                 })
+            # Save the email, and remember the URL we searched if none was on file.
             conn.execute(
-                "UPDATE professors SET email = ?, status = CASE WHEN status = 'needs_email' "
-                "THEN 'new' ELSE status END, updated_at = datetime('now') "
-                "WHERE id = ? AND workspace_id = ?",
-                (found, prof_id, conn.workspace_id),
+                "UPDATE professors SET email = ?, "
+                "profile_url = CASE WHEN (profile_url IS NULL OR profile_url = '') THEN ? ELSE profile_url END, "
+                "status = CASE WHEN status = 'needs_email' THEN 'new' ELSE status END, "
+                "updated_at = datetime('now') WHERE id = ? AND workspace_id = ?",
+                (found, search_url, prof_id, conn.workspace_id),
             )
             conn.commit()
             _log_activity("professor_find_email", category="finder",
@@ -2561,12 +2571,11 @@ def create_app() -> Flask:
                         prof_status = "new"
                         email_found += 1
                     else:
-                        # Unique, clearly non-sendable placeholder so each
-                        # professor still gets their own row. Flagged for the
-                        # user to add or look up an address.
-                        slug = name.lower().replace(" ", ".").replace(",", "")
-                        uni_slug = (university or "unknown").lower().replace(" ", "-")[:30]
-                        email = f"{slug}@{uni_slug}.placeholder"
+                        # No address found — store it empty (never a fake
+                        # placeholder) and flag it so the user can search the
+                        # faculty page or enter one. The sender refuses to send
+                        # to an empty/needs-email professor.
+                        email = ""
                         prof_status = "needs_email"
                         needs_email += 1
 
@@ -2580,7 +2589,8 @@ def create_app() -> Flask:
                         # Update context, and upgrade to a real email/status only
                         # when we actually found one (never downgrade a real email
                         # back to a placeholder).
-                        promote = prof_status == "new" and str(existing["email"] or "").endswith(".placeholder")
+                        existing_missing = (not existing["email"]) or str(existing["email"]).endswith(".placeholder")
+                        promote = prof_status == "new" and existing_missing
                         conn.execute(
                             """UPDATE professors SET
                                 field = COALESCE(NULLIF(?, ''), field),

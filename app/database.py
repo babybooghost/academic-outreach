@@ -364,6 +364,14 @@ def _migrate_schema(conn: Any) -> None:
                 except Exception as exc:
                     logger.warning("Could not add %s to sender_profiles: %s", col, exc)
 
+    # Retire legacy fake "<slug>@<uni>.placeholder" emails: blank them so the UI
+    # shows a clean "needs email" state and the on-site search can fill them in.
+    if _column_names(conn, "professors"):
+        try:
+            conn.execute("UPDATE professors SET email = '' WHERE email LIKE '%.placeholder'")
+        except Exception as exc:
+            logger.warning("Could not clear placeholder emails: %s", exc)
+
     # Reply-tracking columns on drafts (databases created before they existed).
     draft_cols = _column_names(conn, "drafts")
     if draft_cols:

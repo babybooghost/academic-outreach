@@ -54,8 +54,13 @@
                             <button type="button" class="btn btn-outline btn-sm" id="find-email-btn"
                                     onclick="findEmail({{ professor.id }})">Look up email from profile page</button>
                             {% endif %}
+                            <form onsubmit="return findEmailFromUrl(event, {{ professor.id }})" style="display:flex; gap:0.4rem;">
+                                <input type="url" id="search-url" placeholder="Paste a faculty / lab / directory URL to search"
+                                       style="flex:1;">
+                                <button type="submit" class="btn btn-outline btn-sm">Search page</button>
+                            </form>
                             <form onsubmit="return setEmail(event, {{ professor.id }})" style="display:flex; gap:0.4rem;">
-                                <input type="email" id="manual-email" placeholder="name@university.edu" required
+                                <input type="email" id="manual-email" placeholder="…or enter name@university.edu" required
                                        style="flex:1;">
                                 <button type="submit" class="btn btn-primary btn-sm">Save</button>
                             </form>
@@ -289,6 +294,30 @@ function findEmail(profId) {
             _emailFeedback('Lookup failed. Try entering the email manually.', false);
             if (btn) { btn.disabled = false; btn.textContent = 'Look up email from profile page'; }
         });
+}
+
+function findEmailFromUrl(event, profId) {
+    event.preventDefault();
+    const input = document.getElementById('search-url');
+    const url = (input.value || '').trim();
+    if (!url) return false;
+    _emailFeedback('Searching that page for an email…', true);
+    fetch('/professors/' + profId + '/find-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+    })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                _emailFeedback('Found ' + data.email + '. Reloading…', true);
+                setTimeout(() => window.location.reload(), 700);
+            } else {
+                _emailFeedback(data.error || 'No email found on that page.', false);
+            }
+        })
+        .catch(() => _emailFeedback('Search failed. Try another page or enter the email manually.', false));
+    return false;
 }
 
 function setEmail(event, profId) {
