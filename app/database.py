@@ -914,6 +914,38 @@ def get_professors(
         raise
 
 
+def delete_professors(conn: Any, professor_ids: Any) -> int:
+    """Delete professors and all their dependent rows in the active workspace.
+
+    Removes the professors' follow-ups, send-log entries, and drafts first
+    (foreign-key enforcement is on), then the professors themselves. Everything
+    is scoped to the connection's workspace, so one user can't delete another's
+    files. Returns the number of professors actually removed.
+    """
+    ids = [int(i) for i in {i for i in professor_ids if i is not None}]
+    if not ids:
+        return 0
+    ws = _ws(conn)
+    placeholders = ",".join("?" for _ in ids)
+    params = [ws] + ids
+    try:
+        row = conn.execute(
+            f"SELECT COUNT(*) AS c FROM professors WHERE workspace_id = ? AND id IN ({placeholders})",
+            params,
+        ).fetchone()
+        count = int(row["c"]) if row else 0
+        # Children first (FK enforcement is ON).
+        conn.execute(f"DELETE FROM followups WHERE workspace_id = ? AND professor_id IN ({placeholders})", params)
+        conn.execute(f"DELETE FROM send_log WHERE workspace_id = ? AND professor_id IN ({placeholders})", params)
+        conn.execute(f"DELETE FROM drafts   WHERE workspace_id = ? AND professor_id IN ({placeholders})", params)
+        conn.execute(f"DELETE FROM professors WHERE workspace_id = ? AND id IN ({placeholders})", params)
+        conn.commit()
+        return count
+    except sqlite3.Error as exc:
+        logger.error("delete_professors failed: %s", exc)
+        raise
+
+
 def get_professors_by_ids(conn: Any, ids: Any) -> dict[int, Professor]:
     """Fetch many professors by id in a single query, keyed by id.
 

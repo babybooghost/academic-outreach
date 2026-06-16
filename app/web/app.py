@@ -1318,6 +1318,48 @@ def create_app() -> Flask:
         finally:
             conn.close()
 
+    @app.route("/professors/bulk-delete", methods=["POST"])
+    @login_required
+    def professors_bulk_delete():
+        """Remove selected faculty files (and their drafts/sends/follow-ups)."""
+        from app.database import delete_professors
+        ids = request.form.getlist("professor_ids", type=int)
+        if not ids:
+            flash("Select at least one faculty file to remove.", "warning")
+            return redirect(url_for("professors_list"))
+        conn = _workspace_conn()
+        try:
+            removed = delete_professors(conn, ids)
+            _log_activity("professors_bulk_delete", category="faculty",
+                          details={"count": removed, "ids": ids[:50]})
+            if removed:
+                flash(f"Removed {removed} faculty file(s) and their drafts.", "success")
+            else:
+                flash("Nothing was removed.", "warning")
+        except Exception as exc:
+            flash(f"Could not remove the selected files: {exc}", "error")
+        finally:
+            conn.close()
+        return redirect(url_for("professors_list"))
+
+    @app.route("/professors/<int:prof_id>/delete", methods=["POST"])
+    @login_required
+    def professor_delete(prof_id: int):
+        """Remove a single faculty file (and its drafts/sends/follow-ups)."""
+        from app.database import delete_professors
+        conn = _workspace_conn()
+        try:
+            removed = delete_professors(conn, [prof_id])
+            _log_activity("professor_delete", category="faculty",
+                          target_type="professor", target_id=str(prof_id))
+            flash("Faculty file removed." if removed else "Faculty file not found.",
+                  "success" if removed else "warning")
+        except Exception as exc:
+            flash(f"Could not remove the file: {exc}", "error")
+        finally:
+            conn.close()
+        return redirect(url_for("professors_list"))
+
     # ------------------------------------------------------------------
     # Drafts
     # ------------------------------------------------------------------

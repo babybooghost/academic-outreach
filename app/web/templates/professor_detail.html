@@ -74,6 +74,20 @@
                 </div>
             </article>
 
+            <article class="surface-panel animate-in animate-in-2">
+                <div class="surface-panel-header">
+                    <div>
+                        <div class="panel-kicker">Danger zone</div>
+                        <div class="panel-title">Remove this file</div>
+                    </div>
+                </div>
+                <p class="form-hint" style="margin-bottom:0.7rem;">Deletes this faculty file along with its drafts and follow-ups. This can't be undone.</p>
+                <form method="POST" action="{{ url_for('professor_delete', prof_id=professor.id) }}"
+                      onsubmit="return confirm('Remove this faculty file and all its drafts? This cannot be undone.');">
+                    <button type="submit" class="btn btn-danger btn-sm">Remove faculty file</button>
+                </form>
+            </article>
+
             {% if professor.keywords_list %}
             <article class="surface-panel animate-in animate-in-2">
                 <div class="surface-panel-header">

@@ -87,12 +87,18 @@
                 <div class="panel-kicker">Saved faculty</div>
                 <div class="panel-title">Review the current file list</div>
             </div>
+            {% if professors %}
+            <button type="submit" form="bulk-remove-form" class="btn btn-danger btn-sm"
+                    id="bulk-remove-btn" onclick="return confirmBulkRemove(event)">Remove selected</button>
+            {% endif %}
         </div>
         {% if professors %}
+        <form id="bulk-remove-form" method="POST" action="{{ url_for('professors_bulk_delete') }}">
         <div class="table-wrap">
             <table>
                 <thead>
                     <tr>
+                        <th style="width:36px; text-align:center;"><input type="checkbox" id="select-all-profs" onclick="toggleAllProfs(this)" title="Select all"></th>
                         <th>Name</th>
                         <th>University</th>
                         <th>Department</th>
@@ -104,6 +110,9 @@
                 <tbody>
                     {% for prof in professors %}
                     <tr class="clickable-row" onclick="window.location='{{ url_for('professor_detail', prof_id=prof.id) }}'">
+                        <td style="text-align:center;" onclick="event.stopPropagation()">
+                            <input type="checkbox" class="prof-check" name="professor_ids" value="{{ prof.id }}">
+                        </td>
                         <td><strong>{{ prof.name }}</strong>{% if prof.title %}<br><small>{{ prof.title }}</small>{% endif %}</td>
                         <td>{{ prof.university }}</td>
                         <td>{{ prof.department }}</td>
@@ -119,6 +128,8 @@
                 </tbody>
             </table>
         </div>
+        </form>
+        <p class="form-hint" style="margin-top:0.7rem;">Removing a faculty file also deletes its drafts and follow-ups. This can't be undone.</p>
         {% else %}
         <div class="empty-state">
             <div class="empty-icon">&#10022;</div>
@@ -127,4 +138,23 @@
         {% endif %}
     </section>
 </div>
+
+<script>
+    function toggleAllProfs(master) {
+        document.querySelectorAll('.prof-check').forEach(cb => { cb.checked = master.checked; });
+    }
+    function confirmBulkRemove(event) {
+        const n = document.querySelectorAll('.prof-check:checked').length;
+        if (n === 0) {
+            event.preventDefault();
+            alert('Select at least one faculty file to remove.');
+            return false;
+        }
+        if (!confirm('Remove ' + n + ' faculty file(s), including their drafts and follow-ups? This cannot be undone.')) {
+            event.preventDefault();
+            return false;
+        }
+        return true;
+    }
+</script>
 {% endblock %}
