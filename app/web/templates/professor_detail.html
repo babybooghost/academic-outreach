@@ -77,6 +77,45 @@
             <article class="surface-panel animate-in animate-in-2">
                 <div class="surface-panel-header">
                     <div>
+                        <div class="panel-kicker">Edit</div>
+                        <div class="panel-title">Correct this file</div>
+                    </div>
+                    <button type="button" class="btn btn-outline btn-sm" id="prof-edit-toggle" onclick="toggleProfEdit()">Edit details</button>
+                </div>
+                <p class="form-hint">Fixing the <strong>research summary</strong> matters most — it's what the AI draws on to write a specific, grounded email.</p>
+                <form id="prof-edit-form" method="POST" action="{{ url_for('professor_edit', prof_id=professor.id) }}" style="display:none; margin-top:0.8rem;">
+                    <div class="grid-2">
+                        <div class="form-group"><label>Name</label><input name="name" type="text" value="{{ professor.name }}"></div>
+                        <div class="form-group"><label>Email</label><input name="email" type="email" value="{{ professor.email }}"></div>
+                        <div class="form-group"><label>Title</label><input name="title" type="text" value="{{ professor.title or '' }}"></div>
+                        <div class="form-group"><label>Field</label><input name="field" type="text" value="{{ professor.field }}"></div>
+                        <div class="form-group"><label>University</label><input name="university" type="text" value="{{ professor.university }}"></div>
+                        <div class="form-group"><label>Department</label><input name="department" type="text" value="{{ professor.department }}"></div>
+                        <div class="form-group"><label>Lab</label><input name="lab_name" type="text" value="{{ professor.lab_name or '' }}"></div>
+                        <div class="form-group"><label>Profile URL</label><input name="profile_url" type="url" value="{{ professor.profile_url or '' }}"></div>
+                    </div>
+                    <div class="form-group">
+                        <label>Research summary <span style="color:var(--ao-text-dim);">(feeds the AI draft)</span></label>
+                        <textarea name="research_summary" rows="4">{{ professor.research_summary or professor.summary or '' }}</textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Recent work</label>
+                        <textarea name="recent_work" rows="2">{{ professor.recent_work or '' }}</textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Notes</label>
+                        <textarea name="notes" rows="2">{{ professor.notes or '' }}</textarea>
+                    </div>
+                    <div class="hero-actions">
+                        <button type="submit" class="btn btn-primary btn-sm">Save changes</button>
+                        <button type="button" class="btn btn-outline btn-sm" onclick="toggleProfEdit()">Cancel</button>
+                    </div>
+                </form>
+            </article>
+
+            <article class="surface-panel animate-in animate-in-2">
+                <div class="surface-panel-header">
+                    <div>
                         <div class="panel-kicker">Danger zone</div>
                         <div class="panel-title">Remove this file</div>
                     </div>
@@ -221,6 +260,11 @@
 
 {% block scripts %}
 <script>
+function toggleProfEdit() {
+    const f = document.getElementById('prof-edit-form');
+    f.style.display = (f.style.display === 'none') ? 'block' : 'none';
+}
+
 function _emailFeedback(msg, ok) {
     const el = document.getElementById('email-feedback');
     if (el) el.innerHTML = '<span style="color:var(--ao-' + (ok ? 'success' : 'warning') + ');">' + msg + '</span>';

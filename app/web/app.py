@@ -1360,6 +1360,42 @@ def create_app() -> Flask:
             conn.close()
         return redirect(url_for("professors_list"))
 
+    @app.route("/professors/<int:prof_id>/edit", methods=["POST"])
+    @login_required
+    def professor_edit(prof_id: int):
+        """Correct a faculty file. Fixing research_summary improves the AI draft,
+        which now grounds the email in this text."""
+        from app.database import update_professor
+        conn = _workspace_conn()
+        try:
+            prof = get_professor(conn, prof_id)
+            if prof is None:
+                flash("Faculty file not found.", "warning")
+                return redirect(url_for("professors_list"))
+            f = request.form
+            name = f.get("name", "").strip()
+            if name:
+                prof.name = name
+            prof.email = f.get("email", prof.email).strip()
+            prof.title = f.get("title", "").strip() or None
+            prof.field = f.get("field", "").strip()
+            prof.university = f.get("university", "").strip()
+            prof.department = f.get("department", "").strip()
+            prof.lab_name = f.get("lab_name", "").strip() or None
+            prof.profile_url = f.get("profile_url", "").strip() or None
+            prof.research_summary = f.get("research_summary", "").strip() or None
+            prof.recent_work = f.get("recent_work", "").strip() or None
+            prof.notes = f.get("notes", "").strip() or None
+            update_professor(conn, prof)
+            _log_activity("professor_edit", category="faculty",
+                          target_type="professor", target_id=str(prof_id))
+            flash("Faculty file updated.", "success")
+        except Exception as exc:
+            flash(f"Could not update the file: {exc}", "error")
+        finally:
+            conn.close()
+        return redirect(url_for("professor_detail", prof_id=prof_id))
+
     # ------------------------------------------------------------------
     # Drafts
     # ------------------------------------------------------------------
