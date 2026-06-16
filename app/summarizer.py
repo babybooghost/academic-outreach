@@ -368,6 +368,77 @@ def chat_openrouter(api_key: str, model: str, messages: list[dict[str, str]], ma
     return (choices[0].get("message", {}).get("content", "") if choices else "").strip()
 
 
+# ---------------------------------------------------------------------------
+# LLM email writer (empathy-engineered) — used when a model is configured;
+# render_email falls back to the templates if this is unavailable or fails.
+# ---------------------------------------------------------------------------
+
+_EMAIL_WRITER_SYSTEM = (
+    "You help a student write a short, sincere cold email to a professor. Picture the "
+    "reader: a busy professor whose inbox is full of generic \"I'm passionate about your "
+    "work, can I join your lab?\" emails that they delete. What earns a reply is genuine "
+    "specificity about THEIR actual research, humility, brevity, and one easy-to-say-yes-to "
+    "ask. Write the email the student would actually send.\n\n"
+    "Hard rules:\n"
+    "- Ground it in the professor's SPECIFIC work using only the details provided. Never "
+    "invent papers, results, quotes, or facts. If the details are thin, stay honest and a "
+    "little general rather than fabricating specifics.\n"
+    "- No flattery or superlatives (no \"groundbreaking\", \"world-renowned\", \"brilliant\", "
+    "\"honored\", \"fascinating\"). No gushing. Don't tell them their work is important — show "
+    "you understood a piece of it.\n"
+    "- Don't oversell the student. Mention a skill or award only if it's relevant to "
+    "contributing, and briefly — frame it as \"I could help with X,\" never a résumé dump.\n"
+    "- Exactly ONE concrete, low-commitment ask (a 15-minute conversation, a paper to read, "
+    "a small question, a minor task). Never \"I want to join your lab.\" Make it easy to say no.\n"
+    "- Plain, sincere, age-appropriate student voice. 110-170 words. No clichés like \"I am "
+    "writing to express my interest\". Avoid an over-polished AI cadence and heavy em-dashes.\n"
+    "- Acknowledge their time. Be warm but not eager.\n"
+    "Output ONLY the email body, from the greeting through the sign-off and the student's "
+    "name. No subject line, no preamble, no markdown, no notes."
+)
+
+
+def write_outreach_email(api_key: str, model: str, prof: Any, sender: Any) -> str:
+    """Draft the email body with the writing model. Returns the body, or "" on any
+    problem so the caller can fall back to the templates."""
+    def _clip(value: Any, limit: int = 600) -> str:
+        return str(value or "").strip()[:limit]
+
+    talking = "; ".join(getattr(prof, "talking_points_list", [])[:3])
+    prof_facts = "\n".join(filter(None, [
+        f"Name: {_clip(getattr(prof, 'name', ''), 120)}",
+        f"Title/affiliation: {_clip(getattr(prof, 'title', ''), 120)} {_clip(getattr(prof, 'university', ''), 160)}".strip(),
+        f"Field: {_clip(getattr(prof, 'field', ''), 120)}",
+        f"Research summary: {_clip(getattr(prof, 'research_summary', '') or getattr(prof, 'summary', ''))}",
+        f"Recent work: {_clip(getattr(prof, 'recent_work', ''))}",
+        f"Specific points to draw from: {_clip(talking)}" if talking else "",
+    ]))
+    student_facts = "\n".join(filter(None, [
+        f"Name: {_clip(getattr(sender, 'name', ''), 120)}",
+        f"Stage: {_clip(getattr(sender, 'grade', ''), 80)} at {_clip(getattr(sender, 'school', ''), 160)}".strip(),
+        f"Interests: {_clip(getattr(sender, 'interests', ''), 200)}",
+        f"Relevant skills (offer to contribute, mention briefly): {_clip(getattr(sender, 'skills', ''), 200)}",
+        f"Background: {_clip(getattr(sender, 'background', ''), 400)}",
+        f"Awards (only if relevant, understated): {_clip(getattr(sender, 'awards', ''), 200)}",
+        f"What the student would value (shape the single ask around this): {_clip(getattr(sender, 'goal', ''), 200)}",
+    ]))
+    messages = [
+        {"role": "system", "content": _EMAIL_WRITER_SYSTEM},
+        {"role": "user", "content": f"PROFESSOR\n{prof_facts}\n\nSTUDENT\n{student_facts}\n\n"
+                                    "Write the email body now."},
+    ]
+    try:
+        body = chat_openrouter(api_key, model, messages, max_tokens=500)
+        # Guard against the model ignoring instructions and emitting a subject/preamble.
+        cleaned = body.strip()
+        if cleaned.lower().startswith("subject:"):
+            cleaned = cleaned.split("\n", 1)[1].strip() if "\n" in cleaned else ""
+        return cleaned if len(cleaned.split()) >= 40 else ""
+    except Exception as exc:
+        logger.warning("write_outreach_email failed, falling back to template: %s", exc)
+        return ""
+
+
 def probe_openrouter(api_key: str, model: str) -> dict[str, Any]:
     """One tiny OpenRouter call that reports which model actually answered.
 

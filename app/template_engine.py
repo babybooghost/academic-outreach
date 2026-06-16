@@ -9,6 +9,7 @@ variation driven by seeded RNG.
 from __future__ import annotations
 
 import json
+import os
 import random
 from pathlib import Path
 from typing import Any
@@ -383,6 +384,23 @@ def render_email(
     context: dict[str, Any] = _build_context(prof, sender, config, seed)
     body: str = template.render(**context).strip()
 
+    # Prefer an LLM-written body (specific to the professor's actual work and far
+    # less formulaic) when a writing model is configured; the template stays the
+    # safety net if the model is absent, errors, or returns something unusable.
+    body_variant: str = chosen_variant
+    provider: str = (getattr(config, "llm_provider", "") or "").strip()
+    api_key: str = (getattr(config, "llm_api_key", "") or os.environ.get("LLM_API_KEY", "")).strip()
+    model: str = getattr(config, "llm_model", "") or ""
+    if provider == "openrouter" and api_key and model:
+        try:
+            from app.summarizer import write_outreach_email
+            ai_body = write_outreach_email(api_key, model, prof, sender)
+            if ai_body:
+                body = ai_body
+                body_variant = "ai"
+        except Exception as exc:  # never let drafting break generation
+            _logger.warning("LLM email writer unavailable, using template: %s", exc)
+
     # Subject lines (use a derived seed so they don't share RNG state with body)
     subject_lines: list[str] = generate_subject_lines(
         prof, sender, config, seed + 7,
@@ -394,7 +412,7 @@ def render_email(
         session_id=session_id,
         subject_lines=json.dumps(subject_lines),
         body=body,
-        template_variant=chosen_variant,
+        template_variant=body_variant,
     )
 
     _logger.info(
