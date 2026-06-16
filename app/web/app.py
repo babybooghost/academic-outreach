@@ -1493,6 +1493,13 @@ def create_app() -> Flask:
             )
             return redirect(url_for("drafts_list"))
 
+        # When the writing model is on, each draft is an LLM call (~seconds), so
+        # cap the batch to stay within the serverless function timeout; the user
+        # re-runs to continue. Skip professors that already have a draft so re-runs
+        # make progress instead of duplicating.
+        llm_on = (cfg.llm_provider or "").strip() == "openrouter" and bool(
+            (cfg.llm_api_key or os.environ.get("LLM_API_KEY", "")).strip())
+        batch_cap = 6 if llm_on else 30
         try:
             summary = run_generation_pipeline(
                 db_path=cfg.db_path,
@@ -1500,6 +1507,8 @@ def create_app() -> Flask:
                 sender_profile_id=sender_profile_id,
                 variant=variant,
                 workspace_id=_workspace_id(),
+                skip_existing_drafts=True,
+                max_professors=batch_cap,
             )
         except Exception as exc:
             flash(f"Draft generation failed: {exc}", "error")
@@ -1522,10 +1531,9 @@ def create_app() -> Flask:
         )
 
         if summary.created == 0:
-            warning_detail = f" {summary.warnings[0]}" if summary.warnings else ""
             flash(
-                "No drafts were created. Add richer research summaries or save better faculty matches first."
-                + warning_detail,
+                summary.warnings[0] if summary.warnings else
+                "No drafts were created. Add richer research summaries or save better faculty matches first.",
                 "warning",
             )
             return redirect(url_for("drafts_list"))
@@ -1534,6 +1542,9 @@ def create_app() -> Flask:
             f"Created {summary.created} draft(s) in session {summary.session_id}. "
             f"Skipped {summary.skipped}, failed {summary.failed}."
         )
+        if summary.remaining:
+            message += (f" {summary.remaining} more professor(s) are waiting — "
+                        "click Generate drafts again to continue.")
         if summary.flagged_similarity:
             message += f" {summary.flagged_similarity} draft(s) were flagged for similarity."
         elif summary.warnings:

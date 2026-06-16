@@ -34,6 +34,7 @@ class GenerationSummary:
     failed: int = 0
     scored: int = 0
     flagged_similarity: int = 0
+    remaining: int = 0   # professors left for a follow-up run (batch was capped)
     warnings: list[str] = field(default_factory=list)
 
 
@@ -58,8 +59,16 @@ def run_generation_pipeline(
     professor_ids: Optional[list[int]] = None,
     variant: Optional[str] = None,
     workspace_id: int = 0,
+    skip_existing_drafts: bool = False,
+    max_professors: Optional[int] = None,
 ) -> GenerationSummary:
-    """Generate drafts for the selected professors inside one DB workspace."""
+    """Generate drafts for the selected professors inside one DB workspace.
+
+    ``skip_existing_drafts`` excludes professors that already have a draft (so a
+    re-run doesn't duplicate work). ``max_professors`` caps how many are drafted
+    in one call — important on serverless, where LLM-per-draft would otherwise
+    exceed the function timeout; the leftover count is reported in ``remaining``.
+    """
 
     conn = get_connection(db_path, workspace_id=workspace_id)
     try:
@@ -68,8 +77,30 @@ def run_generation_pipeline(
             raise ValueError(f"Sender profile {sender_profile_id} was not found.")
 
         professors = _load_target_professors(conn, professor_ids=professor_ids)
+        had_targets = len(professors)
+        if skip_existing_drafts and professors:
+            drafted = {
+                r["professor_id"] for r in conn.execute(
+                    "SELECT DISTINCT professor_id FROM drafts WHERE workspace_id = ?",
+                    (conn.workspace_id,),
+                ).fetchall()
+            }
+            professors = [p for p in professors if p.id not in drafted]
         if not professors:
+            # "All already drafted" is a normal end-state, not an error.
+            if skip_existing_drafts and had_targets:
+                done = GenerationSummary(session_id=0)
+                done.warnings.append(
+                    "Every saved professor already has a draft. Delete a draft to regenerate, "
+                    "or save more faculty."
+                )
+                return done
             raise ValueError("No professors are available to generate drafts for.")
+
+        remaining = 0
+        if max_professors and len(professors) > max_professors:
+            remaining = len(professors) - max_professors
+            professors = professors[:max_professors]
 
         session_id = create_session(
             conn,
@@ -77,6 +108,7 @@ def run_generation_pipeline(
             notes=f"Web generate at {datetime.now(tz=timezone.utc).isoformat()}",
         )
         summary = GenerationSummary(session_id=session_id)
+        summary.remaining = remaining
 
         for prof in professors:
             source_text = " ".join(
