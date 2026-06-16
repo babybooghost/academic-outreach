@@ -150,14 +150,17 @@ def _build_context(
     if len(topic.split()) > 5:
         topic = prof.field
 
-    # Hook: first talking point (a full sentence about specific research)
-    hook: str = talking_points[0] if talking_points else (prof.summary or f"your research in {prof.field}")
-    # Additional hook from second talking point
-    extra_hook: str = (
-        talking_points[1]
-        if len(talking_points) > 1
-        else ""
+    # Hook: first talking point (a full sentence about specific research). Strip
+    # trailing sentence punctuation so the template's own period doesn't double up
+    # ("...scientific data..").
+    def _trim_sentence(s: str) -> str:
+        return (s or "").strip().rstrip(".;,").strip()
+
+    hook: str = _trim_sentence(
+        talking_points[0] if talking_points else (prof.summary or f"your research in {prof.field}")
     )
+    # Additional hook from second talking point
+    extra_hook: str = _trim_sentence(talking_points[1]) if len(talking_points) > 1 else ""
     # Source for how the student found the professor
     source: str = "research profile"
     if prof.recent_work:
@@ -184,20 +187,22 @@ def _build_context(
     signoff: str = rng.choice(pools.signoffs)
     closing: str = rng.choice(pools.closings)
 
-    # --- Richer sender detail: a credibility line + a specific, bounded ask ---
+    # --- Sender detail: understated context, not a list of accolades. Lead with
+    # the relevant skill (so the offer to help is credible), and mention any
+    # awards briefly as background rather than a flex. ---
     cred_parts: list[str] = []
-    if sender.awards.strip():
-        cred_parts.append(f"A bit about my background: {sender.awards.strip().rstrip('.')}.")
     if sender.skills.strip():
         cred_parts.append(
-            f"On the technical side I'm comfortable with {sender.skills.strip().rstrip('.')}, "
-            "which I'd gladly put to use."
+            f"In case it's relevant, I've been teaching myself {sender.skills.strip().rstrip('.')}, "
+            "so I could actually dig into something rather than just watch."
         )
+    if sender.awards.strip():
+        cred_parts.append(f"For a bit of context, I've also spent time on {sender.awards.strip().rstrip('.')}.")
     credentials: str = " ".join(cred_parts)
 
     # If the student named a specific ask, use it instead of the generic one.
     if sender.goal.strip():
-        ask = f"Specifically, I'd be grateful for {sender.goal.strip().rstrip('.')}."
+        ask = f"If it's at all possible, what I'd value most is {sender.goal.strip().rstrip('.')}."
 
     context: dict[str, Any] = {
         # Professor fields

@@ -69,6 +69,16 @@ class ProfileEnrichmentTests(unittest.TestCase):
             self._affiliation_is_grammatical(body, variant)
             self.assertIn("a student", body, variant)
 
+    def test_tone_is_not_braggy_and_clean(self):
+        s = self._sender(awards="USACO Gold", skills="Python and PyTorch")
+        braggy = ["A bit about my background", "genuinely excited about the possibilities",
+                  "in any capacity", "which I'd gladly put to use"]
+        for variant in ("formal", "concise", "enthusiastic", "research_focused"):
+            body = render_email(self.prof, s, self.cfg, session_id=1, variant=variant).body
+            self.assertNotIn("..", body, variant)            # no doubled sentence period
+            for phrase in braggy:
+                self.assertNotIn(phrase, body, f"{variant}: {phrase}")
+
     def test_subject_lines_grade_aware(self):
         # Blank grade must never leave a dangling "- student" or double space,
         # and a non-high-school grade must not be mislabeled "high school".
