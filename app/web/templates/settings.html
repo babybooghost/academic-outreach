@@ -243,11 +243,12 @@
         <div class="surface-panel-header">
             <div>
                 <div class="panel-kicker">Sender profiles</div>
-                <div class="panel-title">Who the outreach is coming from</div>
+                <div class="panel-title" id="profile-form-title">Who the outreach is coming from</div>
             </div>
         </div>
 
-        <form method="POST" action="{{ url_for('create_sender_profile_route') }}" class="page-block" style="margin-bottom:1.2rem;">
+        <form method="POST" action="{{ url_for('create_sender_profile_route') }}" class="page-block" style="margin-bottom:1.2rem;" id="profile-form">
+            <input type="hidden" name="profile_id" id="profile-id-field" value="">
             <div class="grid-2">
                 <div class="form-group">
                     <label for="profile-name">Full Name</label>
@@ -299,7 +300,8 @@
                 <div class="form-hint">Concrete details make later drafts sound more believable than generic enthusiasm ever will.</div>
             </div>
             <div class="hero-actions">
-                <button type="submit" class="btn btn-primary">Save sender profile</button>
+                <button type="submit" class="btn btn-primary" id="profile-submit-btn">Save sender profile</button>
+                <button type="button" class="btn btn-outline" id="profile-cancel-btn" style="display:none;" onclick="cancelProfileEdit()">Cancel edit</button>
             </div>
         </form>
 
@@ -314,6 +316,7 @@
                         <th>Grade</th>
                         <th>Email</th>
                         <th>Interests</th>
+                        <th></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -325,6 +328,26 @@
                         <td>{{ p.grade }}</td>
                         <td>{{ p.email }}</td>
                         <td>{{ p.interests }}</td>
+                        <td style="white-space:nowrap;">
+                            <button type="button" class="btn btn-outline btn-sm"
+                                onclick="editProfile(this)"
+                                data-id="{{ p.id }}"
+                                data-name="{{ p.name }}"
+                                data-email="{{ p.email }}"
+                                data-school="{{ p.school }}"
+                                data-grade="{{ p.grade }}"
+                                data-age="{{ p.age }}"
+                                data-graduation_year="{{ p.graduation_year or '' }}"
+                                data-interests="{{ p.interests }}"
+                                data-awards="{{ p.awards }}"
+                                data-skills="{{ p.skills }}"
+                                data-goal="{{ p.goal }}"
+                                data-background="{{ p.background }}">Edit</button>
+                            <form method="POST" action="{{ url_for('delete_sender_profile_route', profile_id=p.id) }}" style="display:inline; margin:0;"
+                                  onsubmit="return confirm('Delete the sender profile for {{ p.name }}? (Only works if no drafts use it.)');">
+                                <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                            </form>
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -374,4 +397,35 @@
         {% endif %}
     </section>
 </div>
+
+<script>
+    function editProfile(btn) {
+        const d = btn.dataset;
+        const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+        document.getElementById('profile-id-field').value = d.id;
+        set('profile-name', d.name);
+        set('profile-email', d.email);
+        set('profile-school', d.school);
+        set('profile-grade', d.grade);
+        set('profile-age', d.age);
+        set('profile-grad-year', d.graduation_year);
+        set('profile-interests', d.interests);
+        set('profile-awards', d.awards);
+        set('profile-skills', d.skills);
+        set('profile-goal', d.goal);
+        set('profile-background', d.background);
+        document.getElementById('profile-form-title').textContent = 'Editing profile #' + d.id;
+        document.getElementById('profile-submit-btn').textContent = 'Update profile';
+        document.getElementById('profile-cancel-btn').style.display = '';
+        document.getElementById('profile-form').scrollIntoView({behavior: 'smooth', block: 'center'});
+    }
+
+    function cancelProfileEdit() {
+        document.getElementById('profile-form').reset();
+        document.getElementById('profile-id-field').value = '';
+        document.getElementById('profile-form-title').textContent = 'Who the outreach is coming from';
+        document.getElementById('profile-submit-btn').textContent = 'Save sender profile';
+        document.getElementById('profile-cancel-btn').style.display = 'none';
+    }
+</script>
 {% endblock %}

@@ -1985,6 +1985,74 @@ def create_app() -> Flask:
             return redirect(url_for("export_page"))
         return send_file(str(filepath), as_attachment=True)
 
+    def _write_csv_export(prefix: str, header: list, rows: list) -> dict:
+        """Write a CSV to the workspace output dir; return the JSON download payload."""
+        import csv
+        output_dir = _workspace_output_dir()
+        filename = f"{prefix}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.csv"
+        with open(output_dir / filename, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(header)
+            writer.writerows(rows)
+        return {"success": True, "filename": filename,
+                "download_url": url_for("download_export", filename=filename)}
+
+    @app.route("/export/tracking", methods=["POST"])
+    @login_required
+    def export_tracking():
+        """A clean outreach tracking sheet (one row per draft) for advisors/handoff."""
+        conn = _workspace_conn()
+        try:
+            drafts = get_drafts(conn)
+            pmap = get_professors_by_ids(conn, {d.professor_id for d in drafts})
+            rows = []
+            for d in drafts:
+                p = pmap.get(d.professor_id)
+                subj = d.subject_lines_list[0] if d.subject_lines_list else ""
+                rows.append([
+                    p.name if p else "?", p.university if p else "", p.email if p else "",
+                    p.field if p else "", subj, round(d.overall_score, 1), d.status,
+                    d.outcome or "awaiting", d.replied_at or "", d.created_at,
+                ])
+            payload = _write_csv_export(
+                "outreach_tracking",
+                ["professor", "university", "email", "field", "subject", "score",
+                 "status", "reply_outcome", "replied_at", "created_at"],
+                rows,
+            )
+            _log_activity("export_tracking", category="export", details={"rows": len(rows)})
+            return jsonify(payload)
+        except Exception as exc:
+            return jsonify({"success": False, "error": str(exc)}), 500
+        finally:
+            conn.close()
+
+    @app.route("/export/activity", methods=["POST"])
+    @login_required
+    def export_activity():
+        """A shareable record of what changed in this workspace and when."""
+        conn = _workspace_conn()
+        try:
+            wid = conn.workspace_id
+            log_rows = conn.execute(
+                "SELECT timestamp, action, entity_type, entity_id, details "
+                "FROM audit_log WHERE workspace_id = ? ORDER BY id DESC LIMIT 2000",
+                (wid,),
+            ).fetchall()
+            rows = [[r["timestamp"], r["action"], r["entity_type"], r["entity_id"], r["details"]]
+                    for r in log_rows]
+            payload = _write_csv_export(
+                "activity_log",
+                ["timestamp", "action", "entity_type", "entity_id", "details"],
+                rows,
+            )
+            _log_activity("export_activity", category="export", details={"rows": len(rows)})
+            return jsonify(payload)
+        except Exception as exc:
+            return jsonify({"success": False, "error": str(exc)}), 500
+        finally:
+            conn.close()
+
     # ------------------------------------------------------------------
     # Settings
     # ------------------------------------------------------------------
@@ -2299,6 +2367,17 @@ def create_app() -> Flask:
                 flash("Name, school, grade, and email are required for a sender profile.", "error")
                 return redirect(url_for("settings_page"))
 
+            edit_id = request.form.get("profile_id", type=int)
+            if edit_id:
+                from app.database import update_sender_profile
+                changed = update_sender_profile(conn, edit_id, profile)
+                _log_activity("sender_profile_update", category="settings",
+                              target_type="sender_profile", target_id=str(edit_id),
+                              details={"email": profile.email})
+                flash("Sender profile updated." if changed else "Profile not found.",
+                      "success" if changed else "warning")
+                return redirect(url_for("settings_page"))
+
             profile_id = insert_sender_profile(conn, profile)
             _log_activity(
                 "sender_profile_create",
@@ -2310,10 +2389,32 @@ def create_app() -> Flask:
             flash("Sender profile saved to this workspace.", "success")
             return redirect(url_for("settings_page"))
         except Exception as exc:
-            flash(f"Failed to create sender profile: {exc}", "error")
+            flash(f"Failed to save sender profile: {exc}", "error")
             return redirect(url_for("settings_page"))
         finally:
             conn.close()
+
+    @app.route("/settings/profiles/<int:profile_id>/delete", methods=["POST"])
+    @login_required
+    def delete_sender_profile_route(profile_id: int):
+        from app.database import delete_sender_profile
+        conn = _workspace_conn()
+        try:
+            result = delete_sender_profile(conn, profile_id)
+            if result == "deleted":
+                _log_activity("sender_profile_delete", category="settings",
+                              target_type="sender_profile", target_id=str(profile_id))
+                flash("Sender profile deleted.", "success")
+            elif result == "in_use":
+                flash("That profile is used by existing drafts or sessions, so it wasn't deleted. "
+                      "Delete those drafts first if you really want to remove it.", "warning")
+            else:
+                flash("Sender profile not found.", "warning")
+        except Exception as exc:
+            flash(f"Could not delete the profile: {exc}", "error")
+        finally:
+            conn.close()
+        return redirect(url_for("settings_page"))
 
     # ------------------------------------------------------------------
     # Professor Finder

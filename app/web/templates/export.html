@@ -37,22 +37,22 @@
                     <div class="panel-title">Activity log</div>
                 </div>
             </div>
-            <p>A shareable record of what changed in the workspace and when. This export is not wired yet, but the surface is reserved for it.</p>
+            <p>A shareable record of what changed in the workspace and when — saves, generations, sends, replies, and edits with timestamps.</p>
             <div class="hero-actions" style="margin-top:1rem;">
-                <button type="button" class="btn btn-outline" disabled>Coming soon</button>
+                <button type="button" class="btn btn-primary" onclick="triggerExport('/export/activity')">Export CSV</button>
             </div>
         </article>
 
         <article class="surface-panel animate-in animate-in-3">
             <div class="surface-panel-header">
                 <div>
-                    <div class="panel-kicker">Roadmap</div>
+                    <div class="panel-kicker">Available now</div>
                     <div class="panel-title">Tracking sheet</div>
                 </div>
             </div>
-            <p>A cleaner handoff sheet for outreach tracking outside the app, useful for advisors or shared review workflows.</p>
+            <p>A clean handoff sheet — one row per professor with subject, score, status, and reply outcome. Useful for advisors or shared review.</p>
             <div class="hero-actions" style="margin-top:1rem;">
-                <button type="button" class="btn btn-outline" disabled>Coming soon</button>
+                <button type="button" class="btn btn-primary" onclick="triggerExport('/export/tracking')">Export CSV</button>
             </div>
         </article>
     </section>
@@ -63,8 +63,8 @@
 
 {% block scripts %}
 <script>
-async function triggerExport() {
-    const res = await fetch('/export', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
+async function triggerExport(endpoint) {
+    const res = await fetch(endpoint || '/export', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
     const data = await res.json().catch(() => ({}));
     const el = document.getElementById('export-result');
     if (data.success) {

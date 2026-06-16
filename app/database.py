@@ -1431,6 +1431,61 @@ def get_sender_profile(conn: Any, id: int) -> Optional[SenderProfile]:
         raise
 
 
+def update_sender_profile(conn: Any, profile_id: int, profile: SenderProfile) -> bool:
+    """Update an existing sender profile in the active workspace. Returns True if a
+    row was changed."""
+    try:
+        cur = conn.execute(
+            """UPDATE sender_profiles SET
+                   name = ?, school = ?, grade = ?, email = ?, interests = ?,
+                   background = ?, graduation_year = ?, awards = ?, skills = ?,
+                   goal = ?, age = ?
+               WHERE id = ? AND workspace_id = ?""",
+            (profile.name, profile.school, profile.grade, profile.email, profile.interests,
+             profile.background, profile.graduation_year, profile.awards, profile.skills,
+             profile.goal, profile.age, int(profile_id), _ws(conn)),
+        )
+        conn.commit()
+        return bool(getattr(cur, "rowcount", 0))
+    except sqlite3.Error as exc:
+        logger.error("update_sender_profile failed for id=%s: %s", profile_id, exc)
+        conn.rollback()
+        raise
+
+
+def delete_sender_profile(conn: Any, profile_id: int) -> str:
+    """Delete a sender profile if nothing references it.
+
+    Returns ``"deleted"``, ``"in_use"`` (referenced by drafts/sessions/follow-ups,
+    so kept), or ``"not_found"``.
+    """
+    ws = _ws(conn)
+    pid = int(profile_id)
+    try:
+        if not conn.execute(
+            "SELECT 1 FROM sender_profiles WHERE id = ? AND workspace_id = ?", (pid, ws)
+        ).fetchone():
+            return "not_found"
+        used = 0
+        for table in ("drafts", "sessions", "followups"):
+            try:
+                row = conn.execute(
+                    f"SELECT COUNT(*) AS c FROM {table} WHERE workspace_id = ? AND sender_profile_id = ?",
+                    (ws, pid),
+                ).fetchone()
+                used += int(row["c"]) if row else 0
+            except sqlite3.Error:
+                pass
+        if used:
+            return "in_use"
+        conn.execute("DELETE FROM sender_profiles WHERE id = ? AND workspace_id = ?", (pid, ws))
+        conn.commit()
+        return "deleted"
+    except sqlite3.Error as exc:
+        logger.error("delete_sender_profile failed for id=%s: %s", pid, exc)
+        raise
+
+
 # ---------------------------------------------------------------------------
 # FollowUp
 # ---------------------------------------------------------------------------

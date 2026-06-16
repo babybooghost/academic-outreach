@@ -142,8 +142,28 @@
                         <div class="panel-kicker">Email body</div>
                         <div class="panel-title">Draft text</div>
                     </div>
+                    {% if draft.status != 'sent' %}
+                    <button type="button" class="btn btn-outline btn-sm" id="edit-toggle" onclick="toggleDraftEdit()">Edit</button>
+                    {% endif %}
                 </div>
-                <div class="email-preview">{{ draft.body }}</div>
+                <div id="draft-view" class="email-preview">{{ draft.body }}</div>
+                {% if draft.status != 'sent' %}
+                <div id="draft-edit" style="display:none;">
+                    <div class="form-group">
+                        <label for="edit-subject">Subject</label>
+                        <input type="text" id="edit-subject" value="{{ draft.subject_lines_list[0] if draft.subject_lines_list else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-body">Body</label>
+                        <textarea id="edit-body" rows="16" style="resize:vertical; width:100%;">{{ draft.body }}</textarea>
+                    </div>
+                    <div class="hero-actions">
+                        <button type="button" class="btn btn-primary btn-sm" onclick="saveDraftEdits({{ draft.id }})">Save edits</button>
+                        <button type="button" class="btn btn-outline btn-sm" onclick="toggleDraftEdit()">Cancel</button>
+                    </div>
+                    <p class="form-hint" style="margin-top:0.5rem;">Editing marks the draft as <strong>edited</strong>. Personalize it — a specific sentence about their work goes a long way.</p>
+                </div>
+                {% endif %}
             </article>
 
             {% if draft.similarity_score is not none %}
@@ -177,6 +197,35 @@ async function setOutcome(id, outcome) {
         else alert(data.error || `Could not update (HTTP ${res.status})`);
     } catch (e) {
         alert('Could not update: ' + e.message);
+    }
+}
+
+function toggleDraftEdit() {
+    const view = document.getElementById('draft-view');
+    const edit = document.getElementById('draft-edit');
+    const showing = edit.style.display === 'none';
+    edit.style.display = showing ? 'block' : 'none';
+    view.style.display = showing ? 'none' : 'block';
+}
+
+async function saveDraftEdits(id) {
+    const body = document.getElementById('edit-body').value;
+    const subject = document.getElementById('edit-subject').value;
+    if (!body.trim()) { showToast('The body can’t be empty', 'error'); return; }
+    try {
+        const res = await fetch(`/drafts/${id}/edit`, {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({body: body, subject: subject}),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.success) {
+            showToast('Draft saved');
+            setTimeout(() => location.reload(), 600);
+        } else {
+            showToast(data.error || `Could not save (HTTP ${res.status})`, 'error');
+        }
+    } catch (e) {
+        showToast('Could not save: ' + e.message, 'error');
     }
 }
 
