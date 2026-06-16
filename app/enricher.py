@@ -13,7 +13,7 @@ import sqlite3
 import time
 import urllib.robotparser
 from typing import Optional
-from urllib.parse import urljoin, urlparse
+from urllib.parse import parse_qs, unquote, urljoin, urlparse
 
 import requests
 from bs4 import BeautifulSoup
@@ -241,19 +241,77 @@ def extract_email_from_html(
     return _best_email_from_candidates(candidates, name, university)
 
 
+def _search_faculty_page(name: str, university: str, timeout: int = _REQUEST_TIMEOUT) -> Optional[str]:
+    """Best-effort: find a professor's faculty/lab page via a keyless web search
+    (DuckDuckGo HTML). Returns the most plausible URL, or None. Used only when no
+    profile URL is known, so the email scraper has somewhere to look.
+    """
+    name = (name or "").strip()
+    if not name:
+        return None
+    query = " ".join(p for p in [name, university, "faculty"] if p).strip()
+    # DuckDuckGo's HTML endpoint serves bot UAs an empty page; use a browser UA
+    # for the search query only (the faculty page itself is fetched politely).
+    browser_ua = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+                  "(KHTML, like Gecko) Chrome/120.0 Safari/537.36")
+    try:
+        resp = requests.post(
+            "https://html.duckduckgo.com/html/", data={"q": query},
+            headers={"User-Agent": browser_ua}, timeout=timeout,
+        )
+        resp.raise_for_status()
+    except requests.exceptions.RequestException:
+        return None
+
+    tokens = _name_tokens(name)
+    best_url, best_score = None, 0
+    soup = BeautifulSoup(resp.text, "html.parser")
+    for a in soup.select("a.result__a")[:10]:
+        href = a.get("href") or ""
+        # DDG wraps results in a redirect: /l/?uddg=<urlencoded target>
+        if "uddg=" in href:
+            try:
+                href = unquote(parse_qs(urlparse(href).query).get("uddg", [""])[0])
+            except Exception:
+                continue
+        if not href.startswith("http"):
+            continue
+        low = (href + " " + a.get_text(" ")).lower()
+        score = 0
+        host = urlparse(href).netloc.lower()
+        if host.endswith(".edu") or ".edu." in host or ".ac." in host:
+            score += 4
+        if any(h in low for h in _CONTACT_HINTS):
+            score += 2
+        score += sum(1 for t in tokens if t in low)
+        if score > best_score:
+            best_url, best_score = href, score
+    # Require a minimal match so we don't scrape an unrelated page.
+    return best_url if best_score >= 3 else None
+
+
 def find_professor_email(
     profile_url: str,
     name: str = "",
     university: str = "",
     timeout: int = _REQUEST_TIMEOUT,
+    allow_search: bool = False,
 ) -> Optional[str]:
     """Fetch a faculty/profile page and extract a published email, best-effort.
 
-    Returns None on any network/parse failure or when no plausible address is
-    found, so callers can fall back to manual entry.
+    When ``allow_search`` is set and no usable profile URL is given (or it yields
+    nothing), fall back to finding the professor's page via a web search and
+    scraping that. Returns None on any failure, so callers can prompt for manual
+    entry. Never guesses an address.
     """
     url = (profile_url or "").strip()
     if not url or url.split("#", 1)[0] in ("", "http://", "https://"):
+        if allow_search:
+            searched = _search_faculty_page(name, university, timeout=timeout)
+            if searched:
+                found = find_professor_email(searched, name, university, timeout=timeout)
+                if found:
+                    return found
         return None
 
     # arXiv: the email lives in the PDF header, not the HTML abstract page.
@@ -283,9 +341,19 @@ def find_professor_email(
         try:
             r2 = requests.get(follow, headers={"User-Agent": _DEFAULT_USER_AGENT}, timeout=timeout)
             r2.raise_for_status()
-            return extract_email_from_html(r2.text, name=name, university=university)
+            follow_email = extract_email_from_html(r2.text, name=name, university=university)
+            if follow_email:
+                return follow_email
         except requests.exceptions.RequestException:
-            return None
+            pass
+
+    # The page we were given had nothing useful — optionally search for a better one.
+    if allow_search:
+        searched = _search_faculty_page(name, university, timeout=timeout)
+        if searched and searched != url:
+            found = find_professor_email(searched, name, university, timeout=timeout)
+            if found:
+                return found
     return None
 
 

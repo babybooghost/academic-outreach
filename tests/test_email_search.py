@@ -60,6 +60,36 @@ class EmailSearchTests(unittest.TestCase):
         self.assertEqual(p.status, "new")
         self.assertEqual(p.profile_url, "https://lab.mit.edu/people")  # remembered
 
+    def test_find_email_web_search_fallback(self):
+        # No URL anywhere -> the route searches the web for the page, then scrapes it.
+        pid = upsert_professor(self.ws, Professor(name="Dr. Web", email="", university="MIT",
+                                                  field="ML", status="needs_email"))
+        c = self._client()
+        with mock.patch("app.enricher._search_faculty_page", return_value="https://mit.edu/~web") as s, \
+             mock.patch("app.enricher.find_professor_email", wraps=__import__("app.enricher", fromlist=["find_professor_email"]).find_professor_email) as _, \
+             mock.patch("app.enricher.extract_email_from_html", return_value="web@mit.edu"), \
+             mock.patch("app.enricher._is_allowed_by_robots", return_value=True), \
+             mock.patch("app.enricher.requests.get") as g:
+            g.return_value = mock.Mock(status_code=200, text="<html>web@mit.edu</html>", raise_for_status=lambda: None)
+            r = c.post(f"/professors/{pid}/find-email", json={})
+        data = r.get_json()
+        self.assertTrue(data["success"], data)
+        self.assertEqual(data["email"], "web@mit.edu")
+        s.assert_called()  # the web-search fallback ran
+
+    def test_search_faculty_page_scores_edu(self):
+        # _search_faculty_page picks an .edu page that matches the name.
+        from app import enricher
+        html = (
+            '<a class="result__a" href="https://example.com/blog">Some blog about AI</a>'
+            '<a class="result__a" href="/l/?uddg=https%3A%2F%2Fcs.mit.edu%2Fpeople%2Fjane-smith">'
+            'Jane Smith — MIT CS Faculty</a>'
+        )
+        with mock.patch("app.enricher.requests.post") as p:
+            p.return_value = mock.Mock(status_code=200, text=html, raise_for_status=lambda: None)
+            url = enricher._search_faculty_page("Jane Smith", "MIT")
+        self.assertEqual(url, "https://cs.mit.edu/people/jane-smith")
+
     def test_migration_clears_legacy_placeholder_emails(self):
         from app.database import _migrate_schema
         pid = upsert_professor(self.ws, Professor(name="Dr. Z", email="", university="MIT", field="ML"))
@@ -69,8 +99,19 @@ class EmailSearchTests(unittest.TestCase):
         _migrate_schema(self.ws)
         self.assertEqual(get_professor(self.ws, pid).email, "")
 
-    def test_find_email_no_url_no_profile(self):
+    def test_find_email_search_finds_nothing_is_graceful(self):
+        # Named professor, no URL: route searches; when nothing turns up it
+        # returns a clean message (and makes no real network call here).
         pid = upsert_professor(self.ws, Professor(name="Dr. Y", email="", university="MIT", field="ML", status="needs_email"))
+        c = self._client()
+        with mock.patch("app.enricher._search_faculty_page", return_value=None):
+            r = c.post(f"/professors/{pid}/find-email", json={})
+        data = r.get_json()
+        self.assertFalse(data["success"])
+        self.assertIn("manually", data["error"].lower())
+
+    def test_find_email_no_url_no_name_asks_for_url(self):
+        pid = upsert_professor(self.ws, Professor(name="", email="", university="MIT", field="ML", status="needs_email"))
         c = self._client()
         r = c.post(f"/professors/{pid}/find-email", json={})
         data = r.get_json()

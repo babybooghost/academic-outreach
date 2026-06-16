@@ -1254,12 +1254,14 @@ def create_app() -> Flask:
             if prof is None:
                 return jsonify({"success": False, "error": "Professor not found."}), 404
             url = search_url or (prof.profile_url or "")
-            if not url:
+            # With no URL, fall back to searching the web for the professor's page
+            # (needs at least a name). The scrape still only reads published pages.
+            if not url and not (prof.name or "").strip():
                 return jsonify({
                     "success": False,
                     "error": "Paste the professor's faculty/lab page URL to search it, or enter the email manually.",
                 })
-            found = find_professor_email(url, prof.name, prof.university or "")
+            found = find_professor_email(url, prof.name, prof.university or "", allow_search=True)
             if not found:
                 _log_activity("professor_find_email", category="finder",
                               target_type="professor", target_id=str(prof_id),

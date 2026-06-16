@@ -50,10 +50,8 @@
                         <strong>Email</strong>
                         <span class="badge badge-needs_email">needs email</span>
                         <div id="email-tools" style="margin-top:0.6rem; display:flex; flex-direction:column; gap:0.5rem;">
-                            {% if professor.profile_url %}
                             <button type="button" class="btn btn-outline btn-sm" id="find-email-btn"
-                                    onclick="findEmail({{ professor.id }})">Look up email from profile page</button>
-                            {% endif %}
+                                    onclick="findEmail({{ professor.id }})">Find email automatically</button>
                             <form onsubmit="return findEmailFromUrl(event, {{ professor.id }})" style="display:flex; gap:0.4rem;">
                                 <input type="url" id="search-url" placeholder="Paste a faculty / lab / directory URL to search"
                                        style="flex:1;">
@@ -278,7 +276,7 @@ function _emailFeedback(msg, ok) {
 function findEmail(profId) {
     const btn = document.getElementById('find-email-btn');
     if (btn) { btn.disabled = true; btn.textContent = 'Looking up…'; }
-    _emailFeedback('Searching the profile page…', true);
+    _emailFeedback('Searching for a published email…', true);
     fetch('/professors/' + profId + '/find-email', { method: 'POST' })
         .then(r => r.json())
         .then(data => {
@@ -287,12 +285,12 @@ function findEmail(profId) {
                 setTimeout(() => window.location.reload(), 700);
             } else {
                 _emailFeedback(data.error || 'No email found.', false);
-                if (btn) { btn.disabled = false; btn.textContent = 'Look up email from profile page'; }
+                if (btn) { btn.disabled = false; btn.textContent = 'Find email automatically'; }
             }
         })
         .catch(() => {
             _emailFeedback('Lookup failed. Try entering the email manually.', false);
-            if (btn) { btn.disabled = false; btn.textContent = 'Look up email from profile page'; }
+            if (btn) { btn.disabled = false; btn.textContent = 'Find email automatically'; }
         });
 }
 
