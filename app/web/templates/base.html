@@ -281,7 +281,19 @@
     });
 
     function showToast(message, type = 'success', duration = 3000) {
-        return;
+        try {
+            const toast = document.createElement('div');
+            toast.className = 'toast toast-' + (type === 'error' ? 'error' : 'success');
+            toast.setAttribute('role', 'status');
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => {
+                toast.classList.add('toast-hide');
+                setTimeout(() => toast.remove(), 350);
+            }, duration);
+        } catch (e) {
+            /* never let a toast failure break the calling flow */
+        }
     }
 
     function copyToClipboard(text) {
