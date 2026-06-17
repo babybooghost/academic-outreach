@@ -119,7 +119,11 @@
                         <td>{{ prof.field }}</td>
                         <td><span class="badge badge-{{ prof.status }}">{{ prof.status }}</span></td>
                         {% if (not prof.email) or prof.email.endswith('.placeholder') %}
-                        <td><span class="badge badge-needs_email">needs email</span></td>
+                        <td onclick="event.stopPropagation()">
+                            <span class="badge badge-needs_email">needs email</span>
+                            <button type="button" class="btn btn-outline btn-sm" style="margin-left:0.4rem;"
+                                    onclick="findFacultyEmail({{ prof.id }}, this)">Find</button>
+                        </td>
                         {% else %}
                         <td>{{ prof.email }}</td>
                         {% endif %}
@@ -142,6 +146,24 @@
 <script>
     function toggleAllProfs(master) {
         document.querySelectorAll('.prof-check').forEach(cb => { cb.checked = master.checked; });
+    }
+    function findFacultyEmail(profId, btn) {
+        btn.disabled = true;
+        btn.textContent = 'Searching…';
+        fetch('/professors/' + profId + '/find-email', {
+            method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.reload();
+                } else {
+                    btn.disabled = false;
+                    btn.textContent = 'Find';
+                    alert(data.error || 'No published email found. Open the file to search a specific page or enter it manually.');
+                }
+            })
+            .catch(() => { btn.disabled = false; btn.textContent = 'Find'; });
     }
     function confirmBulkRemove(event) {
         const n = document.querySelectorAll('.prof-check:checked').length;
