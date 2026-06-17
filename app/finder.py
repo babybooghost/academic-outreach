@@ -77,6 +77,22 @@ def _get_with_retry(
     return resp  # type: ignore[return-value]
 
 
+def _visible_warnings(warnings: list[str], has_results: bool) -> list[str]:
+    """Decide which warnings are worth showing the user.
+
+    Transient source hiccups (a source rate-limiting or briefly unreachable, all
+    of which say "the other sources still ran") aren't actionable when the search
+    still returned results — they're just noise. Drop them in that case; keep
+    them when nothing was found, so an empty result is explained. Substantive
+    warnings (e.g. "couldn't resolve that university") are always kept. Duplicates
+    are collapsed, order preserved.
+    """
+    deduped = list(dict.fromkeys(warnings))
+    if has_results:
+        return [w for w in deduped if "the other sources still ran" not in w]
+    return deduped
+
+
 def _friendly_source_error(source: str, exc: Exception) -> str:
     """A human-readable, non-leaky warning when one source fails.
 
@@ -1130,11 +1146,7 @@ def find_professors(
         return int(m.group(1)) if m else 0
     unique.sort(key=_cit, reverse=True)
 
-    # Collapse duplicate warnings (e.g. two OpenAlex sub-calls failing the same
-    # way) while preserving order.
-    warnings = list(dict.fromkeys(warnings))
-
-    return unique[:max_scholar_results], warnings
+    return unique[:max_scholar_results], _visible_warnings(warnings, bool(unique))
 
 
 # ---------------------------------------------------------------------------
