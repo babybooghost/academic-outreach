@@ -2434,12 +2434,16 @@ tbody tr:hover td {
         display: none;
     }
 
+    /* Keep the floating assistant reachable on phones (it's a fixed FAB now,
+       not part of the hidden footer). Tuck it a little tighter to the corner. */
     .chat-widget {
-        display: none;
+        right: 1rem;
+        bottom: 1rem;
     }
 
     .chat-panel {
         width: min(92vw, 380px);
+        max-height: min(70vh, 560px);
     }
 }
 
