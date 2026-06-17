@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Optional
@@ -110,7 +111,13 @@ def run_generation_pipeline(
         summary = GenerationSummary(session_id=session_id)
         summary.remaining = remaining
 
-        for prof in professors:
+        # Per-professor prep is network-bound (summarize + LLM-written body), so
+        # do it in parallel; the DB writes stay serial on the single connection.
+        def _prepare(prof: Professor):
+            """LLM/CPU-only prep for one professor — no DB access (thread-safe).
+
+            Returns ("ok", prof, draft, None) / ("skip"|"fail", prof, None, msg).
+            """
             source_text = " ".join(
                 part.strip()
                 for part in (
@@ -121,38 +128,45 @@ def run_generation_pipeline(
                 if part and part.strip()
             )
             if not source_text and not (prof.summary and prof.summary.strip()):
-                summary.skipped += 1
-                summary.warnings.append(
-                    f"{prof.name}: missing research context, so no draft was created."
-                )
-                continue
-
+                return ("skip", prof, None,
+                        f"{prof.name}: missing research context, so no draft was created.")
             try:
                 if not prof.summary or not prof.keywords_list:
                     summarize_professor(prof, config)
-
                 if not prof.summary and not prof.keywords_list:
-                    summary.skipped += 1
-                    summary.warnings.append(
-                        f"{prof.name}: summarization did not produce usable material."
-                    )
-                    continue
-
+                    return ("skip", prof, None,
+                            f"{prof.name}: summarization did not produce usable material.")
                 personalize_professor(prof, sender, config)
-                update_professor(conn, prof)
-
                 draft = render_email(
-                    prof=prof,
-                    sender=sender,
-                    config=config,
-                    session_id=session_id,
-                    variant=variant,
+                    prof=prof, sender=sender, config=config,
+                    session_id=session_id, variant=variant,
                 )
-                insert_draft(conn, draft)
-                summary.created += 1
-            except Exception as exc:  # pragma: no cover - exercised in web tests via route
+                return ("ok", prof, draft, None)
+            except Exception as exc:
+                return ("fail", prof, None, f"{prof.name}: {exc}")
+
+        if len(professors) == 1:
+            results = [_prepare(professors[0])]
+        else:
+            with ThreadPoolExecutor(max_workers=min(6, len(professors))) as pool:
+                results = list(pool.map(_prepare, professors))
+
+        # Apply DB writes serially (the connection is not thread-safe).
+        for kind, prof, draft, msg in results:
+            if kind == "ok":
+                try:
+                    update_professor(conn, prof)
+                    insert_draft(conn, draft)
+                    summary.created += 1
+                except Exception as exc:  # pragma: no cover
+                    summary.failed += 1
+                    summary.warnings.append(f"{prof.name}: {exc}")
+            elif kind == "skip":
+                summary.skipped += 1
+                summary.warnings.append(msg)
+            else:
                 summary.failed += 1
-                summary.warnings.append(f"{prof.name}: {exc}")
+                summary.warnings.append(msg)
 
     finally:
         conn.close()
