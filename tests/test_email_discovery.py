@@ -61,6 +61,14 @@ class EmailExtractionTests(unittest.TestCase):
             extract_email_from_html(html, "Alan Turing", "Some College")
         )
 
+    def test_rejects_generic_edu_without_name_match(self) -> None:
+        # A bare department/generic .edu address that doesn't match the professor's
+        # name must NOT be returned (cold outreach: wrong address is worse than none).
+        html = "<p>Questions? Email info@stanford.edu or admin@stanford.edu</p>"
+        self.assertIsNone(
+            extract_email_from_html(html, "John Smith", "Stanford University")
+        )
+
     def test_ignores_image_false_positive(self) -> None:
         self.assertIsNone(extract_email_from_html('<img src="logo@2x.png">', "X Y", "Z"))
 

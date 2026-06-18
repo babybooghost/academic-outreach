@@ -92,8 +92,7 @@ class EmailSearchTests(unittest.TestCase):
         pid = upsert_professor(self.ws, Professor(name="Dr. Web", email="", university="MIT",
                                                   field="ML", status="needs_email"))
         c = self._client()
-        with mock.patch("app.enricher._search_faculty_page", return_value="https://mit.edu/~web") as s, \
-             mock.patch("app.enricher.find_professor_email", wraps=__import__("app.enricher", fromlist=["find_professor_email"]).find_professor_email) as _, \
+        with mock.patch("app.enricher._search_faculty_pages", return_value=["https://mit.edu/~web"]) as s, \
              mock.patch("app.enricher.extract_email_from_html", return_value="web@mit.edu"), \
              mock.patch("app.enricher._is_allowed_by_robots", return_value=True), \
              mock.patch("app.enricher.requests.get") as g:
@@ -103,6 +102,17 @@ class EmailSearchTests(unittest.TestCase):
         self.assertTrue(data["success"], data)
         self.assertEqual(data["email"], "web@mit.edu")
         s.assert_called()  # the web-search fallback ran
+
+    def test_multi_page_tries_later_candidate(self):
+        # The first search result has no email; the lookup moves on to the next.
+        from app import enricher
+        with mock.patch("app.enricher._search_faculty_pages",
+                        return_value=["https://a.edu/x", "https://b.edu/y"]), \
+             mock.patch("app.enricher._scrape_page_for_email",
+                        side_effect=[None, "jdoe@b.edu"]) as scr:
+            out = enricher.find_professor_email("", "Jane Doe", "B University", allow_search=True)
+        self.assertEqual(out, "jdoe@b.edu")
+        self.assertEqual(scr.call_count, 2)  # tried both, not just the first
 
     def test_search_faculty_page_scores_edu(self):
         # _search_faculty_page picks an .edu page that matches the name.

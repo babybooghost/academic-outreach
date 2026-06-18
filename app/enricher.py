@@ -160,9 +160,23 @@ def _best_email_from_candidates(
     if not valid:
         return None
     best = max(valid, key=lambda e: _score_email_candidate(e, name, university))
-    # Require a weak signal (.edu domain or a name match) before trusting it.
     if _score_email_candidate(best, name, university) <= 0:
         return None
+    # When the professor's name is known, require the address to actually match it
+    # (last name, first name, or first-initial+last). This is cold outreach, so a
+    # generic/department/co-author address is worse than returning nothing and
+    # asking for manual entry.
+    tokens = _name_tokens(name)
+    if tokens:
+        local = best.partition("@")[0]
+        last, first = tokens[-1], tokens[0]
+        matches = (
+            (len(last) >= 3 and last in local)
+            or (len(first) >= 3 and first in local)
+            or (first and last and (first[0] + last) in local)
+        )
+        if not matches:
+            return None
     return best
 
 
@@ -241,14 +255,16 @@ def extract_email_from_html(
     return _best_email_from_candidates(candidates, name, university)
 
 
-def _search_faculty_page(name: str, university: str, timeout: int = _REQUEST_TIMEOUT) -> Optional[str]:
-    """Best-effort: find a professor's faculty/lab page via a keyless web search
-    (DuckDuckGo HTML). Returns the most plausible URL, or None. Used only when no
-    profile URL is known, so the email scraper has somewhere to look.
+def _search_faculty_pages(
+    name: str, university: str, timeout: int = _REQUEST_TIMEOUT, limit: int = 4
+) -> list[str]:
+    """Best-effort: return up to ``limit`` plausible faculty/lab page URLs (best
+    first) for a name + institution, via a keyless DuckDuckGo HTML search. The
+    caller scrapes each in turn, so one bad top result doesn't sink the lookup.
     """
     name = (name or "").strip()
     if not name:
-        return None
+        return []
     query = " ".join(p for p in [name, university, "faculty"] if p).strip()
     # DuckDuckGo's HTML endpoint serves bot UAs an empty page; use a browser UA
     # for the search query only (the faculty page itself is fetched politely).
@@ -261,12 +277,13 @@ def _search_faculty_page(name: str, university: str, timeout: int = _REQUEST_TIM
         )
         resp.raise_for_status()
     except requests.exceptions.RequestException:
-        return None
+        return []
 
     tokens = _name_tokens(name)
-    best_url, best_score = None, 0
+    scored: list[tuple[int, str]] = []
+    seen: set[str] = set()
     soup = BeautifulSoup(resp.text, "html.parser")
-    for a in soup.select("a.result__a")[:10]:
+    for a in soup.select("a.result__a")[:12]:
         href = a.get("href") or ""
         # DDG wraps results in a redirect: /l/?uddg=<urlencoded target>
         if "uddg=" in href:
@@ -274,8 +291,9 @@ def _search_faculty_page(name: str, university: str, timeout: int = _REQUEST_TIM
                 href = unquote(parse_qs(urlparse(href).query).get("uddg", [""])[0])
             except Exception:
                 continue
-        if not href.startswith("http"):
+        if not href.startswith("http") or href in seen:
             continue
+        seen.add(href)
         low = (href + " " + a.get_text(" ")).lower()
         score = 0
         host = urlparse(href).netloc.lower()
@@ -284,48 +302,32 @@ def _search_faculty_page(name: str, university: str, timeout: int = _REQUEST_TIM
         if any(h in low for h in _CONTACT_HINTS):
             score += 2
         score += sum(1 for t in tokens if t in low)
-        if score > best_score:
-            best_url, best_score = href, score
-    # Require a minimal match so we don't scrape an unrelated page.
-    return best_url if best_score >= 3 else None
+        if score >= 2:  # plausibly related; the email scrape is the real filter
+            scored.append((score, href))
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [u for _, u in scored[:limit]]
 
 
-def find_professor_email(
-    profile_url: str,
-    name: str = "",
-    university: str = "",
-    timeout: int = _REQUEST_TIMEOUT,
-    allow_search: bool = False,
+def _search_faculty_page(name: str, university: str, timeout: int = _REQUEST_TIMEOUT) -> Optional[str]:
+    """Single best faculty-page URL (thin wrapper over _search_faculty_pages)."""
+    pages = _search_faculty_pages(name, university, timeout=timeout, limit=1)
+    return pages[0] if pages else None
+
+
+def _scrape_page_for_email(
+    url: str, name: str = "", university: str = "", timeout: int = _REQUEST_TIMEOUT
 ) -> Optional[str]:
-    """Fetch a faculty/profile page and extract a published email, best-effort.
-
-    When ``allow_search`` is set and no usable profile URL is given (or it yields
-    nothing), fall back to finding the professor's page via a web search and
-    scraping that. Returns None on any failure, so callers can prompt for manual
-    entry. Never guesses an address.
-    """
-    url = (profile_url or "").strip()
+    """Scrape a single page (and one "Contact/People" hop) for a published email."""
+    url = (url or "").strip()
     if not url or url.split("#", 1)[0] in ("", "http://", "https://"):
-        if allow_search:
-            searched = _search_faculty_page(name, university, timeout=timeout)
-            if searched:
-                found = find_professor_email(searched, name, university, timeout=timeout)
-                if found:
-                    return found
         return None
-
     # arXiv: the email lives in the PDF header, not the HTML abstract page.
     if "arxiv.org" in url.lower():
         return extract_email_from_arxiv(url, name=name, university=university, timeout=timeout)
-
     if not _is_allowed_by_robots(url, _DEFAULT_USER_AGENT):
         return None
     try:
-        resp = requests.get(
-            url,
-            headers={"User-Agent": _DEFAULT_USER_AGENT},
-            timeout=timeout,
-        )
+        resp = requests.get(url, headers={"User-Agent": _DEFAULT_USER_AGENT}, timeout=timeout)
         resp.raise_for_status()
     except requests.exceptions.RequestException:
         return None
@@ -341,19 +343,39 @@ def find_professor_email(
         try:
             r2 = requests.get(follow, headers={"User-Agent": _DEFAULT_USER_AGENT}, timeout=timeout)
             r2.raise_for_status()
-            follow_email = extract_email_from_html(r2.text, name=name, university=university)
-            if follow_email:
-                return follow_email
+            return extract_email_from_html(r2.text, name=name, university=university)
         except requests.exceptions.RequestException:
-            pass
+            return None
+    return None
 
-    # The page we were given had nothing useful — optionally search for a better one.
+
+def find_professor_email(
+    profile_url: str,
+    name: str = "",
+    university: str = "",
+    timeout: int = _REQUEST_TIMEOUT,
+    allow_search: bool = False,
+) -> Optional[str]:
+    """Find a published email, best-effort. Never guesses an address.
+
+    Scrapes the given profile URL first. When ``allow_search`` is set, it also
+    web-searches for the professor's page and tries the top few candidates (one
+    bad result no longer sinks the lookup). Returns None on any failure so the
+    caller can prompt for manual entry.
+    """
+    url = (profile_url or "").strip()
+    if url and url.split("#", 1)[0] not in ("", "http://", "https://"):
+        email = _scrape_page_for_email(url, name, university, timeout)
+        if email:
+            return email
+
     if allow_search:
-        searched = _search_faculty_page(name, university, timeout=timeout)
-        if searched and searched != url:
-            found = find_professor_email(searched, name, university, timeout=timeout)
-            if found:
-                return found
+        for page in _search_faculty_pages(name, university, timeout=timeout, limit=4):
+            if page == url:
+                continue
+            email = _scrape_page_for_email(page, name, university, timeout)
+            if email:
+                return email
     return None
 
 
