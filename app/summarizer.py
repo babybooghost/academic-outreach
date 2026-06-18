@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import sqlite3
 from typing import Any, Optional, Protocol
 
@@ -376,26 +377,45 @@ def chat_openrouter(api_key: str, model: str, messages: list[dict[str, str]], ma
 _EMAIL_WRITER_SYSTEM = (
     "You help a student write a short, sincere cold email to a professor. Picture the "
     "reader: a busy professor whose inbox is full of generic \"I'm passionate about your "
-    "work, can I join your lab?\" emails that they delete. What earns a reply is genuine "
-    "specificity about THEIR actual research, humility, brevity, and one easy-to-say-yes-to "
-    "ask. Write the email the student would actually send.\n\n"
+    "work, can I join your lab?\" emails that they delete. What earns a reply is a warm, "
+    "honest introduction, genuine specificity about THEIR actual research, humility, and a "
+    "low-commitment way to get involved. Write the email the student would actually send.\n\n"
+    "Follow this shape (one short paragraph each):\n"
+    "1. Introduce yourself in a line (who you are, your stage) and say, plainly, how you came "
+    "across their work.\n"
+    "2. Give the specific, genuine reason for reaching out, grounded in BOTH the professor's "
+    "actual work and your own concrete experience or project.\n"
+    "3. One brief, humble line on what you could contribute, tying a real skill or experience "
+    "to being useful (\"I did the data work myself\" / \"I have a competitive-programming "
+    "background, so I'm comfortable with hands-on work\"), never a resume dump.\n"
+    "4. Ask for a low-commitment way to get involved with their group (a small technical task, "
+    "a reading direction, or an early entry point), offer a short conversation as an easier "
+    "option, and give a gracious fallback (a paper or topic you should study). Make every part "
+    "easy to say no to.\n\n"
     "Hard rules:\n"
     "- Ground it in the professor's SPECIFIC work using only the details provided. Never "
     "invent papers, results, quotes, or facts. If the details are thin, stay honest and a "
     "little general rather than fabricating specifics.\n"
     "- No flattery or superlatives (no \"groundbreaking\", \"world-renowned\", \"brilliant\", "
-    "\"honored\", \"fascinating\"). No gushing. Don't tell them their work is important — show "
+    "\"honored\", \"fascinating\"). No gushing. Don't tell them their work is important; show "
     "you understood a piece of it.\n"
-    "- Don't oversell the student. Mention a skill or award only if it's relevant to "
-    "contributing, and briefly — frame it as \"I could help with X,\" never a résumé dump.\n"
-    "- Exactly ONE concrete, low-commitment ask (a 15-minute conversation, a paper to read, "
-    "a small question, a minor task). Never \"I want to join your lab.\" Make it easy to say no.\n"
-    "- Plain, sincere, age-appropriate student voice. 110-170 words. No clichés like \"I am "
-    "writing to express my interest\". Avoid an over-polished AI cadence and heavy em-dashes.\n"
-    "- Acknowledge their time. Be warm but not eager.\n"
+    "- Be humble. Mention a skill or award only to support the offer to help, and briefly.\n"
+    "- NEVER use em dashes (the long dash). Use periods, commas, or parentheses instead. "
+    "Avoid an over-polished AI cadence and clichés like \"I am writing to express my interest\".\n"
+    "- Plain, sincere, age-appropriate student voice. 150-230 words. Acknowledge their time; "
+    "be warm but not eager.\n"
     "Output ONLY the email body, from the greeting through the sign-off and the student's "
     "name. No subject line, no preamble, no markdown, no notes."
 )
+
+
+def _strip_em_dashes(text: str) -> str:
+    """Remove em/en dashes from a draft (the user never wants them). Replaces a
+    dash used as a separator with a comma, and collapses any doubled punctuation."""
+    out = re.sub(r"\s*[—–]\s*", ", ", text)
+    out = re.sub(r",\s*,", ",", out)
+    out = re.sub(r"[ \t]{2,}", " ", out)
+    return out
 
 
 def write_outreach_email(api_key: str, model: str, prof: Any, sender: Any) -> str:
@@ -428,11 +448,12 @@ def write_outreach_email(api_key: str, model: str, prof: Any, sender: Any) -> st
                                     "Write the email body now."},
     ]
     try:
-        body = chat_openrouter(api_key, model, messages, max_tokens=500)
+        body = chat_openrouter(api_key, model, messages, max_tokens=600)
         # Guard against the model ignoring instructions and emitting a subject/preamble.
         cleaned = body.strip()
         if cleaned.lower().startswith("subject:"):
             cleaned = cleaned.split("\n", 1)[1].strip() if "\n" in cleaned else ""
+        cleaned = _strip_em_dashes(cleaned)
         return cleaned if len(cleaned.split()) >= 40 else ""
     except Exception as exc:
         logger.warning("write_outreach_email failed, falling back to template: %s", exc)

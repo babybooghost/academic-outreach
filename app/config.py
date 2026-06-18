@@ -77,18 +77,18 @@ DEFAULT_CONFIG_YAML: Dict[str, Any] = {
         ],
         "interest_connectors": [
             "I'm still early in my own learning, but {area} is what I've been trying to understand, and your work feels like a real example of why it matters.",
-            "I don't have a deep background yet — I'm a student teaching myself {area} — but problems like this are what got me interested in the first place.",
+            "I don't have a deep background yet. I'm a student teaching myself {area}, but problems like this are what got me interested in the first place.",
             "I'm just starting out with {area}, and your research is the kind of work that makes me want to dig in further.",
         ],
         "asks": [
-            "I'm not expecting a formal role. I'd just be grateful for any small way to engage — a question worth looking into, something to read, or a minor task I could try.",
-            "I know your time is limited, so even a small pointer — a paper to read or a tiny problem to attempt — would mean a lot.",
+            "I'm not expecting a formal role. I'd just be grateful for any small way to get involved, whether that's a question worth looking into, something to read, or a minor task I could try.",
+            "I know your time is limited, so even a small pointer, like a paper to read or a tiny problem to attempt, would mean a lot.",
             "If there were any low-stakes way to learn from your group, even just a suggestion of what to study next, I'd be genuinely grateful.",
         ],
         "fallbacks": [
-            "And if there isn't room for that right now, I completely understand — even one paper or topic you'd point me toward would be a real help.",
+            "And if there isn't room for that right now, I completely understand. Even one paper or topic you'd point me toward would be a real help.",
             "If now isn't a good time, no worries at all; any direction on what to learn next would still mean a lot.",
-            "Either way, thank you — even a quick note on where to start would be more than enough.",
+            "Either way, thank you. Even a quick note on where to start would be more than enough.",
         ],
         "signoffs": [
             "Thank you for taking the time to read this.",

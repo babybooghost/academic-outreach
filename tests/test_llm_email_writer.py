@@ -57,6 +57,20 @@ class LLMEmailWriterTests(unittest.TestCase):
         self.assertEqual(draft.template_variant, "concise")
         self.assertIn("Jordan HS", draft.body)
 
+    def test_no_em_dashes_in_any_template_variant(self):
+        # The user never wants em dashes in generated drafts (template path).
+        for variant in ("formal", "concise", "enthusiastic", "research_focused"):
+            body = render_email(self.prof, self.sender, self._cfg(provider=None),
+                                session_id=3, variant=variant).body
+            self.assertNotIn("—", body, variant)  # em dash
+            self.assertNotIn("–", body, variant)  # en dash
+
+    def test_strip_em_dashes_helper(self):
+        from app.summarizer import _strip_em_dashes
+        self.assertEqual(_strip_em_dashes("I build things — and I help."), "I build things, and I help.")
+        self.assertEqual(_strip_em_dashes("a—b"), "a, b")
+        self.assertNotIn("—", _strip_em_dashes("x — y — z"))
+
 
 if __name__ == "__main__":
     unittest.main()
